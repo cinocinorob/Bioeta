@@ -1,35 +1,37 @@
 package it.cinocinorob.bioeta.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -38,9 +40,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import it.cinocinorob.bioeta.AppViewModel
 import it.cinocinorob.bioeta.data.Analyte
 import it.cinocinorob.bioeta.data.Analytes
@@ -54,7 +60,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private fun displayName(key: String): String =
-    if (key == Analytes.EGFR) "eGFR (CKD-EPI 2021, calcolato)" else Analytes.get(key)?.name ?: key
+    if (key == Analytes.EGFR) "eGFR (CKD-EPI 2021)" else Analytes.get(key)?.name ?: key
 
 private fun displayUnit(key: String): String =
     if (key == Analytes.EGFR) "mL/min/1,73m²" else Analytes.get(key)?.unit ?: ""
@@ -62,69 +68,133 @@ private fun displayUnit(key: String): String =
 private fun displayDecimals(key: String): Int =
     if (key == Analytes.EGFR) 0 else Analytes.get(key)?.decimals ?: 1
 
+private fun groupOf(key: String): Group = if (key == Analytes.EGFR) Group.RENE else Analytes.get(key)?.group ?: Group.ALTRO
+
+fun groupTint(g: Group): Color = when (g) {
+    Group.PHENO -> Tint.bio
+    Group.EMOCROMO -> Tint.blood
+    Group.METABOLISMO -> Tint.activity
+    Group.LIPIDI -> Tint.heart
+    Group.FEGATO -> Tint.body
+    Group.RENE -> Tint.resp
+    Group.ALTRO -> Tint.blue
+}
+
 // =====================================================================
 // Elenco referti + andamenti
 // =====================================================================
 
 @Composable
-fun LabsScreen(vm: AppViewModel, modifier: Modifier, onEdit: (String) -> Unit, onAnalyte: (String) -> Unit) {
+fun LabsScreen(
+    vm: AppViewModel,
+    modifier: Modifier,
+    onEdit: (String) -> Unit,
+    onNew: () -> Unit,
+    onImportReport: () -> Unit,
+    onAnalyte: (String) -> Unit,
+) {
     val panels = vm.panels.sortedByDescending { it.date }
     val keys = Analytes.all.map { it.key } + Analytes.EGFR
-    val trendKeys = keys.filter { BioAgeEngine.analyteSeries(it, vm.panels, vm.profile).isNotEmpty() }
+    val series = keys.associateWith { BioAgeEngine.analyteSeries(it, vm.panels, vm.profile) }.filterValues { it.isNotEmpty() }
+    val p = LocalPalette.current
 
     LazyColumn(
         modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (panels.isEmpty()) item {
-            SectionCard("Nessun referto") {
-                Text("Premi + per inserire le analisi del sangue. Per la PhenoAge servono i 9 marcatori del primo gruppo; tutti gli altri valori sono facoltativi e vengono archiviati per gli andamenti.")
-            }
-        }
-        if (panels.isNotEmpty()) item { Text("Referti", style = MaterialTheme.typography.titleMedium) }
-        items(panels, key = { it.id }) { p ->
-            val att = BioAgeEngine.attempt(p, vm.profile)
-            SectionCard(modifier = Modifier.clickable { onEdit(p.id) }) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(p.date.itDate(), fontWeight = FontWeight.SemiBold)
-                    Text("${p.values.size} valori")
+        item { LargeHeader("Analisi", "${panels.size} referti") }
+
+        item {
+            HealthCard("Aggiungi un referto", BioIcons.Drop, Tint.blood) {
+                Caption("PDF del laboratorio (anche protetto da password), PDF scansionato o foto del referto. I valori vengono letti sul telefono e li verifichi prima di salvare.")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = onImportReport,
+                        enabled = !vm.importing,
+                        colors = ButtonDefaults.buttonColors(containerColor = Tint.blood),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(BioIcons.Doc, null, Modifier.size(18.dp)); Text("  Importa")
+                    }
+                    FilledTonalButton(onClick = onNew, modifier = Modifier.weight(1f)) {
+                        Icon(BioIcons.Pencil, null, Modifier.size(18.dp)); Text("  A mano")
+                    }
                 }
-                if (p.lab.isNotBlank()) Muted(p.lab)
-                val pt = att.point
-                if (pt != null) Text("PhenoAge ${pt.result.phenoAge.f(1)} (Δ ${(pt.result.phenoAge - pt.age).fs(1)})")
-                else Muted("PhenoAge non calcolabile: mancano ${att.missing.size} elementi")
-            }
-        }
-        if (trendKeys.isNotEmpty()) item {
-            Spacer(Modifier.height(8.dp))
-            Text("Andamenti per analita", style = MaterialTheme.typography.titleMedium)
-        }
-        items(trendKeys, key = { "t_$it" }) { k ->
-            val s = BioAgeEngine.analyteSeries(k, vm.panels, vm.profile)
-            val last = s.last()
-            val prev = s.getOrNull(s.size - 2)
-            val d = displayDecimals(k)
-            Row(
-                Modifier.fillMaxWidth().clickable { onAnalyte(k) }.padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(displayName(k))
-                    Muted("${s.size} misure · ultima ${last.first.itDate()}")
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text((if (last.second.belowLimit) "<" else "") + last.second.value.f(d) + " " + displayUnit(k), fontWeight = FontWeight.SemiBold)
-                    if (prev != null) Muted("Δ ${(last.second.value - prev.second.value).fs(d)}")
+                if (vm.importing) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.blood)
+                    Caption("Lettura del referto in corso…")
                 }
             }
-            HorizontalDivider()
+        }
+
+        if (panels.isNotEmpty()) {
+            item { SectionLabel("Referti") }
+            item {
+                InsetGroup {
+                    panels.forEachIndexed { i, panel ->
+                        val att = BioAgeEngine.attempt(panel, vm.profile)
+                        val pt = att.point
+                        GroupRow(
+                            title = panel.date.itLong(),
+                            subtitle = listOfNotNull(panel.lab.takeIf { it.isNotBlank() }, "${panel.values.size} valori").joinToString(" · "),
+                            leading = { IconBadge(BioIcons.Drop, Tint.blood) },
+                            trailing = {
+                                if (pt != null) {
+                                    val d = pt.result.phenoAge - pt.age
+                                    Pill("${pt.result.phenoAge.f(1)} (${d.fs(1)})", if (d <= 0) Tint.good else Tint.bad)
+                                }
+                            },
+                            showDivider = i < panels.lastIndex,
+                            onClick = { onEdit(panel.id) },
+                        )
+                    }
+                }
+            }
+        }
+
+        val groups = series.keys.groupBy { groupOf(it) }
+        Group.entries.forEach { g ->
+            val ks = groups[g] ?: return@forEach
+            item(key = "label_${g.name}") { SectionLabel(g.label) }
+            item(key = "group_${g.name}") {
+                val tint = groupTint(g)
+                InsetGroup {
+                    ks.forEachIndexed { i, k ->
+                        val s = series.getValue(k)
+                        val last = s.last()
+                        val prev = s.getOrNull(s.size - 2)
+                        val d = displayDecimals(k)
+                        GroupRow(
+                            title = displayName(k),
+                            subtitle = buildString {
+                                append(last.first.itDate())
+                                if (prev != null) append("  ·  Δ ").append((last.second.value - prev.second.value).fs(d))
+                            },
+                            trailing = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (s.size >= 2) Sparkline(s.map { it.second.value }, tint)
+                                    Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(84.dp)) {
+                                        Text(
+                                            (if (last.second.belowLimit) "<" else "") + last.second.value.f(d),
+                                            fontWeight = FontWeight.Bold, fontSize = 17.sp, color = p.text,
+                                        )
+                                        Text(displayUnit(k), fontSize = 11.sp, color = p.text2, textAlign = TextAlign.End)
+                                    }
+                                }
+                            },
+                            showDivider = i < ks.lastIndex,
+                            onClick = { onAnalyte(k) },
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 // =====================================================================
-// Inserimento / modifica referto
+// Inserimento / modifica / verifica import
 // =====================================================================
 
 private val INPUT_DATE = DateTimeFormatter.ofPattern("d/M/uuuu")
@@ -135,24 +205,32 @@ private fun parseDate(s: String): LocalDate? {
         ?: runCatching { LocalDate.parse(t) }.getOrNull()
 }
 
+private fun initialText(v: LabValue, a: Analyte?): String {
+    val dec = (a?.decimals ?: 1) + 1
+    var s = v.value.f(dec)
+    if (s.contains(',')) s = s.trimEnd('0').trimEnd(',')
+    return s
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PanelEditor(
     initial: Panel?,
+    isNew: Boolean,
+    importNotes: List<String>,
+    highlighted: Set<String>,
     profile: Profile,
     onSave: (Panel) -> Unit,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
 ) {
+    val p = LocalPalette.current
     var dateText by remember { mutableStateOf((initial?.date ?: LocalDate.now()).itDate()) }
     var lab by remember { mutableStateOf(initial?.lab ?: "") }
     var note by remember { mutableStateOf(initial?.note ?: "") }
     val texts = remember {
         mutableStateMapOf<String, String>().apply {
-            initial?.values?.forEach { (k, v) ->
-                val a = Analytes.get(k)
-                put(k, v.value.f(a?.decimals?.plus(1) ?: 2).trimEnd('0').trimEnd(',').ifEmpty { "0" })
-            }
+            initial?.values?.forEach { (k, v) -> put(k, initialText(v, Analytes.get(k))) }
         }
     }
     val below = remember { mutableStateMapOf<String, Boolean>().apply { initial?.values?.forEach { (k, v) -> if (v.belowLimit) put(k, true) } } }
@@ -174,30 +252,42 @@ fun PanelEditor(
     }
 
     val preview = build()?.let { BioAgeEngine.attempt(it, profile) }
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = p.field, unfocusedContainerColor = p.field,
+        unfocusedBorderColor = Color.Transparent, focusedBorderColor = Tint.blue,
+    )
 
     Scaffold(
+        containerColor = p.bg,
         topBar = {
             TopAppBar(
-                title = { Text(if (initial == null) "Nuovo referto" else "Modifica referto") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro") } },
+                title = { Text(if (isNew) (if (highlighted.isNotEmpty()) "Verifica referto" else "Nuovo referto") else "Modifica referto", fontWeight = FontWeight.SemiBold) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(BioIcons.Back, "Indietro", tint = Tint.blue) } },
                 actions = {
-                    if (initial != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, "Elimina") }
+                    if (!isNew && initial != null) IconButton(onClick = { confirmDelete = true }) { Icon(BioIcons.Trash, "Elimina", tint = Tint.bad) }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
             )
         },
         bottomBar = {
-            Column(Modifier.padding(16.dp)) {
-                val p = preview?.point
-                if (p != null) {
-                    Text("PhenoAge: ${p.result.phenoAge.f(1)} anni (Δ ${(p.result.phenoAge - p.age).fs(1)})", fontWeight = FontWeight.SemiBold)
+            Column(Modifier.background(p.card).padding(horizontal = 16.dp, vertical = 12.dp)) {
+                val pt = preview?.point
+                if (pt != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("PhenoAge", color = p.text2, fontSize = 14.sp)
+                        Text(pt.result.phenoAge.f(1), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = p.text)
+                        Pill("${(pt.result.phenoAge - pt.age).fs(1)} anni", if (pt.result.phenoAge <= pt.age) Tint.good else Tint.bad)
+                    }
                 } else if (preview != null) {
-                    Muted("PhenoAge: mancano ${preview.missing.size} elementi")
+                    Caption("PhenoAge: mancano ${preview.missing.size} elementi")
                 }
+                VSpace(8)
                 Button(
                     onClick = { build()?.let(onSave) },
                     enabled = date != null && invalid.isEmpty(),
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Salva") }
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text("Salva", fontWeight = FontWeight.SemiBold) }
             }
         },
     ) { pad ->
@@ -206,22 +296,32 @@ fun PanelEditor(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (importNotes.isNotEmpty()) item {
+                HealthCard("Valori letti dal referto", BioIcons.Doc, Tint.blue) {
+                    importNotes.forEach { Caption("• $it", p.text) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(10.dp).clip(CircleShape).background(Tint.blue))
+                        Caption("  = valore riconosciuto automaticamente: confrontalo con il referto.")
+                    }
+                }
+            }
             item {
-                SectionCard("Dati del prelievo") {
+                HealthCard("Prelievo", BioIcons.Drop, Tint.blood) {
                     OutlinedTextField(
                         value = dateText, onValueChange = { dateText = it },
-                        label = { Text("Data (gg/mm/aaaa)") },
-                        isError = date == null, singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Data (gg/mm/aaaa)") }, isError = date == null, singleLine = true,
+                        modifier = Modifier.fillMaxWidth(), colors = fieldColors, shape = RoundedCornerShape(10.dp),
                     )
-                    OutlinedTextField(lab, { lab = it }, label = { Text("Laboratorio (facoltativo)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(note, { note = it }, label = { Text("Note (digiuno, malattie recenti, farmaci…)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(lab, { lab = it }, label = { Text("Laboratorio") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth(), colors = fieldColors, shape = RoundedCornerShape(10.dp))
+                    OutlinedTextField(note, { note = it }, label = { Text("Note (digiuno, malattie recenti, farmaci…)") },
+                        modifier = Modifier.fillMaxWidth(), colors = fieldColors, shape = RoundedCornerShape(10.dp))
                 }
             }
             Group.entries.forEach { g ->
                 item(key = g.name) {
-                    SectionCard(g.label) {
-                        if (g == Group.PHENO) Muted("Per un confronto valido nel tempo: prelievo a digiuno, al mattino, lontano da infezioni o allenamenti intensi.")
+                    HealthCard(g.label, BioIcons.Drop, groupTint(g)) {
+                        if (g == Group.PHENO) Caption("Per confronti validi nel tempo: prelievo a digiuno, al mattino, lontano da infezioni o allenamenti intensi.")
                         Analytes.all.filter { it.group == g }.forEach { a ->
                             AnalyteInput(
                                 a = a,
@@ -232,6 +332,8 @@ fun PanelEditor(
                                 below = below[a.key] == true,
                                 onBelow = { below[a.key] = it },
                                 error = a.key in invalid,
+                                highlighted = a.key in highlighted,
+                                fieldColors = fieldColors,
                             )
                         }
                     }
@@ -239,8 +341,8 @@ fun PanelEditor(
             }
             val warns = preview?.warnings.orEmpty()
             if (warns.isNotEmpty()) item {
-                SectionCard("Avvertenze") {
-                    warns.forEach { Text("⚠ $it", style = MaterialTheme.typography.bodySmall) }
+                HealthCard("Avvertenze", BioIcons.Info, Tint.warn) {
+                    warns.forEach { Caption("⚠ $it", p.text) }
                 }
             }
         }
@@ -251,7 +353,7 @@ fun PanelEditor(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Eliminare il referto?") },
             text = { Text("Il referto del ${initial.date.itDate()} verrà rimosso dall'archivio.") },
-            confirmButton = { TextButton(onClick = { onDelete(initial.id) }) { Text("Elimina") } },
+            confirmButton = { TextButton(onClick = { onDelete(initial.id) }) { Text("Elimina", color = Tint.bad) } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Annulla") } },
         )
     }
@@ -267,32 +369,42 @@ private fun AnalyteInput(
     below: Boolean,
     onBelow: (Boolean) -> Unit,
     error: Boolean,
+    highlighted: Boolean,
+    fieldColors: androidx.compose.material3.TextFieldColors,
 ) {
+    val p = LocalPalette.current
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(a.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            if (highlighted) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(Tint.blue))
+                androidx.compose.foundation.layout.Spacer(Modifier.width(6.dp))
+            }
+            Text(a.name, Modifier.weight(1f), fontSize = 15.sp, color = p.text)
             OutlinedTextField(
                 value = text,
                 onValueChange = onText,
                 singleLine = true,
                 isError = error,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.width(110.dp),
+                modifier = Modifier.width(104.dp),
+                colors = fieldColors,
+                shape = RoundedCornerShape(10.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, color = p.text),
             )
             val unit = a.units[unitIndex.coerceIn(0, a.units.lastIndex)].label
             if (a.units.size > 1) {
-                TextButton(onClick = onCycleUnit, modifier = Modifier.width(92.dp)) { Text("$unit ⇄") }
+                TextButton(onClick = onCycleUnit, modifier = Modifier.width(88.dp)) { Text("$unit ⇄", fontSize = 13.sp, color = Tint.blue) }
             } else {
-                Text(unit, Modifier.width(92.dp).padding(start = 12.dp), style = MaterialTheme.typography.bodySmall)
+                Text(unit, Modifier.width(88.dp).padding(start = 10.dp), fontSize = 13.sp, color = p.text2)
             }
         }
         if (a.key == Analytes.CRP) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = below, onCheckedChange = onBelow)
-                Text("sotto il limite di rilevabilità (<)", style = MaterialTheme.typography.bodySmall)
+                Caption("sotto il limite di rilevabilità (<)")
             }
         }
-        if (a.note != null) Muted(a.note)
+        if (a.note != null) Caption(a.note)
     }
 }
 
@@ -303,56 +415,86 @@ private fun AnalyteInput(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyteScreen(key: String, panels: List<Panel>, profile: Profile, onBack: () -> Unit) {
+    val p = LocalPalette.current
     val s = BioAgeEngine.analyteSeries(key, panels, profile)
     val d = displayDecimals(key)
     val unit = displayUnit(key)
+    val tint = groupTint(groupOf(key))
     Scaffold(
+        containerColor = p.bg,
         topBar = {
             TopAppBar(
-                title = { Text(displayName(key)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro") } },
+                title = { },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(BioIcons.Back, "Indietro", tint = Tint.blue) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
             )
         },
     ) { pad ->
         LazyColumn(
             Modifier.padding(pad).fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (s.size >= 2) item {
-                SectionCard {
-                    LineChart(
-                        listOf(ChartSeries(s.map { it.first.toEpochDay().toDouble() to it.second.value }, MaterialTheme.colorScheme.primary)),
-                        yDecimals = d,
-                        xLabel = ::epochLabel,
-                    )
+            item { LargeHeader(displayName(key), groupOf(key).label) }
+            if (s.isNotEmpty()) item {
+                val last = s.last()
+                HealthCard(trailing = null) {
+                    Caption("ULTIMO VALORE · ${last.first.itLong()}")
+                    BigValue((if (last.second.belowLimit) "<" else "") + last.second.value.f(d), unit, size = 40)
+                    if (s.size >= 2) {
+                        HealthChart(
+                            listOf(ChartLayer(s.map { it.first.toEpochDay().toDouble() to it.second.value }, tint, LayerKind.AREA, emphasizeLast = true)),
+                            yDecimals = d,
+                        )
+                    }
                 }
             }
             item {
                 val vals = s.map { it.second.value }
-                SectionCard("Sintesi ($unit)") {
+                HealthCard("Sintesi", BioIcons.Info, tint) {
                     if (vals.isNotEmpty()) {
-                        Text("Misure: ${vals.size} · min ${vals.min().f(d)} · max ${vals.max().f(d)} · media ${vals.average().f(d)}")
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Stat("Misure", vals.size.toString())
+                            Stat("Min", vals.min().f(d))
+                            Stat("Media", vals.average().f(d))
+                            Stat("Max", vals.max().f(d))
+                        }
                     }
                     val spanDays = if (s.size >= 2) s.last().first.toEpochDay() - s.first().first.toEpochDay() else 0
                     val slope = if (s.size >= 3 && spanDays >= 90) {
                         Stats.olsSlope(s.map { it.first.toEpochDay() / 365.2425 }, vals)
                     } else null
-                    if (slope != null) Text("Tendenza (OLS): ${slope.fs(d + 1)} $unit/anno")
-                    else Muted("La tendenza lineare richiede ≥3 misure su ≥3 mesi.")
+                    if (slope != null) Body("Tendenza: ${slope.fs(d + 1)} $unit/anno", weight = FontWeight.SemiBold)
+                    else Caption("La tendenza lineare richiede ≥3 misure su ≥3 mesi.")
                     BioAgeEngine.phenoSensitivity(key)?.let {
-                        Text("Effetto sulla PhenoAge a parità del resto: $it")
+                        Body("Effetto sulla PhenoAge, a parità del resto: $it")
                     }
-                    Muted("Una differenza tra due prelievi va interpretata alla luce della variabilità analitica e biologica intra-individuale: per molti analiti oscillazioni del 5-15% sono attese anche senza cambiamenti reali (molto di più per PCR e trigliceridi).")
+                    Caption("Tra due prelievi oscillazioni del 5–15% sono spesso attese per variabilità analitica e biologica (molto di più per PCR e trigliceridi).")
                 }
             }
-            items(s.reversed()) { (date, v) ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(date.itDate())
-                    Text((if (v.belowLimit) "<" else "") + v.value.f(d) + " " + unit, fontWeight = FontWeight.SemiBold)
+            if (s.isNotEmpty()) item {
+                InsetGroup {
+                    val rev = s.reversed()
+                    rev.forEachIndexed { i, (date, v) ->
+                        GroupRow(
+                            title = date.itLong(),
+                            trailing = {
+                                Text((if (v.belowLimit) "<" else "") + v.value.f(d) + " " + unit, fontWeight = FontWeight.SemiBold, color = p.text)
+                            },
+                            showDivider = i < rev.lastIndex,
+                        )
+                    }
                 }
-                HorizontalDivider()
             }
         }
+    }
+}
+
+@Composable
+private fun Stat(label: String, value: String) {
+    val p = LocalPalette.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 12.sp, color = p.text2)
+        Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = p.text)
     }
 }

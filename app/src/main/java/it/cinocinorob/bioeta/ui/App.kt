@@ -1,22 +1,21 @@
 package it.cinocinorob.bioeta.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,12 +24,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import it.cinocinorob.bioeta.AppViewModel
 
-enum class Tab(val label: String) { AGE("Età"), LABS("Analisi"), WEAR("Wearable"), SETTINGS("Profilo") }
+enum class Tab(val label: String) { AGE("Riepilogo"), LABS("Analisi"), WEAR("Sensori"), SETTINGS("Profilo") }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun tabIcon(t: Tab): ImageVector = when (t) {
+    Tab.AGE -> BioIcons.Heart
+    Tab.LABS -> BioIcons.Drop
+    Tab.WEAR -> BioIcons.Pulse
+    Tab.SETTINGS -> BioIcons.Person
+}
+
 @Composable
 fun App(
     vm: AppViewModel,
@@ -38,13 +47,16 @@ fun App(
     onRequestPermissions: () -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
+    onImportReport: () -> Unit,
 ) {
+    val pal = LocalPalette.current
     var tab by rememberSaveable { mutableStateOf(Tab.AGE) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var creating by rememberSaveable { mutableStateOf(false) }
     var analyteKey by rememberSaveable { mutableStateOf<String?>(null) }
     var showInfo by rememberSaveable { mutableStateOf(startOnPrivacy) }
     val snackbar = remember { SnackbarHostState() }
+    val draft = vm.importDraft
 
     LaunchedEffect(vm.message) {
         val m = vm.message
@@ -54,10 +66,11 @@ fun App(
         }
     }
 
-    val subOpen = showInfo || creating || editingId != null || analyteKey != null
+    val subOpen = showInfo || creating || editingId != null || analyteKey != null || draft != null
     BackHandler(enabled = subOpen) {
         when {
             showInfo -> showInfo = false
+            draft != null -> vm.importDraft = null
             creating || editingId != null -> { creating = false; editingId = null }
             analyteKey != null -> analyteKey = null
         }
@@ -65,8 +78,21 @@ fun App(
 
     when {
         showInfo -> InfoScreen(onBack = { showInfo = false })
+        draft != null -> PanelEditor(
+            initial = draft.panel,
+            isNew = true,
+            importNotes = draft.notes,
+            highlighted = draft.foundKeys,
+            profile = vm.profile,
+            onSave = { vm.savePanel(it); vm.importDraft = null; tab = Tab.LABS; vm.message = "Referto salvato." },
+            onDelete = { vm.importDraft = null },
+            onBack = { vm.importDraft = null },
+        )
         creating || editingId != null -> PanelEditor(
             initial = vm.panels.find { it.id == editingId },
+            isNew = editingId == null,
+            importNotes = emptyList(),
+            highlighted = emptySet(),
             profile = vm.profile,
             onSave = { vm.savePanel(it); creating = false; editingId = null },
             onDelete = { id -> vm.deletePanel(id); creating = false; editingId = null },
@@ -79,43 +105,77 @@ fun App(
             onBack = { analyteKey = null },
         )
         else -> Scaffold(
-            topBar = { TopAppBar(title = { Text(if (tab == Tab.AGE) "BioEtà" else tab.label) }) },
+            containerColor = pal.bg,
             snackbarHost = { SnackbarHost(snackbar) },
-            floatingActionButton = {
-                if (tab == Tab.LABS) FloatingActionButton(onClick = { creating = true }) {
-                    Icon(Icons.Filled.Add, contentDescription = "Nuovo referto")
-                }
-            },
             bottomBar = {
-                NavigationBar {
-                    Tab.entries.forEach { t ->
-                        NavigationBarItem(
-                            selected = tab == t,
-                            onClick = { tab = t },
-                            label = { Text(t.label) },
-                            icon = {
-                                Icon(
-                                    when (t) {
-                                        Tab.AGE -> Icons.Filled.Star
-                                        Tab.LABS -> Icons.AutoMirrored.Filled.List
-                                        Tab.WEAR -> Icons.Filled.Favorite
-                                        Tab.SETTINGS -> Icons.Filled.Settings
-                                    },
-                                    contentDescription = t.label,
-                                )
-                            },
-                        )
+                Column {
+                    HorizontalDivider(color = pal.sep, thickness = 0.5.dp)
+                    NavigationBar(containerColor = pal.card.copy(alpha = 0.97f), tonalElevation = 0.dp) {
+                        Tab.entries.forEach { t ->
+                            NavigationBarItem(
+                                selected = tab == t,
+                                onClick = { tab = t },
+                                label = { Text(t.label, fontSize = 11.sp) },
+                                icon = { Icon(tabIcon(t), contentDescription = t.label, modifier = Modifier.size(24.dp)) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = if (t == Tab.AGE) Tint.heart else Tint.blue,
+                                    selectedTextColor = if (t == Tab.AGE) Tint.heart else Tint.blue,
+                                    indicatorColor = Color.Transparent,
+                                    unselectedIconColor = pal.text2,
+                                    unselectedTextColor = pal.text2,
+                                ),
+                            )
+                        }
                     }
                 }
             },
         ) { pad ->
             val m = Modifier.padding(pad)
             when (tab) {
-                Tab.AGE -> AgeScreen(vm, m, onOpenInfo = { showInfo = true }, onGoLabs = { tab = Tab.LABS }, onGoProfile = { tab = Tab.SETTINGS })
-                Tab.LABS -> LabsScreen(vm, m, onEdit = { editingId = it }, onAnalyte = { analyteKey = it })
+                Tab.AGE -> AgeScreen(
+                    vm, m,
+                    onOpenInfo = { showInfo = true },
+                    onGoLabs = { tab = Tab.LABS },
+                    onGoWear = { tab = Tab.WEAR },
+                    onGoProfile = { tab = Tab.SETTINGS },
+                    onImportReport = onImportReport,
+                )
+                Tab.LABS -> LabsScreen(
+                    vm, m,
+                    onEdit = { editingId = it },
+                    onNew = { creating = true },
+                    onImportReport = onImportReport,
+                    onAnalyte = { analyteKey = it },
+                )
                 Tab.WEAR -> WearableScreen(vm, m, onRequestPermissions)
                 Tab.SETTINGS -> SettingsScreen(vm, m, onExport, onImport, onOpenInfo = { showInfo = true })
             }
         }
+    }
+
+    // Password per PDF protetti (molti laboratori usano il codice fiscale)
+    val pwUri = vm.passwordFor
+    if (pwUri != null) {
+        var pw by remember(pwUri) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { vm.passwordFor = null },
+            title = { Text("PDF protetto") },
+            text = {
+                Column {
+                    Text(
+                        if (vm.passwordWasWrong) "Password errata. Riprova."
+                        else "Il referto è protetto da password. Spesso è il codice fiscale (in maiuscolo) o una password indicata dal laboratorio.",
+                    )
+                    OutlinedTextField(
+                        value = pw, onValueChange = { pw = it }, singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        label = { Text("Password") },
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { vm.importReport(pwUri, pw.trim()) }, enabled = pw.isNotBlank()) { Text("Apri") } },
+            dismissButton = { TextButton(onClick = { vm.passwordFor = null }) { Text("Annulla") } },
+        )
     }
 }

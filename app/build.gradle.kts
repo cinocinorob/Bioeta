@@ -12,8 +12,8 @@ android {
         applicationId = "it.cinocinorob.bioeta"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     // Chiave fissa: ogni nuova build si installa sopra la precedente senza perdere i dati.
@@ -71,6 +71,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.1")
 
     implementation("androidx.health.connect:connect-client:1.1.0")
+
+    // Lettura referti: testo da PDF (anche protetti) + OCR on-device per scansioni e foto
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -10,7 +10,11 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import it.cinocinorob.bioeta.data.BioAgeEngine
+import it.cinocinorob.bioeta.data.Analytes
 import it.cinocinorob.bioeta.data.LabStore
+import it.cinocinorob.bioeta.data.LabValue
+import it.cinocinorob.bioeta.data.ReportParser
+import it.cinocinorob.bioeta.data.ReportText
 import it.cinocinorob.bioeta.data.Panel
 import it.cinocinorob.bioeta.data.PhenoPoint
 import it.cinocinorob.bioeta.data.Profile
@@ -93,7 +97,67 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---------------- Import referti (PDF / foto) ----------------
+
+    data class ImportDraft(val panel: Panel, val notes: List<String>, val foundKeys: Set<String>)
+
+    var importDraft by mutableStateOf<ImportDraft?>(null)
+    var passwordFor by mutableStateOf<Uri?>(null)
+    var passwordWasWrong by mutableStateOf(false)
+        private set
+    var importing by mutableStateOf(false)
+        private set
+
+    fun importReport(uri: Uri, password: String? = null) {
+        viewModelScope.launch {
+            importing = true
+            try {
+                val ex = withContext(Dispatchers.IO) {
+                    ReportText.extract(getApplication<Application>(), uri, password)
+                }
+                val r = ReportParser.parse(ex.text)
+                passwordFor = null
+                if (r.values.isEmpty()) {
+                    message = if (ex.text.isBlank()) "Nessun testo leggibile nel file."
+                    else "Nessun valore riconosciuto. Puoi inserirli a mano con \"Inserisci\"."
+                    return@launch
+                }
+                val notes = buildList {
+                    add("${r.values.size} valori riconosciuti${if (ex.usedOcr) " tramite OCR (verifica con più attenzione)" else ""}.")
+                    if (r.date == null) add("Data del prelievo non trovata: impostata a oggi, correggila.")
+                    val unknownUnit = r.values.values.filter { !it.unitRecognized }
+                        .mapNotNull { Analytes.get(it.key)?.name }
+                    if (unknownUnit.isNotEmpty()) add("Unità non indicata nel referto per: ${unknownUnit.joinToString(", ")} (assunta quella standard).")
+                    addAll(r.notes)
+                }
+                importDraft = ImportDraft(
+                    panel = Panel(
+                        date = r.date ?: java.time.LocalDate.now(),
+                        lab = r.lab ?: "",
+                        note = "Importato da referto",
+                        values = r.values.mapValues { LabValue(it.value.value, it.value.belowLimit) },
+                    ),
+                    notes = notes,
+                    foundKeys = r.values.keys,
+                )
+            } catch (e: ReportText.PasswordRequired) {
+                passwordWasWrong = e.wrongPassword
+                passwordFor = uri
+            } catch (e: Exception) {
+                message = "Impossibile leggere il referto: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                importing = false
+            }
+        }
+    }
+
     fun importFrom(uri: Uri) {
+        // Se l'utente sceglie un referto (PDF/immagine) invece di un backup, lo indirizza all'import referti
+        val type = getApplication<Application>().contentResolver.getType(uri) ?: ""
+        if (type == "application/pdf" || type.startsWith("image/")) {
+            importReport(uri)
+            return
+        }
         viewModelScope.launch {
             val parsed = withContext(Dispatchers.IO) {
                 runCatching {
@@ -104,7 +168,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 }.getOrNull()
             }
             if (parsed == null) {
-                message = "File non valido."
+                message = "File non valido: qui si importa il backup .json. Per i referti PDF usa Analisi → Importa referto."
                 return@launch
             }
             val (imported, prof) = parsed
