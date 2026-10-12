@@ -56,15 +56,10 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- Telemetria di ML Kit disattivata: l'OCR resta interamente sul dispositivo. -->
+        <!-- Telemetria di ML Kit disattivata: senza backend registrati nessun evento viene inviato.
+             L'OCR resta interamente sul dispositivo. -->
         <service
             android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
-            tools:node="remove" />
-        <service
-            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
-            tools:node="remove" />
-        <receiver
-            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
             tools:node="remove" />
     </application>
 </manifest>
