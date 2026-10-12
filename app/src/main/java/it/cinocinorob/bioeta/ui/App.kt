@@ -31,13 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.cinocinorob.bioeta.AppViewModel
 
-enum class Tab(val label: String) { AGE("Riepilogo"), LABS("Analisi"), ASSIST("Claude"), WEAR("Sensori"), SETTINGS("Profilo") }
+enum class Tab(val label: String) { AGE("Riepilogo"), LABS("Analisi"), ASSIST("Claude"), WEAR("Recupero"), SETTINGS("Profilo") }
 
 private fun tabIcon(t: Tab): ImageVector = when (t) {
     Tab.AGE -> BioIcons.Heart
     Tab.LABS -> BioIcons.Drop
     Tab.ASSIST -> BioIcons.Chat
-    Tab.WEAR -> BioIcons.Pulse
+    Tab.WEAR -> BioIcons.Moon
     Tab.SETTINGS -> BioIcons.Person
 }
 
@@ -151,6 +151,7 @@ fun App(
                     onGoProfile = { tab = Tab.SETTINGS },
                     onImportReport = onImportReport,
                     onGoInsights = { showInsights = true },
+                    onGoRecovery = { tab = Tab.WEAR },
                     onAsk = askClaude,
                 )
                 Tab.LABS -> LabsScreen(

@@ -16,7 +16,13 @@ import it.cinocinorob.bioeta.data.Sex
 import it.cinocinorob.bioeta.assistant.CitationCheck
 import it.cinocinorob.bioeta.assistant.Claude
 import it.cinocinorob.bioeta.assistant.Prompt
+import it.cinocinorob.bioeta.science.DailyValue
+import it.cinocinorob.bioeta.science.ExerciseLoad
 import it.cinocinorob.bioeta.science.Insight
+import it.cinocinorob.bioeta.science.Readiness
+import it.cinocinorob.bioeta.science.ScoreResult
+import it.cinocinorob.bioeta.science.SleepNight
+import it.cinocinorob.bioeta.science.SleepScore
 import it.cinocinorob.bioeta.science.InsightEngine
 import it.cinocinorob.bioeta.science.InsightInput
 import it.cinocinorob.bioeta.data.LabStore
@@ -66,6 +72,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 granted = health.granted()
                 if (hasAnyHealthPermission) {
                     wearable = health.readAll(DAYS_WINDOW)
+                    val rec = health.readRecovery(RECOVERY_WINDOW)
+                    sleepNights = rec.nights
+                    exercises = rec.exercises
                 }
             } catch (e: Exception) {
                 message = "Lettura da Connessione Salute non riuscita: ${e.message}"
@@ -310,7 +319,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun ask(question: String) {
         val q = question.trim()
         if (q.isEmpty() || thinking || apiKey.isBlank()) return
-        val ctx = Prompt.context(profile, panels, wearable)
+        val t = today
+        val recovery = buildString {
+            append("Punteggi BioEtà di oggi (algoritmo trasparente dell'app, non validato clinicamente):\n")
+            append("- Sonno: ${t.sleep?.score ?: "n.d."}; Prontezza: ${t.readiness.score ?: "in calibrazione"}\n")
+            (t.sleep?.contributors.orEmpty() + t.readiness.contributors).forEach { c ->
+                append("- ${c.label}: ${c.score ?: "n.d."}/100 — ${c.detail}\n")
+            }
+            t.readiness.flags.forEach { append("- Avviso: $it\n") }
+        }
+        val ctx = Prompt.context(profile, panels, wearable, recovery)
         // Solo coppie domanda/risposta complete, per mantenere l'alternanza user/assistant
         val prior = chat.zipWithNext().filter { (u, a) -> u.fromUser && !a.fromUser && !a.isError }
             .flatMap { listOf(it.first, it.second) }
@@ -352,7 +370,56 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+
+    // ---------------- Sonno e Prontezza ----------------
+
+    var sleepNights by mutableStateOf<List<SleepNight>>(emptyList())
+        private set
+    var exercises by mutableStateOf<List<ExerciseLoad>>(emptyList())
+        private set
+
+    val missingRecoveryPermissions: Boolean
+        get() = hcAvailable && hasAnyHealthPermission && health.permissions.any { it !in granted && it != HealthRepo.HISTORY_PERMISSION }
+
+    data class DayScores(val date: java.time.LocalDate, val night: SleepNight?, val sleep: ScoreResult?, val readiness: ScoreResult)
+
+    fun sleepFor(date: java.time.LocalDate): Pair<SleepNight, ScoreResult>? {
+        val night = sleepNights.firstOrNull { it.date == date } ?: return null
+        val hist = sleepNights.filter { it.date.isBefore(date) && !it.date.isBefore(date.minusDays(60)) }
+        return night to SleepScore.compute(night, hist, profile.ageAt(date))
+    }
+
+    fun scoresFor(date: java.time.LocalDate): DayScores {
+        val s = sleepFor(date)
+        fun series(m: Metric) = wearable[m].orEmpty().filter { !it.date.isAfter(date) }.map { DailyValue(it.date, it.value) }
+        val rhr = series(Metric.RHR).ifEmpty {
+            // Se manca la FC a riposo, usa la FC media notturna come approssimazione
+            sleepNights.filter { !it.date.isAfter(date) }.mapNotNull { n -> n.avgHr?.let { DailyValue(n.date, it) } }
+        }
+        val r = Readiness.compute(
+            Readiness.Inputs(
+                date = date,
+                age = profile.ageAt(date),
+                male = profile.sex == Sex.M,
+                hrv = series(Metric.HRV),
+                rhr = rhr,
+                resp = series(Metric.RESP),
+                nights = sleepNights.filter { !it.date.isAfter(date) },
+                lastNightScore = s?.second?.score,
+                exercises = exercises.filter { !it.date.isAfter(date) },
+            )
+        )
+        return DayScores(date, s?.first, s?.second, r)
+    }
+
+    val today: DayScores get() = scoresFor(java.time.LocalDate.now())
+
+    /** Ultimi 14 giorni, dal più vecchio. */
+    val recoveryHistory: List<DayScores>
+        get() = (13 downTo 0).map { scoresFor(java.time.LocalDate.now().minusDays(it.toLong())) }
+
     companion object {
         const val DAYS_WINDOW = 120L
+        const val RECOVERY_WINDOW = 75L
     }
 }

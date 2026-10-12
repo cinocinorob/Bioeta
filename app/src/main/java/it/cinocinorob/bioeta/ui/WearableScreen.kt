@@ -70,7 +70,9 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { LargeHeader("Sensori", "Connessione Salute") }
+        item { LargeHeader("Recupero", "Sonno e prontezza") }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori") }
         if (vm.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.heart) }
 
         when (vm.hcStatus) {

@@ -36,7 +36,7 @@ FORMATO
     private fun n(x: Double, d: Int) = String.format(Locale.ITALY, "%.${d}f", x)
 
     /** Contesto pseudonimizzato: nessun nome, solo età, sesso e valori. */
-    fun context(profile: Profile, panels: List<Panel>, wearable: Map<Metric, List<DailyPoint>>): String {
+    fun context(profile: Profile, panels: List<Panel>, wearable: Map<Metric, List<DailyPoint>>, recovery: String? = null): String {
         val sb = StringBuilder()
         val today = LocalDate.now()
         sb.append("DATI DELL'UTENTE (pseudonimizzati, inviati con il suo consenso)\n")
@@ -70,6 +70,7 @@ FORMATO
             }
         }
         profile.vo2Manual?.let { sb.append("VO₂max misurato con test: ${n(it, 1)} mL/kg/min\n") }
+        recovery?.let { sb.append("\n").append(it) }
         return sb.toString()
     }
 }

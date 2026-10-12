@@ -3,6 +3,8 @@ package it.cinocinorob.bioeta.health
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.Record
@@ -13,8 +15,13 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
+import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import it.cinocinorob.bioeta.science.ExerciseLoad
+import it.cinocinorob.bioeta.science.SleepNight
+import it.cinocinorob.bioeta.science.Stage
+import it.cinocinorob.bioeta.science.StageType
 import it.cinocinorob.bioeta.science.Stats
 import java.time.Duration
 import java.time.Instant
@@ -68,6 +75,8 @@ class HealthRepo(private val context: Context) {
         HealthPermission.getReadPermission(WeightRecord::class),
         HealthPermission.getReadPermission(OxygenSaturationRecord::class),
         HealthPermission.getReadPermission(RespiratoryRateRecord::class),
+        HealthPermission.getReadPermission(HeartRateRecord::class),
+        HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HISTORY_PERMISSION,
     )
 
@@ -135,6 +144,72 @@ class HealthRepo(private val context: Context) {
             }
         }
         return out
+    }
+
+    // ------------------------------------------------------------------
+    // Sonno dettagliato e allenamenti (per i punteggi Sonno e Prontezza)
+    // ------------------------------------------------------------------
+
+    data class RecoveryData(
+        val nights: List<SleepNight>,
+        val exercises: List<ExerciseLoad>,
+    )
+
+    suspend fun readRecovery(days: Long): RecoveryData {
+        val granted = granted()
+        val zone = ZoneId.systemDefault()
+        val end = Instant.now()
+        val start = end.minus(Duration.ofDays(days))
+        val hasHr = HealthPermission.getReadPermission(HeartRateRecord::class) in granted
+
+        val nights = if (HealthPermission.getReadPermission(SleepSessionRecord::class) in granted) runCatching {
+            val sessions = readRecords(SleepSessionRecord::class, start, end)
+            // Notte principale = sessione più lunga che termina in quel giorno (i pisolini sono esclusi)
+            sessions.groupBy { it.endTime.atZone(zone).toLocalDate() }
+                .mapNotNull { (date, list) ->
+                    val main = list.maxByOrNull { Duration.between(it.startTime, it.endTime) } ?: return@mapNotNull null
+                    if (Duration.between(main.startTime, main.endTime).toMinutes() < 180) return@mapNotNull null
+                    val stages = main.stages.map { Stage(it.startTime, it.endTime, mapStage(it.stage)) }
+                    var avg: Double? = null
+                    var mn: Double? = null
+                    if (hasHr) runCatching {
+                        val agg = client.aggregate(
+                            AggregateRequest(
+                                metrics = setOf(HeartRateRecord.BPM_AVG, HeartRateRecord.BPM_MIN),
+                                timeRangeFilter = TimeRangeFilter.between(main.startTime, main.endTime),
+                            )
+                        )
+                        avg = agg[HeartRateRecord.BPM_AVG]?.toDouble()
+                        mn = agg[HeartRateRecord.BPM_MIN]?.toDouble()
+                    }
+                    SleepNight(date, main.startTime, main.endTime, stages, avg, mn)
+                }.sortedBy { it.date }
+        }.getOrDefault(emptyList()) else emptyList()
+
+        val exercises = if (HealthPermission.getReadPermission(ExerciseSessionRecord::class) in granted) runCatching {
+            readRecords(ExerciseSessionRecord::class, start, end).map { ex ->
+                val minutes = Duration.between(ex.startTime, ex.endTime).seconds / 60.0
+                var avg: Double? = null
+                if (hasHr) runCatching {
+                    val agg = client.aggregate(
+                        AggregateRequest(setOf(HeartRateRecord.BPM_AVG), TimeRangeFilter.between(ex.startTime, ex.endTime))
+                    )
+                    avg = agg[HeartRateRecord.BPM_AVG]?.toDouble()
+                }
+                ExerciseLoad(ex.startTime.atZone(zone).toLocalDate(), minutes, avg)
+            }
+        }.getOrDefault(emptyList()) else emptyList()
+
+        return RecoveryData(nights, exercises)
+    }
+
+    private fun mapStage(s: Int): StageType = when (s) {
+        SleepSessionRecord.STAGE_TYPE_AWAKE, SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED -> StageType.AWAKE
+        SleepSessionRecord.STAGE_TYPE_OUT_OF_BED -> StageType.OUT_OF_BED
+        SleepSessionRecord.STAGE_TYPE_LIGHT -> StageType.LIGHT
+        SleepSessionRecord.STAGE_TYPE_DEEP -> StageType.DEEP
+        SleepSessionRecord.STAGE_TYPE_REM -> StageType.REM
+        else -> StageType.ASLEEP_UNKNOWN
     }
 
     private fun asleepHours(s: SleepSessionRecord): Double {

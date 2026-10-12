@@ -52,6 +52,7 @@ fun AgeScreen(
     onGoProfile: () -> Unit,
     onImportReport: () -> Unit,
     onGoInsights: () -> Unit,
+    onGoRecovery: () -> Unit,
     onAsk: (String) -> Unit,
 ) {
     val profile = vm.profile
@@ -129,6 +130,9 @@ fun AgeScreen(
                 last.warnings.forEach { Caption("⚠ $it", Tint.warn) }
             }
         }
+
+        // ---------- Sonno e prontezza ----------
+        if (vm.hasAnyHealthPermission) item { RecoveryMini(vm, onGoRecovery) }
 
         // ---------- Insight ----------
         val ins = vm.insights
