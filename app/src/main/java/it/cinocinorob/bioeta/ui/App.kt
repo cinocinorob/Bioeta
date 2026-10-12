@@ -31,11 +31,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.cinocinorob.bioeta.AppViewModel
 
-enum class Tab(val label: String) { AGE("Riepilogo"), LABS("Analisi"), WEAR("Sensori"), SETTINGS("Profilo") }
+enum class Tab(val label: String) { AGE("Riepilogo"), LABS("Analisi"), ASSIST("Claude"), WEAR("Sensori"), SETTINGS("Profilo") }
 
 private fun tabIcon(t: Tab): ImageVector = when (t) {
     Tab.AGE -> BioIcons.Heart
     Tab.LABS -> BioIcons.Drop
+    Tab.ASSIST -> BioIcons.Chat
     Tab.WEAR -> BioIcons.Pulse
     Tab.SETTINGS -> BioIcons.Person
 }
@@ -48,6 +49,7 @@ fun App(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onImportReport: () -> Unit,
+    onPickBackupFolder: () -> Unit,
 ) {
     val pal = LocalPalette.current
     var tab by rememberSaveable { mutableStateOf(Tab.AGE) }
@@ -55,6 +57,13 @@ fun App(
     var creating by rememberSaveable { mutableStateOf(false) }
     var analyteKey by rememberSaveable { mutableStateOf<String?>(null) }
     var showInfo by rememberSaveable { mutableStateOf(startOnPrivacy) }
+    var showInsights by rememberSaveable { mutableStateOf(false) }
+    var pendingQuestion by rememberSaveable { mutableStateOf<String?>(null) }
+    val askClaude: (String) -> Unit = { q ->
+        showInsights = false
+        pendingQuestion = q.ifBlank { null }
+        tab = Tab.ASSIST
+    }
     val snackbar = remember { SnackbarHostState() }
     val draft = vm.importDraft
 
@@ -66,10 +75,11 @@ fun App(
         }
     }
 
-    val subOpen = showInfo || creating || editingId != null || analyteKey != null || draft != null
+    val subOpen = showInfo || showInsights || creating || editingId != null || analyteKey != null || draft != null
     BackHandler(enabled = subOpen) {
         when {
             showInfo -> showInfo = false
+            showInsights -> showInsights = false
             draft != null -> vm.importDraft = null
             creating || editingId != null -> { creating = false; editingId = null }
             analyteKey != null -> analyteKey = null
@@ -78,6 +88,7 @@ fun App(
 
     when {
         showInfo -> InfoScreen(onBack = { showInfo = false })
+        showInsights -> InsightsScreen(vm, onBack = { showInsights = false }, onAsk = askClaude)
         draft != null -> PanelEditor(
             initial = draft.panel,
             isNew = true,
@@ -118,8 +129,8 @@ fun App(
                                 label = { Text(t.label, fontSize = 11.sp) },
                                 icon = { Icon(tabIcon(t), contentDescription = t.label, modifier = Modifier.size(24.dp)) },
                                 colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = if (t == Tab.AGE) Tint.heart else Tint.blue,
-                                    selectedTextColor = if (t == Tab.AGE) Tint.heart else Tint.blue,
+                                    selectedIconColor = when (t) { Tab.AGE -> Tint.heart; Tab.ASSIST -> Tint.sleep; else -> Tint.blue },
+                                    selectedTextColor = when (t) { Tab.AGE -> Tint.heart; Tab.ASSIST -> Tint.sleep; else -> Tint.blue },
                                     indicatorColor = Color.Transparent,
                                     unselectedIconColor = pal.text2,
                                     unselectedTextColor = pal.text2,
@@ -139,6 +150,8 @@ fun App(
                     onGoWear = { tab = Tab.WEAR },
                     onGoProfile = { tab = Tab.SETTINGS },
                     onImportReport = onImportReport,
+                    onGoInsights = { showInsights = true },
+                    onAsk = askClaude,
                 )
                 Tab.LABS -> LabsScreen(
                     vm, m,
@@ -147,8 +160,9 @@ fun App(
                     onImportReport = onImportReport,
                     onAnalyte = { analyteKey = it },
                 )
+                Tab.ASSIST -> AssistantScreen(vm, m, pendingQuestion, onConsumeInitial = { pendingQuestion = null })
                 Tab.WEAR -> WearableScreen(vm, m, onRequestPermissions)
-                Tab.SETTINGS -> SettingsScreen(vm, m, onExport, onImport, onOpenInfo = { showInfo = true })
+                Tab.SETTINGS -> SettingsScreen(vm, m, onExport, onImport, onPickBackupFolder, onOpenInfo = { showInfo = true })
             }
         }
     }

@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.HealthConnectClient
 import it.cinocinorob.bioeta.AppViewModel
 import it.cinocinorob.bioeta.data.Sex
@@ -50,6 +51,7 @@ fun SettingsScreen(
     modifier: Modifier,
     onExport: () -> Unit,
     onImport: () -> Unit,
+    onPickBackupFolder: () -> Unit,
     onOpenInfo: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -108,15 +110,52 @@ fun SettingsScreen(
             }
         }
         item {
-            HealthCard("Archivio e backup", BioIcons.Doc, Tint.blue) {
-                Body("${vm.panels.size} referti salvati solo su questo telefono.")
-                Caption("L'app non ha accesso a Internet e il backup automatico Android è disattivato: esporta periodicamente un backup (es. su Drive).")
+            HealthCard("Backup automatico", BioIcons.Shield, if (vm.backupFolder != null) Tint.good else Tint.warn) {
+                if (vm.backupFolder != null) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Pill("Attivo", Tint.good)
+                        Text("  cartella «${vm.backupFolder}»", fontSize = 14.sp, color = pal.text)
+                    }
+                    Caption(vm.lastBackup?.let {
+                        "Ultimo backup: " + java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", java.util.Locale.ITALIAN)
+                            .format(it.atZone(java.time.ZoneId.systemDefault()))
+                    } ?: "Nessun backup eseguito ancora.")
+                    vm.backupError?.let { Caption("⚠ $it", Tint.bad) }
+                    Caption("Dopo ogni modifica viene aggiornato «BioEta-backup.json» e conservata una copia al giorno (ultime 14).")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(onClick = { vm.autoBackupNow(announce = true) }, modifier = Modifier.weight(1f)) { Text("Esegui ora") }
+                        FilledTonalButton(onClick = onPickBackupFolder, modifier = Modifier.weight(1f)) { Text("Cambia cartella") }
+                    }
+                    androidx.compose.material3.TextButton(onClick = { vm.disableBackupFolder() }) { Text("Disattiva", color = Tint.bad) }
+                } else {
+                    Body("Scegli una cartella (es. Documenti/BioEta): l'app vi salverà automaticamente una copia dei dati dopo ogni modifica.")
+                    Button(onClick = onPickBackupFolder, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("Scegli cartella") }
+                }
+                Caption("In più, se il backup del telefono su Google è attivo (Impostazioni → Sistema → Backup), Android salva anche i dati dell'app nel tuo account. La chiave API di Claude è esclusa da tutti i backup.")
+            }
+        }
+        item {
+            HealthCard("Esporta e ripristina", BioIcons.Doc, Tint.blue) {
+                Body("${vm.panels.size} referti salvati su questo telefono.")
+                Caption("«Esporta» crea un file .json dove vuoi (anche su Google Drive). «Ripristina» importa un backup: i referti vengono uniti a quelli presenti.")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(onClick = onExport, modifier = Modifier.weight(1f)) { Text("Esporta") }
                     FilledTonalButton(onClick = onImport, modifier = Modifier.weight(1f)) { Text("Ripristina") }
                 }
             }
         }
+        item {
+            HealthCard("Assistente Claude", BioIcons.Chat, Tint.sleep) {
+                if (vm.apiKey.isNotBlank()) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Pill("Chiave salvata", Tint.good)
+                        Text("  …${vm.apiKey.takeLast(4)}", fontSize = 14.sp, color = pal.text2)
+                    }
+                    androidx.compose.material3.TextButton(onClick = { vm.saveApiKey("") }) { Text("Rimuovi chiave", color = Tint.bad) }
+                } else Caption("Nessuna chiave API: configurala dalla scheda Claude.")
+            }
+        }
+        if (vm.apiKey.isNotBlank()) item { ModelPicker(vm) }
         if (vm.hcAvailable) item {
             HealthCard("Connessione Salute", BioIcons.Heart, Tint.heart,
                 onClick = { runCatching { ctx.startActivity(android.content.Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)) } }) {
@@ -151,7 +190,7 @@ fun InfoScreen(onBack: () -> Unit) {
         ) {
             LargeHeader("Metodo e privacy")
             HealthCard("Privacy", BioIcons.Info, Tint.blue) {
-                Body("I dati di Connessione Salute sono letti in sola lettura e usati solo per i calcoli mostrati. Referti e risultati restano nella memoria privata dell'app. L'app non ha il permesso Internet: referti PDF e foto sono letti con estrazione del testo e OCR sul telefono. L'accesso si revoca in qualsiasi momento da Connessione Salute.")
+                Body("I dati di Connessione Salute sono letti in sola lettura. Referti e risultati restano nella memoria privata dell'app; i PDF e le foto sono letti sul telefono (OCR locale, telemetria disattivata). La rete è usata solo dall'assistente: quando invii una domanda, età, sesso, valori degli ultimi 4 referti e medie dello smartwatch (senza nome) vanno ad Anthropic, e le ricerche su PubMed contengono solo termini scientifici. L'accesso si revoca in qualsiasi momento da Connessione Salute.")
             }
             HealthCard("1 · PhenoAge", BioIcons.Sparkle, Tint.bio) {
                 Body("Levine et al., Aging 2018 (doi:10.18632/aging.101414); Liu et al., PLoS Med 2018 (doi:10.1371/journal.pmed.1002718). Regressione di Cox penalizzata su NHANES III (9.926 adulti, ~23 anni di follow-up): da 42 biomarcatori ne sono stati selezionati 9 più l'età. Il punteggio stima il rischio di morte a 10 anni (modello di Gompertz) e lo converte nell'età alla quale quel rischio sarebbe medio.")
@@ -168,7 +207,11 @@ fun InfoScreen(onBack: () -> Unit) {
             HealthCard("4 · Lettura dei referti", BioIcons.Doc, Tint.blood) {
                 Body("Il testo del PDF viene estratto (o riconosciuto con OCR se il PDF è una scansione o una foto). I valori sono cercati per nome dell'analita, convertiti nelle unità standard e scartati se fisiologicamente implausibili. È sempre una bozza: va confrontata con il referto prima di salvare.")
             }
-            HealthCard("5 · eGFR", BioIcons.Drop, Tint.resp) {
+            HealthCard("5 · Insight e assistente", BioIcons.Sparkle, Tint.sleep) {
+                Body("Gli insight integrati usano soglie di linee guida (ESC/EAS, ADA, AHA/CDC, KDIGO, IOM) e risultati di meta-analisi e grandi RCT; ogni fonte è stata verificata su PubMed e mostra tipo di studio e certezza delle prove.")
+                Body("L'assistente usa Claude (Anthropic) con accesso a PubMed: deve cercare e leggere gli studi prima di rispondere e citarli con il PMID. L'app controlla che ogni PMID esista e sia stato letto durante la ricerca; non può però garantire che ogni frase rispecchi fedelmente lo studio. Le risposte sono informative e non sostituiscono il medico.")
+            }
+            HealthCard("6 · eGFR", BioIcons.Drop, Tint.resp) {
                 Body("CKD-EPI 2021 senza coefficiente razziale (Inker et al., N Engl J Med 2021; doi:10.1056/NEJMoa2102953), da creatinina ed età al prelievo.")
             }
             Caption("BioEtà non è un dispositivo medico. Valori anomali vanno discussi con il medico.")

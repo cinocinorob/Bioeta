@@ -1,5 +1,19 @@
 package it.cinocinorob.bioeta.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,6 +50,8 @@ fun AgeScreen(
     onGoWear: () -> Unit,
     onGoProfile: () -> Unit,
     onImportReport: () -> Unit,
+    onGoInsights: () -> Unit,
+    onAsk: (String) -> Unit,
 ) {
     val profile = vm.profile
     val series = vm.phenoSeries
@@ -58,38 +74,101 @@ fun AgeScreen(
             }
         }
 
-        // ---------- Età biologica ----------
+        // ---------- Età biologica (hero) ----------
         item {
             val last = series.lastOrNull()
-            HealthCard(
-                "Età biologica", BioIcons.Sparkle, Tint.bio,
-                trailing = last?.panel?.date?.itLong(),
-                onClick = if (last != null) onGoLabs else null,
-            ) {
-                if (last == null) {
+            if (last == null) {
+                GradientHero(listOf(Color(0xFF30C85E), Color(0xFF0FA3A3))) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(BioIcons.Sparkle, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Text("  Età biologica", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    }
                     val latestPanel = vm.panels.maxByOrNull { it.date }
                     if (latestPanel == null) {
-                        Body("Importa un referto delle analisi del sangue per calcolare la PhenoAge.")
-                        Caption("Servono 9 valori: albumina, creatinina, glucosio, PCR, linfociti %, MCV, RDW, fosfatasi alcalina, globuli bianchi.")
+                        Text("Importa un referto per calcolare la tua PhenoAge", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, lineHeight = 27.sp)
+                        Text("Servono 9 valori: albumina, creatinina, glucosio, PCR, linfociti %, MCV, RDW, fosfatasi alcalina, globuli bianchi.", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
                     } else {
                         val att = BioAgeEngine.attempt(latestPanel, profile)
-                        Body("Nell'ultimo referto mancano:")
-                        Caption(att.missing.joinToString(", "))
+                        Text("Nell'ultimo referto mancano:", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Text(att.missing.joinToString(", "), color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
                     }
-                    Button(onClick = onImportReport) { Text("Importa referto") }
-                } else {
-                    val delta = last.result.phenoAge - last.age
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            BigValue(last.result.phenoAge.f(1), "anni", size = 44)
-                            Caption("età anagrafica ${last.age.f(1)}")
-                        }
-                        Pill("${delta.fs(1)} anni", if (delta <= 0) Tint.good else Tint.bad)
-                    }
-                    AgeRangeBar(last.result.phenoAge, last.age)
-                    Caption("PhenoAge (Levine 2018). +1 anno a parità di età ≈ +9% rischio di mortalità nella validazione NHANES IV.")
-                    last.warnings.forEach { Caption("⚠ $it", Tint.warn) }
+                    Button(
+                        onClick = onImportReport,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0F7F5F)),
+                    ) { Text("Importa referto", fontWeight = FontWeight.SemiBold) }
                 }
+            } else {
+                val delta = last.result.phenoAge - last.age
+                val colors = if (delta <= 0) listOf(Color(0xFF34C759), Color(0xFF0FA3A3)) else listOf(Color(0xFFFF9F0A), Color(0xFFFF375F))
+                GradientHero(colors, Modifier.clickable { onGoLabs() }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(BioIcons.Sparkle, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Text("  Età biologica", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                        Text(last.panel.date.itLong(), color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(contentAlignment = Alignment.Center) {
+                            AgeRing(last.result.phenoAge, last.age)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(last.result.phenoAge.f(1), color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                                Text("anni", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                            }
+                        }
+                        Spacer(Modifier.width(18.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("${delta.fs(1)} anni", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                            Text(if (delta <= 0) "rispetto all'età anagrafica: profilo ematico più giovane" else "rispetto all'età anagrafica: profilo ematico più vecchio",
+                                color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp, lineHeight = 17.sp)
+                            Text("Età anagrafica ${last.age.f(1)}", color = Color.White.copy(alpha = 0.85f), fontSize = 13.sp)
+                        }
+                    }
+                    Text("PhenoAge (Levine 2018): +1 anno a parità di età ≈ +9% rischio di mortalità nella validazione NHANES IV.",
+                        color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, lineHeight = 16.sp)
+                }
+                last.warnings.forEach { Caption("⚠ $it", Tint.warn) }
+            }
+        }
+
+        // ---------- Insight ----------
+        val ins = vm.insights
+        if (ins.isNotEmpty()) {
+            item {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    SectionLabel("Insight basati sulle prove", Modifier.weight(1f))
+                    TextButton(onClick = onGoInsights) { Text("Tutti (${ins.size})", color = Tint.blue) }
+                }
+            }
+            item { InsightSummaryRow(ins) }
+            ins.take(3).forEach { insight ->
+                item(key = "ins_${insight.id}") { InsightCard(insight, onAsk) }
+            }
+        }
+
+        // ---------- Assistente ----------
+        item {
+            Row(
+                Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(18.dp)).background(p.card)
+                    .clickable { onAsk("") }.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF5E5CE6), Color(0xFF0A84FF)))),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(BioIcons.Chat, null, tint = Color.White, modifier = Modifier.size(22.dp)) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Chiedi a Claude", fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = p.text)
+                    Caption("Commenti sulle tue analisi con fonti PubMed verificate")
+                }
+                Icon(BioIcons.Chevron, null, tint = p.text2, modifier = Modifier.size(14.dp))
+            }
+        }
+
+        // ---------- Backup ----------
+        if (vm.backupFolder == null) item {
+            HealthCard("Backup automatico non attivo", BioIcons.Shield, Tint.warn, onClick = onGoProfile) {
+                Caption("Scegli una cartella nel Profilo: l'app salverà una copia dei dati dopo ogni modifica.")
             }
         }
 

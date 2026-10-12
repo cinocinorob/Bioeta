@@ -34,6 +34,11 @@ class MainActivity : ComponentActivity() {
             if (uri != null) vm.importReport(uri)
         }
 
+    private val backupFolderLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) vm.setBackupFolder(uri)
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -49,6 +54,7 @@ class MainActivity : ComponentActivity() {
                     onExport = { exportLauncher.launch("bioeta-backup-${LocalDate.now()}.json") },
                     onImport = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
                     onImportReport = { reportLauncher.launch(arrayOf("application/pdf", "image/*")) },
+                    onPickBackupFolder = { backupFolderLauncher.launch(null) },
                 )
             }
         }

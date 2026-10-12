@@ -10,7 +10,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -59,6 +64,8 @@ fun HealthChart(
     val labelColor = p.text2.toArgb()
     val grid = p.sep
     val cardColor = p.card
+    val anim = remember { Animatable(0f) }
+    LaunchedEffect(layers.sumOf { it.points.size }) { anim.snapTo(0f); anim.animateTo(1f, tween(700)) }
     Canvas(modifier.fillMaxWidth().height(height.dp)) {
         val left = 4.dp.toPx()
         val right = 40.dp.toPx()
@@ -98,6 +105,7 @@ fun HealthChart(
             drawRoundRect(bandColor.copy(alpha = 0.10f), Offset(left, y1), Size(w, y2 - y1), CornerRadius(4.dp.toPx()))
         }
 
+        clipRect(right = left + w * anim.value + 8.dp.toPx()) {
         for (layer in layers) {
             val pts = layer.points.sortedBy { it.first }
             if (pts.isEmpty()) continue
@@ -108,8 +116,14 @@ fun HealthChart(
                 else -> {
                     if (pts.size >= 2) {
                         val line = Path()
+                        // Curva morbida (spline con tangenti orizzontali tra i punti: nessuna oscillazione oltre i dati)
                         pts.forEachIndexed { i, pt ->
-                            if (i == 0) line.moveTo(px(pt.first), py(pt.second)) else line.lineTo(px(pt.first), py(pt.second))
+                            val x = px(pt.first); val y = py(pt.second)
+                            if (i == 0) line.moveTo(x, y) else {
+                                val px0 = px(pts[i - 1].first); val py0 = py(pts[i - 1].second)
+                                val mx = (px0 + x) / 2
+                                line.cubicTo(mx, py0, mx, y, x, y)
+                            }
                         }
                         if (layer.kind == LayerKind.AREA) {
                             val fill = Path().apply {
@@ -137,13 +151,38 @@ fun HealthChart(
                     }
                 }
             }
-            if (layer.emphasizeLast) {
+            if (layer.emphasizeLast && anim.value > 0.98f) {
                 val lp = pts.last()
                 val c = Offset(px(lp.first), py(lp.second))
+                drawCircle(layer.color.copy(alpha = 0.25f), 10.dp.toPx(), c)
                 drawCircle(layer.color, 6.dp.toPx(), c)
-                drawCircle(cardColor, 3.5.dp.toPx(), c)
+                drawCircle(cardColor, 3.dp.toPx(), c)
             }
         }
+        }
+    }
+}
+
+/**
+ * Anello in stile "Attività": l'arco rappresenta l'età biologica rispetto a quella anagrafica
+ * (pieno a metà = uguali; verso il verde = più giovane).
+ */
+@Composable
+fun AgeRing(bioAge: Double, chronoAge: Double, modifier: Modifier = Modifier, span: Double = 15.0, ringColor: Color = Color.White) {
+    val target = (0.5 + (chronoAge - bioAge) / span / 2).coerceIn(0.03, 1.0).toFloat()
+    val anim = remember { Animatable(0f) }
+    LaunchedEffect(target) { anim.animateTo(target, tween(1100)) }
+    Canvas(modifier.size(132.dp)) {
+        val stroke = 14.dp.toPx()
+        val inset = stroke / 2
+        val arcSize = Size(size.width - stroke, size.height - stroke)
+        drawArc(ringColor.copy(alpha = 0.22f), -90f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+        drawArc(
+            Brush.sweepGradient(listOf(ringColor.copy(alpha = 0.75f), ringColor, ringColor.copy(alpha = 0.75f))),
+            -90f, 360f * anim.value, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round),
+        )
+        // tacca a metà = età anagrafica
+        drawLine(ringColor.copy(alpha = 0.9f), Offset(size.width / 2, size.height - stroke * 1.6f), Offset(size.width / 2, size.height - 2f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
     }
 }
 

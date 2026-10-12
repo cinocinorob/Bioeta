@@ -11,6 +11,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import it.cinocinorob.bioeta.data.BioAgeEngine
 import it.cinocinorob.bioeta.data.Analytes
+import it.cinocinorob.bioeta.data.AutoBackup
+import it.cinocinorob.bioeta.data.Sex
+import it.cinocinorob.bioeta.assistant.CitationCheck
+import it.cinocinorob.bioeta.assistant.Claude
+import it.cinocinorob.bioeta.assistant.Prompt
+import it.cinocinorob.bioeta.science.Insight
+import it.cinocinorob.bioeta.science.InsightEngine
+import it.cinocinorob.bioeta.science.InsightInput
 import it.cinocinorob.bioeta.data.LabStore
 import it.cinocinorob.bioeta.data.LabValue
 import it.cinocinorob.bioeta.data.ReportParser
@@ -72,16 +80,52 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun savePanel(p: Panel) {
         panels = (panels.filter { it.id != p.id } + p).sortedBy { it.date }
         store.savePanels(panels)
+        autoBackupNow()
     }
 
     fun deletePanel(id: String) {
         panels = panels.filter { it.id != id }
         store.savePanels(panels)
+        autoBackupNow()
     }
 
     fun updateProfile(p: Profile) {
         profile = p
         store.saveProfile(p)
+        autoBackupNow()
+    }
+
+    // ---------------- Backup automatico ----------------
+
+    val backup = AutoBackup(app)
+    var backupFolder by mutableStateOf(backup.folderName())
+        private set
+    var lastBackup by mutableStateOf(backup.lastBackup)
+        private set
+    var backupError by mutableStateOf(backup.lastError)
+        private set
+
+    fun setBackupFolder(uri: Uri) {
+        backup.setFolder(uri)
+        backupFolder = backup.folderName()
+        autoBackupNow(announce = true)
+    }
+
+    fun disableBackupFolder() {
+        backup.clearFolder()
+        backupFolder = null
+        backupError = null
+    }
+
+    fun autoBackupNow(announce: Boolean = false) {
+        if (backup.folderUri == null) return
+        val json = LabStore.toJson(panels, profile).toString(2)
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { backup.write(json) }
+            lastBackup = backup.lastBackup
+            backupError = backup.lastError
+            if (announce) message = if (ok) "Backup salvato in \"${backupFolder ?: "cartella"}\"." else "Backup non riuscito: ${backupError}"
+        }
     }
 
     fun exportTo(uri: Uri) {
@@ -177,7 +221,134 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             panels = (panels.filter { it.id !in ids } + imported).sortedBy { it.date }
             store.savePanels(panels)
             if (prof != null && profile.birthDate == null) updateProfile(prof)
-            message = "Importati ${imported.size} prelievi."
+            autoBackupNow()
+            message = "Ripristinati ${imported.size} prelievi."
+        }
+    }
+
+
+    // ---------------- Insight basati su evidenze ----------------
+
+    val insights: List<Insight>
+        get() {
+            val today = java.time.LocalDate.now()
+            val cutoff = today.minusMonths(18)
+            val recentPanels = panels.filter { !it.date.isBefore(cutoff) }.sortedByDescending { it.date }
+            fun latest(k: String): LabValue? = recentPanels.firstNotNullOfOrNull { it.values[k] }
+            val egfr = recentPanels.firstNotNullOfOrNull { BioAgeEngine.egfr(it, profile) }
+            fun rec(m: Metric): Double? = wearable[m]?.takeIf { it.isNotEmpty() }?.let { HealthRepo.summarize(m, it).recent }
+            val vo2 = profile.vo2Manual ?: wearable[Metric.VO2]?.filter { it.date.isAfter(today.minusDays(30)) }
+                ?.map { it.value }?.takeIf { it.isNotEmpty() }?.average()
+            val last = phenoSeries.lastOrNull()?.takeIf { !it.panel.date.isBefore(cutoff) }
+            return InsightEngine.build(
+                InsightInput(
+                    age = profile.ageAt(today),
+                    male = profile.sex == Sex.M,
+                    ldl = latest("ldl")?.value,
+                    hdl = latest("hdl")?.value,
+                    tg = latest("tg")?.value,
+                    glucose = latest(Analytes.GLUCOSE)?.value,
+                    hba1c = latest("hba1c")?.value,
+                    crp = latest(Analytes.CRP)?.value,
+                    crpBelowLimit = latest(Analytes.CRP)?.belowLimit == true,
+                    egfr = egfr,
+                    vitD = latest("vitd")?.value,
+                    homocys = latest("homocys")?.value,
+                    lpa = latest("lpa")?.value,
+                    rhr7d = rec(Metric.RHR),
+                    sleep7d = rec(Metric.SLEEP),
+                    steps7d = rec(Metric.STEPS),
+                    vo2 = vo2,
+                    phenoDelta = last?.let { it.result.phenoAge - it.age },
+                )
+            )
+        }
+
+    // ---------------- Assistente (Claude + PubMed) ----------------
+
+    data class ChatMsg(
+        val fromUser: Boolean,
+        val text: String,
+        val citations: CitationCheck.Report? = null,
+        val cost: String? = null,
+        val isError: Boolean = false,
+    )
+
+    private val secrets = app.getSharedPreferences("secrets", android.content.Context.MODE_PRIVATE)
+    private val settings = app.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+
+    var apiKey by mutableStateOf(secrets.getString("api_key", "") ?: "")
+        private set
+    var model by mutableStateOf(settings.getString("model", Claude.MODELS.first().first) ?: Claude.MODELS.first().first)
+        private set
+    var disclaimerAccepted by mutableStateOf(settings.getBoolean("disclaimer_v1", false))
+        private set
+    var chat by mutableStateOf<List<ChatMsg>>(emptyList())
+        private set
+    var thinking by mutableStateOf(false)
+        private set
+    var thinkingStep by mutableStateOf<String?>(null)
+        private set
+
+    fun saveApiKey(k: String) {
+        apiKey = k.trim()
+        secrets.edit().putString("api_key", apiKey).apply()
+    }
+
+    fun selectModel(m: String) {
+        model = m
+        settings.edit().putString("model", m).apply()
+    }
+
+    fun acceptDisclaimer() {
+        disclaimerAccepted = true
+        settings.edit().putBoolean("disclaimer_v1", true).apply()
+    }
+
+    fun clearChat() { chat = emptyList() }
+
+    fun ask(question: String) {
+        val q = question.trim()
+        if (q.isEmpty() || thinking || apiKey.isBlank()) return
+        val ctx = Prompt.context(profile, panels, wearable)
+        // Solo coppie domanda/risposta complete, per mantenere l'alternanza user/assistant
+        val prior = chat.zipWithNext().filter { (u, a) -> u.fromUser && !a.fromUser && !a.isError }
+            .flatMap { listOf(it.first, it.second) }
+        chat = chat + ChatMsg(true, q)
+        thinking = true
+        thinkingStep = "Analisi della domanda…"
+        viewModelScope.launch {
+            try {
+                val history = buildList {
+                    // Il contesto con i dati viene anteposto alla prima domanda della conversazione
+                    prior.forEachIndexed { i, m ->
+                        val t = if (i == 0 && m.fromUser) ctx + "\nDOMANDA: " + m.text else m.text
+                        add((if (m.fromUser) "user" else "assistant") to t)
+                    }
+                    add("user" to (if (prior.isEmpty()) ctx + "\nDOMANDA: " + q else q))
+                }
+                val answer = withContext(Dispatchers.IO) {
+                    Claude(apiKey, model).ask(Prompt.SYSTEM, history) { step ->
+                        thinkingStep = when (step) {
+                            is Claude.Step.Searching -> "Ricerca su PubMed: ${step.query}"
+                            is Claude.Step.Reading -> "Lettura abstract PMID ${step.pmid}"
+                        }
+                    }
+                }
+                thinkingStep = "Verifica delle citazioni su PubMed…"
+                val report = withContext(Dispatchers.IO) { CitationCheck.check(answer.text, answer.consulted) }
+                val (pin, pout) = if (model.contains("opus")) 4.0 to 20.0 else 2.0 to 10.0
+                val usd = answer.inputTokens / 1e6 * pin + answer.outputTokens / 1e6 * pout
+                chat = chat + ChatMsg(
+                    false, answer.text, report,
+                    cost = String.format(java.util.Locale.ITALY, "%,d token · ≈ %.3f $", answer.inputTokens + answer.outputTokens, usd),
+                )
+            } catch (e: Exception) {
+                chat = chat + ChatMsg(false, e.message ?: "Errore di rete", isError = true)
+            } finally {
+                thinking = false
+                thinkingStep = null
+            }
         }
     }
 

@@ -43,5 +43,8 @@ object BioIcons {
     val Refresh = stroked("refresh", "M20,11a8,8 0 1,0 -2.3,5.7M20,4v7h-7")
     val Back = stroked("back", "M15,5l-7,7l7,7", 2.6f)
     val Trash = stroked("trash", "M4,7h16M9,7V4h6v3M6,7l1,13h10l1,-13")
+    val Send = filled("send", "M3,20.5l18,-8.5l-18,-8.5l0,6.6l12.5,1.9l-12.5,1.9z")
+    val Chat = filled("chat", "M4,4h16a2,2 0 0,1 2,2v10a2,2 0 0,1 -2,2H9l-5,4v-4H4a2,2 0 0,1 -2,-2V6a2,2 0 0,1 2,-2z")
+    val Shield = filled("shield", "M12,2l8,3v6c0,5 -3.4,9.4 -8,11c-4.6,-1.6 -8,-6 -8,-11V5z")
     val Gear = stroked("gear", "M12,9a3,3 0 1,1 0,6a3,3 0 1,1 0,-6M12,2v3M12,19v3M2,12h3M19,12h3M4.9,4.9l2.1,2.1M17,17l2.1,2.1M4.9,19.1l2.1,-2.1M17,7l2.1,-2.1")
 }

@@ -28,6 +28,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
@@ -162,7 +164,8 @@ fun HealthCard(
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .softShadow(p.dark)
+            .clip(RoundedCornerShape(18.dp))
             .background(p.card)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -232,7 +235,7 @@ fun Pill(text: String, color: Color) {
 fun InsetGroup(content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPalette.current
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.card),
+        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(18.dp)).background(p.card),
         content = content,
     )
 }
@@ -282,3 +285,26 @@ fun IconBadge(icon: ImageVector, tint: Color, size: Int = 30) {
 
 @Composable
 fun VSpace(h: Int) = Spacer(Modifier.height(h.dp))
+
+
+/** Ombra morbida e diffusa (solo in modalità chiara). */
+fun Modifier.softShadow(dark: Boolean): Modifier =
+    if (dark) this else this.shadow(
+        elevation = 6.dp, shape = RoundedCornerShape(18.dp), clip = false,
+        ambientColor = Color(0x22000000), spotColor = Color(0x1A000000),
+    )
+
+/** Card con sfondo a gradiente per i contenuti principali. */
+@Composable
+fun GradientHero(colors: List<Color>, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .shadow(10.dp, RoundedCornerShape(24.dp), clip = false, ambientColor = colors.first().copy(alpha = 0.4f), spotColor = colors.first().copy(alpha = 0.4f))
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(colors))
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        content = content,
+    )
+}

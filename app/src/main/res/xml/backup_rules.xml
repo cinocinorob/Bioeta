@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android ≤ 11: backup automatico Google di referti e profilo. La chiave API resta esclusa. -->
+<full-backup-content>
+    <include domain="file" path="panels.json" />
+    <include domain="sharedpref" path="profile.xml" />
+    <include domain="sharedpref" path="settings.xml" />
+    <exclude domain="sharedpref" path="secrets.xml" />
+</full-backup-content>
