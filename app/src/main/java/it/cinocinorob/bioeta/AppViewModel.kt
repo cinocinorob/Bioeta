@@ -412,11 +412,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return DayScores(date, s?.first, s?.second, r)
     }
 
-    val today: DayScores get() = scoresFor(java.time.LocalDate.now())
+    // Cache: ricalcola solo quando cambiano i dati di ingresso
+    private var cacheKey: List<Any?>? = null
+    private var cacheHistory: List<DayScores> = emptyList()
 
     /** Ultimi 14 giorni, dal più vecchio. */
     val recoveryHistory: List<DayScores>
-        get() = (13 downTo 0).map { scoresFor(java.time.LocalDate.now().minusDays(it.toLong())) }
+        get() {
+            val key = listOf(sleepNights, exercises, wearable, profile, java.time.LocalDate.now())
+            if (key != cacheKey) {
+                cacheHistory = (13 downTo 0).map { scoresFor(java.time.LocalDate.now().minusDays(it.toLong())) }
+                cacheKey = key
+            }
+            return cacheHistory
+        }
+
+    val today: DayScores get() = recoveryHistory.last()
 
     companion object {
         const val DAYS_WINDOW = 120L
