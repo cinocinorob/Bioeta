@@ -21,7 +21,7 @@ class ExtrasTest {
     private val today = LocalDate.of(2026, 10, 13)
 
     private fun night(d: LocalDate, bed: LocalTime, wake: LocalTime) =
-        SleepNight(d, d.minusDays(1).atTime(bed).toInstant(z), d.atTime(wake).toInstant(z), emptyList())
+        SleepNight(d, (if (bed.hour >= 12) d.minusDays(1) else d).atTime(bed).toInstant(z), d.atTime(wake).toInstant(z), emptyList())
 
     @Test fun bedtimeAnchorsOnWake() {
         val nights = (0 until 10).map { night(today.minusDays(it.toLong()), LocalTime.of(23, 0), LocalTime.of(7, 0)) }
