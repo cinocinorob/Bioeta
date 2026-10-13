@@ -226,7 +226,7 @@ private fun MainTabs(
             LargeTopAppBar(
                 title = { Text(title, maxLines = 1) },
                 actions = {
-                    IconButton(onClick = { vm.refreshHealth() }) { Icon(BioIcons.Refresh, "Aggiorna") }
+                    IconButton(onClick = { vm.refreshHealth(force = true) }) { Icon(BioIcons.Refresh, "Aggiorna") }
                     Box(
                         Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer)

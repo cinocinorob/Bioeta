@@ -30,98 +30,74 @@ fun moodFor(readiness: Int?, calibrating: Boolean): Mood = when {
 }
 
 fun moodColors(m: Mood): List<Color> = when (m) {
-    Mood.HAPPY -> listOf(Color(0xFF7EE0B5), Color(0xFF3FBF8F))
-    Mood.CALM -> listOf(Color(0xFFFFD58A), Color(0xFFFFA95A))
-    Mood.TIRED -> listOf(Color(0xFFFFB3B8), Color(0xFFF2788A))
-    Mood.SLEEPY -> listOf(Color(0xFFC9BEFF), Color(0xFF8E7CFF))
+    Mood.HAPPY -> listOf(Color(0xFFFF7A8E), Color(0xFFE5304D))
+    Mood.CALM -> listOf(Color(0xFFFFA27C), Color(0xFFF0605A))
+    Mood.TIRED -> listOf(Color(0xFFF6AEBE), Color(0xFFD06A86))
+    Mood.SLEEPY -> listOf(Color(0xFFCDB2FF), Color(0xFF9073F0))
+}
+
+/** Sagoma del cuore inscritta in un rettangolo w×h. */
+fun heartPath(w: Float, h: Float, ox: Float = 0f, oy: Float = 0f) = Path().apply {
+    moveTo(ox + w * 0.5f, oy + h * 0.94f)
+    cubicTo(ox + w * 0.12f, oy + h * 0.66f, ox - w * 0.02f, oy + h * 0.36f, ox + w * 0.12f, oy + h * 0.17f)
+    cubicTo(ox + w * 0.26f, oy - h * 0.02f, ox + w * 0.47f, oy + h * 0.04f, ox + w * 0.5f, oy + h * 0.22f)
+    cubicTo(ox + w * 0.53f, oy + h * 0.04f, ox + w * 0.74f, oy - h * 0.02f, ox + w * 0.88f, oy + h * 0.17f)
+    cubicTo(ox + w * 1.02f, oy + h * 0.36f, ox + w * 0.88f, oy + h * 0.66f, ox + w * 0.5f, oy + h * 0.94f)
+    close()
 }
 
 /**
- * "Germoglio": mascotte originale di BioEtà. Un corpo morbido con un germoglio sulla testa;
- * l'espressione segue la prontezza del giorno. Animazione di "respiro" lenta.
+ * Avatar di BioEtà: un cuore che batte alla TUA frequenza a riposo (doppio colpo "lub-dub"),
+ * con colore e alone che seguono la prontezza del giorno.
  */
 @Composable
-fun Sprout(mood: Mood, modifier: Modifier = Modifier, sizeDp: Int = 96) {
-    val tr = rememberInfiniteTransition(label = "breath")
-    val breath by tr.animateFloat(
-        0f, 1f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b",
+fun HeartAvatar(mood: Mood, bpm: Double?, modifier: Modifier = Modifier, sizeDp: Int = 110) {
+    val period = (60_000.0 / (bpm ?: 60.0).coerceIn(40.0, 110.0)).toInt()
+    val still = androidx.compose.ui.platform.LocalInspectionMode.current
+    val tr = rememberInfiniteTransition(label = "beat")
+    val beat by tr.animateFloat(
+        initialValue = 1f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            androidx.compose.animation.core.keyframes {
+                durationMillis = period
+                1f at 0
+                1.10f at (period * 0.10).toInt()
+                0.99f at (period * 0.22).toInt()
+                1.05f at (period * 0.32).toInt()
+                1f at (period * 0.48).toInt()
+            },
+        ), label = "b",
     )
+    val sc = if (still) 1.04f else beat
     val colors = moodColors(mood)
     Canvas(modifier.size(sizeDp.dp)) {
         val w = size.width; val h = size.height
-        val squash = 1f + 0.03f * breath
-        val bodyW = w * 0.78f * squash
-        val bodyH = h * 0.66f / squash
-        val left = (w - bodyW) / 2
-        val top = h - bodyH - h * 0.06f
-
-        // ombra
-        drawOval(Color.Black.copy(alpha = 0.08f), Offset(w * 0.2f, h * 0.9f), Size(w * 0.6f, h * 0.07f))
-
-        // germoglio
-        val stemX = w / 2
-        val stemTop = top - h * 0.14f
-        drawLine(Color(0xFF5DAE7B), Offset(stemX, top + 4f), Offset(stemX, stemTop), strokeWidth = w * 0.035f, cap = StrokeCap.Round)
-        val leafL = Path().apply {
-            moveTo(stemX, stemTop + h * 0.03f)
-            cubicTo(stemX - w * 0.20f, stemTop - h * 0.06f, stemX - w * 0.20f, stemTop + h * 0.08f, stemX, stemTop + h * 0.05f)
-        }
-        val leafR = Path().apply {
-            moveTo(stemX, stemTop + h * 0.02f)
-            cubicTo(stemX + w * 0.16f, stemTop - h * 0.10f, stemX + w * 0.22f, stemTop + h * 0.04f, stemX, stemTop + h * 0.04f)
-        }
-        drawPath(leafL, Color(0xFF7FCF95))
-        drawPath(leafR, Color(0xFF6BC287))
-
-        // corpo
-        drawRoundRect(
-            Brush.verticalGradient(colors, startY = top, endY = top + bodyH),
-            Offset(left, top), Size(bodyW, bodyH),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(bodyW * 0.48f, bodyH * 0.55f),
+        // alone
+        drawCircle(
+            Brush.radialGradient(listOf(colors[0].copy(alpha = 0.40f * (sc - 0.9f) * 5f), Color.Transparent), center = Offset(w / 2, h / 2), radius = w * 0.55f),
+            radius = w * 0.55f,
         )
-        // riflesso
-        drawOval(Color.White.copy(alpha = 0.35f), Offset(left + bodyW * 0.14f, top + bodyH * 0.10f), Size(bodyW * 0.22f, bodyH * 0.14f))
-
-        // viso
-        val eyeY = top + bodyH * 0.45f
-        val eyeDx = bodyW * 0.17f
-        val ink = Color(0xFF2B2440)
-        val eyeR = w * 0.035f
-        when (mood) {
-            Mood.SLEEPY, Mood.TIRED -> {
-                listOf(-1, 1).forEach { s ->
-                    val cx = w / 2 + s * eyeDx
-                    drawArc(ink, 0f, 180f, false, Offset(cx - eyeR * 1.3f, eyeY - eyeR), Size(eyeR * 2.6f, eyeR * 1.8f),
-                        style = Stroke(w * 0.022f, cap = StrokeCap.Round))
-                }
-            }
-            else -> listOf(-1, 1).forEach { s ->
-                val cx = w / 2 + s * eyeDx
-                drawOval(ink, Offset(cx - eyeR, eyeY - eyeR * 1.3f), Size(eyeR * 2, eyeR * 2.6f))
-                drawCircle(Color.White, eyeR * 0.38f, Offset(cx + eyeR * 0.3f, eyeY - eyeR * 0.6f))
-            }
+        val hw = w * 0.62f * sc; val hh = h * 0.58f * sc
+        val ox = (w - hw) / 2; val oy = (h - hh) / 2 + h * 0.02f
+        // ombra
+        drawOval(Color.Black.copy(alpha = 0.10f), Offset(w * 0.3f, oy + hh * 0.98f), Size(w * 0.4f, h * 0.05f))
+        val heart = heartPath(hw, hh, ox, oy)
+        drawPath(heart, Brush.linearGradient(listOf(colors[0], colors[1]), start = Offset(ox, oy), end = Offset(ox + hw, oy + hh)))
+        // riflesso lucido
+        val gloss = heartPath(hw * 0.42f, hh * 0.40f, ox + hw * 0.12f, oy + hh * 0.08f)
+        drawPath(gloss, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.55f), Color.White.copy(alpha = 0f)), startY = oy, endY = oy + hh * 0.45f))
+        // traccia ECG stilizzata
+        val y0 = oy + hh * 0.50f
+        val ecg = Path().apply {
+            moveTo(ox + hw * 0.18f, y0)
+            lineTo(ox + hw * 0.36f, y0)
+            lineTo(ox + hw * 0.43f, y0 - hh * 0.16f)
+            lineTo(ox + hw * 0.52f, y0 + hh * 0.18f)
+            lineTo(ox + hw * 0.59f, y0 - hh * 0.05f)
+            lineTo(ox + hw * 0.64f, y0)
+            lineTo(ox + hw * 0.82f, y0)
         }
-        // guance
-        drawOval(Color(0xFFFF8FA3).copy(alpha = 0.45f), Offset(w / 2 - eyeDx * 1.9f, eyeY + eyeR * 1.2f), Size(eyeR * 2.6f, eyeR * 1.4f))
-        drawOval(Color(0xFFFF8FA3).copy(alpha = 0.45f), Offset(w / 2 + eyeDx * 1.9f - eyeR * 2.6f, eyeY + eyeR * 1.2f), Size(eyeR * 2.6f, eyeR * 1.4f))
-        // bocca
-        val my = eyeY + bodyH * 0.17f
-        val mw = bodyW * 0.16f
-        when (mood) {
-            Mood.HAPPY -> drawArc(ink, 10f, 160f, false, Offset(w / 2 - mw / 2, my - mw * 0.45f), Size(mw, mw * 0.8f),
-                style = Stroke(w * 0.022f, cap = StrokeCap.Round))
-            Mood.CALM -> drawLine(ink, Offset(w / 2 - mw * 0.3f, my), Offset(w / 2 + mw * 0.3f, my), strokeWidth = w * 0.022f, cap = StrokeCap.Round)
-            Mood.TIRED -> drawArc(ink, 200f, 140f, false, Offset(w / 2 - mw * 0.4f, my - mw * 0.1f), Size(mw * 0.8f, mw * 0.6f),
-                style = Stroke(w * 0.022f, cap = StrokeCap.Round))
-            Mood.SLEEPY -> drawOval(ink, Offset(w / 2 - mw * 0.14f, my - mw * 0.12f), Size(mw * 0.28f, mw * 0.32f))
-        }
-        if (mood == Mood.SLEEPY) {
-            // piccole "z"
-            val zx = left + bodyW * 0.95f; val zy = top + bodyH * 0.05f - 6f * breath
-            val zs = w * 0.07f
-            val z = Path().apply { moveTo(zx, zy); lineTo(zx + zs, zy); lineTo(zx, zy + zs); lineTo(zx + zs, zy + zs) }
-            drawPath(z, Color(0xFF8E7CFF), style = Stroke(w * 0.018f, cap = StrokeCap.Round))
-        }
+        drawPath(ecg, Color.White.copy(alpha = 0.92f), style = Stroke(w * 0.028f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
     }
 }
 

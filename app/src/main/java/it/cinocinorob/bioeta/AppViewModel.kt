@@ -1,5 +1,9 @@
 package it.cinocinorob.bioeta
 
+import it.cinocinorob.bioeta.science.*
+import androidx.glance.appwidget.updateAll
+import it.cinocinorob.bioeta.widget.BioWidget
+import it.cinocinorob.bioeta.widget.WidgetData
 import android.app.Application
 import android.net.Uri
 import androidx.compose.runtime.getValue
@@ -77,22 +81,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var refreshJob: kotlinx.coroutines.Job? = null
 
-    fun refreshHealth() {
+    private var lastFull = 0L
+
+    /**
+     * Lettura in due fasi:
+     * 1) veloce (≈1 s): passi e attività di oggi, ultime 3 notti, ultimo dato dell'orologio → la schermata
+     *    Oggi si riempie subito;
+     * 2) completa: storico 120 giorni, sonno 75 giorni, carico cardiaco 28 giorni (può richiedere decine
+     *    di secondi; ripetuta al massimo ogni 10 minuti, o subito se interrotta).
+     * Prima la fase veloce arrivava solo alla fine della completa: se l'app veniva chiusa a metà,
+     * passi e sonno di oggi non comparivano mai.
+     */
+    fun refreshHealth(force: Boolean = false) {
         hcStatus = health.sdkStatus()
         if (!hcAvailable) return
-        // Una sola lettura alla volta: onResume può arrivare più volte di seguito
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             loading = true
             try {
                 granted = health.granted()
                 if (hasAnyHealthPermission) {
+                    todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
+                    val quick = health.readRecovery(3)
+                    if (quick.nights.isNotEmpty()) {
+                        val dates = quick.nights.map { it.date }.toSet()
+                        sleepNights = (sleepNights.filter { it.date !in dates } + quick.nights).sortedBy { it.date }
+                    }
                     lastWearable = runCatching { health.lastWearableData() }.getOrNull()
-                    wearable = health.readAll(DAYS_WINDOW)
-                    val rec = health.readRecovery(RECOVERY_WINDOW)
-                    sleepNights = rec.nights
-                    exercises = rec.exercises
-                    refreshFitness()
+                    updateWidget()
+                    if (force || System.currentTimeMillis() - lastFull > 10 * 60_000L || wearable.isEmpty()) {
+                        wearable = health.readAll(DAYS_WINDOW)
+                        val rec = health.readRecovery(RECOVERY_WINDOW)
+                        sleepNights = rec.nights
+                        exercises = rec.exercises
+                        refreshFitness()
+                        lastFull = System.currentTimeMillis()
+                        updateWidget()
+                    }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -104,10 +129,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Aggiorna il widget della schermata Home con i valori correnti. */
+    private suspend fun updateWidget() {
+        runCatching {
+            val t = today
+            WidgetData.save(
+                getApplication<Application>(),
+                readiness = t.readiness.score, sleep = t.sleep?.score,
+                steps = todayActivity?.steps, stepGoal = Fitness.stepGoal(profile.ageAt(java.time.LocalDate.now())),
+                load = todayLoad?.load,
+            )
+            BioWidget().updateAll(getApplication<Application>())
+        }
+    }
+
     /** Interrompe le letture quando l'app va in secondo piano (Connessione Salute le rifiuterebbe). */
     fun stopReads() { refreshJob?.cancel(); loading = false }
 
-    fun onPermissionsResult(@Suppress("UNUSED_PARAMETER") result: Set<String>) = refreshHealth()
+    fun onPermissionsResult(@Suppress("UNUSED_PARAMETER") result: Set<String>) = refreshHealth(force = true)
 
     fun savePanel(p: Panel) {
         panels = (panels.filter { it.id != p.id } + p).sortedBy { it.date }
@@ -521,6 +560,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val today: DayScores get() = recoveryHistory.last()
 
 
+
+    // ---------------- Funzioni aggiuntive (orario sonno, parametri vitali, andamento carico, settimana) ----------------
+
+    val bedtimeGuide: BedtimeGuide?
+        get() = Bedtime.guide(sleepNights, java.time.LocalDate.now(), profile.ageAt(java.time.LocalDate.now()))
+
+    val vitals: VitalsReport
+        get() {
+            fun s(m: Metric) = wearable[m].orEmpty().map { DailyValue(it.date, it.value) }
+            return Vitals.report(
+                linkedMapOf(
+                    "FC a riposo" to Triple(s(Metric.RHR), "bpm", 0),
+                    "HRV" to Triple(s(Metric.HRV), "ms", 0),
+                    "Respirazione" to Triple(s(Metric.RESP), "atti/min", 1),
+                    "SpO₂" to Triple(s(Metric.SPO2), "%", 1),
+                    "FC nel sonno" to Triple(sleepNights.mapNotNull { n -> n.avgHr?.let { DailyValue(n.date, it) } }, "bpm", 0),
+                ),
+                java.time.LocalDate.now(),
+            )
+        }
+
+    val loadTrend: LoadTrend get() = LoadTrendCalc.compute(dayLoads, java.time.LocalDate.now())
+
+    val weekStats: List<WeekStat>
+        get() {
+            val today = java.time.LocalDate.now()
+            val h = recoveryHistory
+            val thisW = h.filter { it.date.isAfter(today.minusDays(7)) }
+            val lastW = h.filter { !it.date.isAfter(today.minusDays(7)) }
+            fun nightsIn(a: Long, b: Long) = sleepNights.filter { it.date.isAfter(today.minusDays(b)) && !it.date.isAfter(today.minusDays(a)) }
+            fun stepsIn(a: Long, b: Long) = wearable[Metric.STEPS].orEmpty().filter { it.date.isAfter(today.minusDays(b)) && !it.date.isAfter(today.minusDays(a)) }.map { it.value }
+            fun loadsIn(a: Long, b: Long) = dayLoads.filter { it.date.isAfter(today.minusDays(b)) && !it.date.isAfter(today.minusDays(a)) }
+            return listOf(
+                WeekStat("Recupero medio", WeekSummary.avg(thisW.mapNotNull { it.readiness.score?.toDouble() }), WeekSummary.avg(lastW.mapNotNull { it.readiness.score?.toDouble() }), "", 0, true),
+                WeekStat("Punteggio sonno", WeekSummary.avg(thisW.mapNotNull { it.sleep?.score?.toDouble() }), WeekSummary.avg(lastW.mapNotNull { it.sleep?.score?.toDouble() }), "", 0, true),
+                WeekStat("Sonno per notte", WeekSummary.avg(nightsIn(0, 7).map { it.totalSleepMin / 60 }), WeekSummary.avg(nightsIn(7, 14).map { it.totalSleepMin / 60 }), "h", 1, null),
+                WeekStat("Passi al giorno", WeekSummary.avg(stepsIn(1, 8)), WeekSummary.avg(stepsIn(8, 15)), "", 0, true),
+                WeekStat("Minuti attivi", loadsIn(0, 7).takeIf { it.isNotEmpty() }?.sumOf { it.activeMinutes }?.toDouble(), loadsIn(7, 14).takeIf { it.isNotEmpty() }?.sumOf { it.activeMinutes }?.toDouble(), "min", 0, true),
+            )
+        }
+
     // ---------------- Pressione arteriosa ----------------
 
     var bpReadings by mutableStateOf(store.loadBp())
@@ -564,7 +644,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun refreshFitness() {
         // L'attività di oggi e gli allenamenti non dipendono dal profilo: si leggono sempre
-        todayActivity = runCatching { health.todayActivity() }.getOrNull()
+        todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
         workouts = runCatching { health.workouts(14) }.getOrDefault(emptyList())
         // Il carico cardiaco usa FCmax stimata dall'età: senza data di nascita si usa 40 anni (segnalato nella UI)
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0

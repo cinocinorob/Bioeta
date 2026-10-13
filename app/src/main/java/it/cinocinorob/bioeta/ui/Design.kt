@@ -1,5 +1,6 @@
 package it.cinocinorob.bioeta.ui
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -187,9 +188,10 @@ fun HealthCard(
     Column(
         modifier
             .fillMaxWidth()
-            .softShadow(p.dark)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(28.dp))
             .background(p.card)
+            // velo colorato in alto: ogni scheda prende il colore della sua categoria
+            .background(Brush.verticalGradient(listOf(tint.copy(alpha = if (p.dark) 0.14f else 0.09f), Color.Transparent), endY = 420f))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -197,17 +199,19 @@ fun HealthCard(
         if (title != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
-                    Icon(icon, null, tint = tint, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(tint.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+                        Icon(icon, null, tint = tint, modifier = Modifier.size(17.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
                 }
                 Text(
-                    title, color = tint, fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                    title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 if (trailing != null) Text(trailing, color = p.text2, fontSize = 13.sp)
                 if (onClick != null) {
                     Spacer(Modifier.width(4.dp))
-                    Icon(BioIcons.Chevron, null, tint = p.text2, modifier = Modifier.size(14.dp))
+                    Icon(BioIcons.Chevron, null, tint = p.text2.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
                 }
             }
         }

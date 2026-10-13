@@ -72,6 +72,8 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
     ) {
         item { LargeHeader("Recupero", "Sonno e prontezza") }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { VitalsCard(vm) }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
         item { TagEffectsCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori") }
         if (vm.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.heart) }
@@ -111,7 +113,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
                         Caption("Senza il permesso \"dati storici\" la baseline si completa solo col tempo.", Tint.warn)
                     }
                 }
-                TextButton(onClick = { vm.refreshHealth() }) { Text("Aggiorna", color = Tint.blue) }
+                TextButton(onClick = { vm.refreshHealth(force = true) }) { Text("Aggiorna", color = Tint.blue) }
                 TextButton(onClick = onRequestPermissions) { Text("Permessi", color = Tint.blue) }
             }
         }

@@ -69,7 +69,7 @@ fun DiagnosticsScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onRequestPermissions) { Text("Concedi permessi") }
-                        OutlinedButton(onClick = { vm.runDiagnostics(); vm.refreshHealth() }) { Text("Riprova") }
+                        OutlinedButton(onClick = { vm.runDiagnostics(); vm.refreshHealth(force = true) }) { Text("Riprova") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalButton(onClick = { openWatchApp(ctx) }) { Text("Apri Fitbit") }

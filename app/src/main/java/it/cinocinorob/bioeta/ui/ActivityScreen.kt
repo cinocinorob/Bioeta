@@ -207,6 +207,7 @@ fun ActivityScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
         }
 
         // ---------- Allenamenti ----------
+        item { LoadTrendCard(vm) }
         item { SectionLabel("Allenamenti recenti") }
         if (vm.workouts.isEmpty()) item {
             Caption("Nessun allenamento negli ultimi 14 giorni. Avvia un esercizio dall'orologio per vedere qui durata, frequenza cardiaca, zone e carico.")

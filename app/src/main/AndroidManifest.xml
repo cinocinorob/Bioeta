@@ -63,6 +63,18 @@
             </intent-filter>
         </activity-alias>
 
+        <receiver
+            android:name=".widget.BioWidgetReceiver"
+            android:exported="true"
+            android:label="BioEtà">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/bio_widget_info" />
+        </receiver>
+
         <!-- Telemetria di ML Kit disattivata: senza backend registrati nessun evento viene inviato.
              L'OCR resta interamente sul dispositivo. -->
         <service

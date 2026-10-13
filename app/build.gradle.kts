@@ -73,6 +73,10 @@ dependencies {
     implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
 
+    // Widget della schermata Home (Material You)
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
+
     // Lettura referti: testo da PDF (anche protetti) + OCR on-device per scansioni e foto
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("com.google.mlkit:text-recognition:16.0.1")

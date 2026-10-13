@@ -144,7 +144,8 @@ class HealthRepo(private val context: Context) {
             val sessions = readRecords(SleepSessionRecord::class, start, end)
             val byDay = sessions.groupBy { it.endTime.atZone(zone).toLocalDate() }
             out[Metric.SLEEP] = byDay.map { (d, list) ->
-                DailyPoint(d, list.sumOf { asleepHours(it) })
+                val origin = list.maxBy { Duration.between(it.startTime, it.endTime) }.metadata.dataOrigin.packageName
+                DailyPoint(d, list.filter { it.metadata.dataOrigin.packageName == origin }.sumOf { asleepHours(it) })
             }.sortedBy { it.date }
         }
         if (has(StepsRecord::class)) track("Passi giornalieri") {
@@ -185,25 +186,43 @@ class HealthRepo(private val context: Context) {
 
         val nights = if (HealthPermission.getReadPermission(SleepSessionRecord::class) in granted) track("Sonno (fasi)") {
             val sessions = readRecords(SleepSessionRecord::class, start, end)
-            // Notte principale = sessione più lunga che termina in quel giorno (i pisolini sono esclusi)
+            // Notte principale = gruppo di sessioni contigue (pause < 2 h) attorno alla più lunga tra quelle
+            // che terminano in quel giorno: alcune app spezzano la notte in più sessioni.
             sessions.groupBy { it.endTime.atZone(zone).toLocalDate() }
                 .mapNotNull { (date, list) ->
-                    val main = list.maxByOrNull { Duration.between(it.startTime, it.endTime) } ?: return@mapNotNull null
-                    if (Duration.between(main.startTime, main.endTime).toMinutes() < 180) return@mapNotNull null
-                    val stages = main.stages.map { Stage(it.startTime, it.endTime, mapStage(it.stage)) }
+                    val sorted = list.sortedBy { it.startTime }
+                    val longest = sorted.maxByOrNull { Duration.between(it.startTime, it.endTime) } ?: return@mapNotNull null
+                    val cluster = mutableListOf(longest)
+                    var i = sorted.indexOf(longest) - 1
+                    while (i >= 0 && Duration.between(sorted[i].endTime, cluster.first().startTime).toMinutes() < 120) { cluster.add(0, sorted[i]); i-- }
+                    i = sorted.indexOf(longest) + 1
+                    while (i < sorted.size && Duration.between(cluster.last().endTime, sorted[i].startTime).toMinutes() < 120) { cluster.add(sorted[i]); i++ }
+                    // Se due app scrivono la stessa notte (es. orologio e modalità Riposo del telefono),
+                    // tengo la fonte della sessione principale per non contare due volte il sonno.
+                    val origin = longest.metadata.dataOrigin.packageName
+                    fun overlaps(a: SleepSessionRecord, b: SleepSessionRecord) = a.startTime < b.endTime && b.startTime < a.endTime
+                    cluster.retainAll { ss -> ss.metadata.dataOrigin.packageName == origin || cluster.none { o -> o.metadata.dataOrigin.packageName == origin && overlaps(o, ss) } }
+                    val mStart = cluster.first().startTime
+                    val mEnd = cluster.maxOf { it.endTime }
+                    if (Duration.between(mStart, mEnd).toMinutes() < 180) return@mapNotNull null
+                    val anyStages = cluster.any { it.stages.isNotEmpty() }
+                    val stages = if (!anyStages) emptyList() else cluster.flatMap { ss ->
+                        if (ss.stages.isEmpty()) listOf(Stage(ss.startTime, ss.endTime, StageType.ASLEEP_UNKNOWN))
+                        else ss.stages.map { Stage(it.startTime, it.endTime, mapStage(it.stage)) }
+                    }.sortedBy { it.start }
                     var avg: Double? = null
                     var mn: Double? = null
                     if (hasHr) runCatching {
                         val agg = client.aggregate(
                             AggregateRequest(
                                 metrics = setOf(HeartRateRecord.BPM_AVG, HeartRateRecord.BPM_MIN),
-                                timeRangeFilter = TimeRangeFilter.between(main.startTime, main.endTime),
+                                timeRangeFilter = TimeRangeFilter.between(mStart, mEnd),
                             )
                         )
                         avg = agg[HeartRateRecord.BPM_AVG]?.toDouble()
                         mn = agg[HeartRateRecord.BPM_MIN]?.toDouble()
                     }
-                    SleepNight(date, main.startTime, main.endTime, stages, avg, mn)
+                    SleepNight(date, mStart, mEnd, stages, avg, mn)
                 }.sortedBy { it.date }
         } ?: emptyList() else emptyList()
 
@@ -256,8 +275,10 @@ class HealthRepo(private val context: Context) {
     suspend fun todayActivity(): TodayActivity {
         val g = granted()
         val zone = ZoneId.systemDefault()
-        val dayStart = LocalDate.now(zone).atStartOfDay()
-        val now = LocalDateTime.now(zone)
+        // Filtri in Instant: con LocalDateTime Connessione Salute usa il fuso salvato in ogni record,
+        // e i record senza fuso (es. contapassi del telefono) possono restare fuori.
+        val dayStart = LocalDate.now(zone).atStartOfDay(zone).toInstant()
+        val now = Instant.now()
         val hourly = MutableList(24) { 0L }
         var total: Long? = null
         if (HealthPermission.getReadPermission(StepsRecord::class) in g) {
@@ -269,7 +290,7 @@ class HealthRepo(private val context: Context) {
                         timeRangeSlicer = Duration.ofHours(1),
                     )
                 ).forEach { b ->
-                    val h = b.startTime.atZone(zone).hour
+                    val h = b.startTime.atZone(zone).hour.coerceIn(0, 23)
                     hourly[h] = b.result[StepsRecord.COUNT_TOTAL] ?: 0L
                 }
                 total = client.aggregate(AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(dayStart, now)))[StepsRecord.COUNT_TOTAL]

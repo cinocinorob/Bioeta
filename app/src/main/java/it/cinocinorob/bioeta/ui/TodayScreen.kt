@@ -60,7 +60,7 @@ object Pillar {
  * con la mascotte al centro. Ogni arco si riempie in proporzione al proprio valore.
  */
 @Composable
-fun TriDial(recovery: Int?, sleep: Int?, loadFraction: Float?, mood: Mood, modifier: Modifier = Modifier) {
+fun TriDial(recovery: Int?, sleep: Int?, loadFraction: Float?, mood: Mood, modifier: Modifier = Modifier, bpm: Double? = null) {
     val p = LocalPalette.current
     val v1 = animatedValue((recovery ?: 0) / 100f, 900)
     val v2 = animatedValue((sleep ?: 0) / 100f, 1000)
@@ -86,7 +86,7 @@ fun TriDial(recovery: Int?, sleep: Int?, loadFraction: Float?, mood: Mood, modif
                 )
             }
         }
-        Sprout(mood, sizeDp = 120)
+        HeartAvatar(mood, bpm, sizeDp = 130)
     }
 }
 
@@ -165,11 +165,13 @@ fun TodayScreen(
         // ---------- Quadrante ----------
         item {
             Column(
-                Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(32.dp)).background(p.card).padding(vertical = 18.dp, horizontal = 14.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)).background(p.card)
+                    .background(Brush.verticalGradient(listOf(moodColors(mood)[0].copy(alpha = if (p.dark) 0.22f else 0.20f), Pillar.sleep[0].copy(alpha = 0.06f), Color.Transparent)))
+                    .padding(vertical = 18.dp, horizontal = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                TriDial(t.readiness.score, t.sleep?.score, loadFraction, mood)
+                TriDial(t.readiness.score, t.sleep?.score, loadFraction, mood, bpm = vm.restHrRef)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     PillarLegend("Recupero", t.readiness.score?.toString() ?: "—", Pillar.recovery, onGoRecovery, Modifier.weight(1f))
                     PillarLegend("Sonno", t.sleep?.score?.toString() ?: "—", Pillar.sleep, onGoRecovery, Modifier.weight(1f))
@@ -234,8 +236,16 @@ fun TodayScreen(
             }
         }
 
+        // ---------- Stasera / Parametri vitali / Settimana ----------
+        if (vm.hasAnyHealthPermission) {
+            if (vm.vitals.outliers >= 2) item { VitalsCard(vm) }
+            item { TonightCard(vm) }
+        }
+
         // ---------- Diario ----------
         item { JournalQuickCard(vm, onOpenJournal) }
+
+        item { WeekCard(vm) }
 
         // ---------- Cronologia della giornata ----------
         item { TimelineCard(vm) }
