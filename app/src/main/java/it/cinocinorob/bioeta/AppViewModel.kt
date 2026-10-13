@@ -597,9 +597,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val tagEffects: List<TagEffect>
-        get() = Journal.tagEffects(journal.filter { it.date.isAfter(java.time.LocalDate.now().minusDays(120)) }) { d ->
-            recoveryHistoryLong.firstOrNull { it.first == d }?.second
-        }
+        get() = Journal.tagEffects(
+            journal.filter { it.date.isAfter(java.time.LocalDate.now().minusDays(120)) },
+            nextDayScore = { d -> recoveryHistoryLong.firstOrNull { it.first == d }?.second },
+        )
 
     /** Prontezza degli ultimi 120 giorni (per il diario); calcolata su richiesta e memorizzata. */
     private var longKey: Any? = null
