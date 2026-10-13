@@ -63,9 +63,9 @@ fun zoneColor(z: Zone): Color = when (z) {
 /** Tre anelli concentrici: passi, minuti attivi della settimana, carico di oggi. */
 @Composable
 fun ActivityRings(steps: Float, minutes: Float, load: Float) {
-    val anims = listOf(remember { Animatable(0f) }, remember { Animatable(0f) }, remember { Animatable(0f) })
-    val targets = listOf(steps, minutes, load)
-    targets.forEachIndexed { i, v -> LaunchedEffect(v) { anims[i].animateTo(v.coerceIn(0f, 1.5f), tween(900 + i * 150)) } }
+    val anims = listOf(
+        animatedValue(steps.coerceIn(0f, 1.5f), 900), animatedValue(minutes.coerceIn(0f, 1.5f), 1050), animatedValue(load.coerceIn(0f, 1.5f), 1200),
+    )
     val colors = listOf(
         listOf(Color(0xFFFFC27A), Color(0xFFFF9F5A)),
         listOf(Color(0xFF6ED8B0), Color(0xFF2FB68A)),
@@ -77,7 +77,7 @@ fun ActivityRings(steps: Float, minutes: Float, load: Float) {
             val inset = st / 2 + i * (st + gap)
             val tl = Offset(inset, inset); val sz = Size(size.width - 2 * inset, size.height - 2 * inset)
             drawArc(c[0].copy(alpha = 0.18f), 0f, 360f, false, tl, sz, style = Stroke(st))
-            val v = anims[i].value
+            val v = anims[i]
             if (v > 0.003f) drawArc(Brush.sweepGradient(listOf(c[0], c[1], c[0])), -90f, 360f * v.coerceAtMost(1f), false, tl, sz, style = Stroke(st, cap = StrokeCap.Round))
         }
     }
@@ -95,6 +95,7 @@ private fun RingLegend(color: Color, label: String, value: String) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ZoneBar(zones: Map<Zone, Int>, showLegend: Boolean = true) {
     val p = LocalPalette.current
@@ -110,9 +111,11 @@ fun ZoneBar(zones: Map<Zone, Int>, showLegend: Boolean = true) {
                 x += w
             }
         }
-        if (showLegend) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (showLegend) androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Zone.entries.filter { it != Zone.VERY_LIGHT }.forEach { z ->
-                LegendDot(zoneColor(z), "${z.label.substringBefore(" ")} ${shown[z] ?: 0}′")
+                LegendDot(zoneColor(z), "${z.short} ${shown[z] ?: 0}′")
             }
         }
     }

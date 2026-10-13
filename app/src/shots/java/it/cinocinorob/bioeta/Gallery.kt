@@ -110,6 +110,31 @@ class Gallery {
         }
     }
 
+
+    @Composable
+    private fun Recovery() {
+        val p = LocalPalette.current
+        val start = java.time.Instant.parse("2026-10-12T21:30:00Z")
+        fun at(m: Long) = start.plusSeconds(m * 60)
+        val st = it.cinocinorob.bioeta.science.StageType.entries
+        val stages = listOf(0L to 12L to 0, 12L to 90L to 1, 90L to 150L to 2, 150L to 200L to 3, 200L to 210L to 0, 210L to 320L to 1, 320L to 360L to 2, 360L to 450L to 3)
+            .map { (r, t) -> it.cinocinorob.bioeta.science.Stage(at(r.first), at(r.second), listOf(st[0], st[1], st[2], st[3])[t]) }
+        val night = it.cinocinorob.bioeta.science.SleepNight(LocalDate.of(2026, 10, 13), start, at(450), stages, 54.0, 49.0)
+        Column(Modifier.fillMaxSize().background(p.bg).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            LargeHeader("Recupero", "Sonno e prontezza")
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(vertical = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                ScoreRing(84, "SONNO", RecoveryColors.sleep); ScoreRing(78, "PRONTEZZA", RecoveryColors.ready)
+            }
+            HealthCard("Sonno", BioIcons.Moon, Tint.sleep) { Hypnogram(night) }
+            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                Mood.entries.forEach { Sprout(it, sizeDp = 70) }
+            }
+            ActivityRings(0.8f, 0.6f, 0.45f)
+        }
+    }
+
+    @Test fun recoveryLight() = paparazzi.snapshot { BioTheme { Recovery() } }
+
     @Test fun todayLight() = paparazzi.snapshot { BioTheme { Today() } }
     @Test fun activityLight() = paparazzi.snapshot { BioTheme { Activity() } }
     @Test fun todayDark() {

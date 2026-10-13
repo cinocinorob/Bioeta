@@ -67,8 +67,7 @@ fun scoreColor(s: Int?): Color = when {
 @Composable
 fun ScoreRing(score: Int?, label: String, colors: List<Color>, size: Int = 130, stroke: Int = 13) {
     val p = LocalPalette.current
-    val anim = remember { Animatable(0f) }
-    LaunchedEffect(score) { anim.animateTo((score ?: 0) / 100f, tween(1000)) }
+    val anim = animatedValue((score ?: 0) / 100f, 1000)
     Box(contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size.dp)) {
             val st = stroke.dp.toPx()
@@ -76,7 +75,7 @@ fun ScoreRing(score: Int?, label: String, colors: List<Color>, size: Int = 130, 
             val arc = Size(this.size.width - st, this.size.height - st)
             drawArc(colors.first().copy(alpha = 0.16f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(st))
             if (score != null) drawArc(
-                Brush.sweepGradient(colors + colors.first()), -90f, 360f * anim.value, false,
+                Brush.sweepGradient(colors + colors.first()), -90f, 360f * anim, false,
                 Offset(inset, inset), arc, style = Stroke(st, cap = StrokeCap.Round),
             )
         }

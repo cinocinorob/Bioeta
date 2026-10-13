@@ -329,3 +329,18 @@ fun GradientHero(colors: List<Color>, modifier: Modifier = Modifier, content: @C
         content = content,
     )
 }
+
+/**
+ * Valore animato verso [target]. In anteprima/rendering statico (LocalInspectionMode) restituisce
+ * subito il valore finale, così grafici e anelli sono verificabili senza animazione.
+ */
+@Composable
+fun animatedValue(target: Float, durationMs: Int = 900, restartKey: Any? = null): Float {
+    if (androidx.compose.ui.platform.LocalInspectionMode.current) return target
+    val a = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(target, restartKey) {
+        if (restartKey != null) a.snapTo(0f)
+        a.animateTo(target, androidx.compose.animation.core.tween(durationMs))
+    }
+    return a.value
+}

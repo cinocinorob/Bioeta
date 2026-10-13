@@ -62,10 +62,9 @@ object Pillar {
 @Composable
 fun TriDial(recovery: Int?, sleep: Int?, loadFraction: Float?, mood: Mood, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
-    val a1 = remember { Animatable(0f) }; val a2 = remember { Animatable(0f) }; val a3 = remember { Animatable(0f) }
-    LaunchedEffect(recovery) { a1.animateTo((recovery ?: 0) / 100f, tween(900)) }
-    LaunchedEffect(sleep) { a2.animateTo((sleep ?: 0) / 100f, tween(1000)) }
-    LaunchedEffect(loadFraction) { a3.animateTo((loadFraction ?: 0f).coerceIn(0f, 1f), tween(1100)) }
+    val v1 = animatedValue((recovery ?: 0) / 100f, 900)
+    val v2 = animatedValue((sleep ?: 0) / 100f, 1000)
+    val v3 = animatedValue((loadFraction ?: 0f).coerceIn(0f, 1f), 1100)
     Box(modifier.size(250.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val st = 20.dp.toPx()
@@ -75,9 +74,9 @@ fun TriDial(recovery: Int?, sleep: Int?, loadFraction: Float?, mood: Mood, modif
             val gap = 7f
             val seg = 120f - gap
             val specs = listOf(
-                Triple(-90f + gap / 2, Pillar.recovery, a1.value),
-                Triple(30f + gap / 2, Pillar.sleep, a2.value),
-                Triple(150f + gap / 2, Pillar.load, a3.value),
+                Triple(-90f + gap / 2, Pillar.recovery, v1),
+                Triple(30f + gap / 2, Pillar.sleep, v2),
+                Triple(150f + gap / 2, Pillar.load, v3),
             )
             specs.forEach { (start, colors, v) ->
                 drawArc(colors.first().copy(alpha = if (p.dark) 0.18f else 0.16f), start, seg, false, tl, arc, style = Stroke(st, cap = StrokeCap.Round))
@@ -256,12 +255,11 @@ fun TodayScreen(
 @Composable
 fun ProgressBar(fraction: Float, colors: List<Color>, height: Int = 12) {
     val p = LocalPalette.current
-    val a = remember { Animatable(0f) }
-    LaunchedEffect(fraction) { a.animateTo(fraction.coerceIn(0f, 1f), tween(900)) }
+    val av = animatedValue(fraction.coerceIn(0f, 1f), 900)
     Canvas(Modifier.fillMaxWidth().height(height.dp)) {
         val r = CornerRadius(size.height / 2)
         drawRoundRect(p.field, cornerRadius = r)
-        if (a.value > 0f) drawRoundRect(Brush.horizontalGradient(colors), size = Size(maxOf(size.height, size.width * a.value), size.height), cornerRadius = r)
+        if (av > 0f) drawRoundRect(Brush.horizontalGradient(colors), size = Size(maxOf(size.height, size.width * av), size.height), cornerRadius = r)
     }
 }
 

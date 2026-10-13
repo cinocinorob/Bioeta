@@ -23,12 +23,12 @@ import kotlin.math.roundToInt
 
 data class HrSample(val time: Instant, val bpm: Double)
 
-enum class Zone(val label: String, val lo: Double) {
-    VERY_LIGHT("Molto leggera", 0.0),
-    LIGHT("Leggera", 0.30),
-    MODERATE("Moderata", 0.40),
-    VIGOROUS("Vigorosa", 0.60),
-    MAXIMAL("Quasi massimale", 0.90),
+enum class Zone(val label: String, val lo: Double, val short: String) {
+    VERY_LIGHT("Molto leggera", 0.0, "Riposo"),
+    LIGHT("Leggera", 0.30, "Leggera"),
+    MODERATE("Moderata", 0.40, "Moderata"),
+    VIGOROUS("Vigorosa", 0.60, "Vigorosa"),
+    MAXIMAL("Quasi massimale", 0.90, "Massimale"),
 }
 
 data class DayLoad(

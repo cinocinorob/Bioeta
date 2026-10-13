@@ -64,8 +64,7 @@ fun HealthChart(
     val labelColor = p.text2.toArgb()
     val grid = p.sep
     val cardColor = p.card
-    val anim = remember { Animatable(0f) }
-    LaunchedEffect(layers.sumOf { it.points.size }) { anim.snapTo(0f); anim.animateTo(1f, tween(700)) }
+    val animV = animatedValue(1f, 700, restartKey = layers.sumOf { it.points.size })
     Canvas(modifier.fillMaxWidth().height(height.dp)) {
         val left = 4.dp.toPx()
         val right = 40.dp.toPx()
@@ -105,7 +104,7 @@ fun HealthChart(
             drawRoundRect(bandColor.copy(alpha = 0.10f), Offset(left, y1), Size(w, y2 - y1), CornerRadius(4.dp.toPx()))
         }
 
-        clipRect(right = left + w * anim.value + 8.dp.toPx()) {
+        clipRect(right = left + w * animV + 8.dp.toPx()) {
         for (layer in layers) {
             val pts = layer.points.sortedBy { it.first }
             if (pts.isEmpty()) continue
@@ -151,7 +150,7 @@ fun HealthChart(
                     }
                 }
             }
-            if (layer.emphasizeLast && anim.value > 0.98f) {
+            if (layer.emphasizeLast && animV > 0.98f) {
                 val lp = pts.last()
                 val c = Offset(px(lp.first), py(lp.second))
                 drawCircle(layer.color.copy(alpha = 0.25f), 10.dp.toPx(), c)
@@ -170,8 +169,7 @@ fun HealthChart(
 @Composable
 fun AgeRing(bioAge: Double, chronoAge: Double, modifier: Modifier = Modifier, span: Double = 15.0, ringColor: Color = Color.White) {
     val target = (0.5 + (chronoAge - bioAge) / span / 2).coerceIn(0.03, 1.0).toFloat()
-    val anim = remember { Animatable(0f) }
-    LaunchedEffect(target) { anim.animateTo(target, tween(1100)) }
+    val animRing = animatedValue(target, 1100)
     Canvas(modifier.size(132.dp)) {
         val stroke = 14.dp.toPx()
         val inset = stroke / 2
@@ -179,7 +177,7 @@ fun AgeRing(bioAge: Double, chronoAge: Double, modifier: Modifier = Modifier, sp
         drawArc(ringColor.copy(alpha = 0.22f), -90f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
         drawArc(
             Brush.sweepGradient(listOf(ringColor.copy(alpha = 0.75f), ringColor, ringColor.copy(alpha = 0.75f))),
-            -90f, 360f * anim.value, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round),
+            -90f, 360f * animRing, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round),
         )
         // tacca a metà = età anagrafica
         drawLine(ringColor.copy(alpha = 0.9f), Offset(size.width / 2, size.height - stroke * 1.6f), Offset(size.width / 2, size.height - 2f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
