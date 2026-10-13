@@ -79,3 +79,9 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+// Rendering degli schermi per la revisione grafica (solo con -Pshots, non entra nell'APK)
+if (project.hasProperty("shots")) {
+    apply(plugin = "app.cash.paparazzi")
+    android.sourceSets.getByName("test").java.srcDir("src/shots/java")
+}
