@@ -58,7 +58,7 @@ private fun fmtValue(m: Metric, v: Double): String = when (m) {
 }
 
 @Composable
-fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: () -> Unit) {
+fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: () -> Unit, onOpenJournal: () -> Unit = {}) {
     val ctx = LocalContext.current
     val summaries = Metric.entries.mapNotNull { m ->
         vm.wearable[m]?.takeIf { it.isNotEmpty() }?.let { HealthRepo.summarize(m, it) }
@@ -72,6 +72,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
     ) {
         item { LargeHeader("Recupero", "Sonno e prontezza") }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
+        item { TagEffectsCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori") }
         if (vm.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.heart) }
 

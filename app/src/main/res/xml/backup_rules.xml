@@ -3,6 +3,7 @@
 <full-backup-content>
     <include domain="file" path="panels.json" />
         <include domain="file" path="bp.json" />
+        <include domain="file" path="journal.json" />
     <include domain="sharedpref" path="profile.xml" />
     <include domain="sharedpref" path="settings.xml" />
     <exclude domain="sharedpref" path="secrets.xml" />

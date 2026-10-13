@@ -67,32 +67,7 @@ fun AgeScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            val t = vm.today
-            val mood = moodFor(t.readiness.score, t.readiness.calibrating || !vm.hasAnyHealthPermission)
-            val (title, msg) = gentleMessage(mood, t.readiness.flags.isNotEmpty())
-            val hour = java.time.LocalTime.now().hour
-            val hello = when (hour) { in 5..12 -> "Buongiorno"; in 13..17 -> "Buon pomeriggio"; else -> "Buonasera" } +
-                (profile.name.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(today.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)).uppercase(Locale.ITALIAN),
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.text2, modifier = Modifier.padding(top = 8.dp))
-                Text(hello, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = p.text, lineHeight = 34.sp)
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
-                        .background(Brush.linearGradient(moodColors(mood).map { it.copy(alpha = 0.22f) }))
-                        .clickable { onGoRecovery() }.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Sprout(mood, sizeDp = 92)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(title, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
-                        Text(msg, fontSize = 14.sp, lineHeight = 19.sp, color = p.text)
-                    }
-                }
-            }
-        }
+        item { LargeHeader("Salute", "Età biologica, pressione, insight") }
 
         if (profile.birthDate == null) item {
             HealthCard("Completa il profilo", BioIcons.Person, Tint.body, onClick = onGoProfile) {
@@ -155,8 +130,6 @@ fun AgeScreen(
             }
         }
 
-        // ---------- Sonno e prontezza ----------
-        if (vm.hasAnyHealthPermission) item { RecoveryMini(vm, onGoRecovery) }
 
         item { BpMini(vm, onGoBp) }
 

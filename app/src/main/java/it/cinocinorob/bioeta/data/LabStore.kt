@@ -7,6 +7,9 @@ import java.io.File
 import java.time.LocalDate
 import java.util.UUID
 import it.cinocinorob.bioeta.science.BpReading
+import it.cinocinorob.bioeta.science.DayLoad
+import it.cinocinorob.bioeta.science.JournalEntry
+import it.cinocinorob.bioeta.science.Zone
 
 /** Valore in unità canonica; belowLimit = referto "<x" (x = limite di rilevabilità). */
 data class LabValue(val value: Double, val belowLimit: Boolean = false)
@@ -83,6 +86,43 @@ class LabStore(context: Context) {
         if (!tmp.renameTo(bpFile)) { bpFile.writeText(tmp.readText()); tmp.delete() }
     }
 
+    // ---------------- Diario ----------------
+    private val journalFile = File(context.filesDir, "journal.json")
+
+    fun loadJournal(): List<JournalEntry> =
+        if (!journalFile.exists()) emptyList()
+        else runCatching { journalFromJson(JSONObject(journalFile.readText())) }.getOrDefault(emptyList())
+
+    fun saveJournal(list: List<JournalEntry>) {
+        journalFile.writeText(JSONObject().put("journal", journalToJson(list)).toString())
+    }
+
+    // ---------------- Cache del carico cardiaco (ricalcolabile, non nei backup) ----------------
+    private val loadFile = File(context.cacheDir, "loads.json")
+
+    fun loadLoads(): Pair<Double, List<DayLoad>> = runCatching {
+        val o = JSONObject(loadFile.readText())
+        val rest = o.getDouble("rest")
+        val arr = o.getJSONArray("days")
+        rest to (0 until arr.length()).map { i ->
+            val d = arr.getJSONObject(i)
+            val z = d.optJSONObject("z")
+            DayLoad(
+                LocalDate.parse(d.getString("d")), d.getDouble("l"), d.getInt("m"), d.getInt("v"),
+                Zone.entries.associateWith { z?.optInt(it.name, 0) ?: 0 }, d.getInt("c"),
+            )
+        }
+    }.getOrDefault(0.0 to emptyList())
+
+    fun saveLoads(rest: Double, list: List<DayLoad>) {
+        val arr = JSONArray()
+        list.forEach { l ->
+            val z = JSONObject(); l.zoneMinutes.forEach { (k, v) -> z.put(k.name, v) }
+            arr.put(JSONObject().put("d", l.date.toString()).put("l", l.load).put("m", l.moderateMin).put("v", l.vigorousMin).put("c", l.coveredMinutes).put("z", z))
+        }
+        loadFile.writeText(JSONObject().put("rest", rest).put("days", arr).toString())
+    }
+
     companion object {
         fun bpToJson(list: List<BpReading>): JSONArray {
             val arr = JSONArray()
@@ -113,8 +153,39 @@ class LabStore(context: Context) {
             }.sortedBy { it.time }
         }
 
-        fun toJson(panels: List<Panel>, profile: Profile?, bp: List<BpReading> = emptyList()): JSONObject {
+        fun journalToJson(list: List<JournalEntry>): JSONArray {
+            val arr = JSONArray()
+            list.forEach { e ->
+                arr.put(JSONObject().apply {
+                    put("d", e.date.toString())
+                    e.mood?.let { put("mood", it) }; e.energy?.let { put("energy", it) }
+                    put("tags", JSONArray(e.tags.toList())); put("water", e.water)
+                    if (e.note.isNotBlank()) put("note", e.note)
+                })
+            }
+            return arr
+        }
+
+        fun journalFromJson(root: JSONObject): List<JournalEntry> {
+            val arr = root.optJSONArray("journal") ?: return emptyList()
+            return (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                runCatching {
+                    val t = o.optJSONArray("tags")
+                    JournalEntry(
+                        date = LocalDate.parse(o.getString("d")),
+                        mood = if (o.has("mood")) o.getInt("mood") else null,
+                        energy = if (o.has("energy")) o.getInt("energy") else null,
+                        tags = if (t == null) emptySet() else (0 until t.length()).map { t.getString(it) }.toSet(),
+                        water = o.optInt("water", 0), note = o.optString("note", ""),
+                    )
+                }.getOrNull()
+            }.sortedBy { it.date }
+        }
+
+        fun toJson(panels: List<Panel>, profile: Profile?, bp: List<BpReading> = emptyList(), journal: List<JournalEntry> = emptyList()): JSONObject {
             val root = JSONObject()
+            if (journal.isNotEmpty()) root.put("journal", journalToJson(journal))
             if (bp.isNotEmpty()) root.put("bp", bpToJson(bp))
             root.put("format", "bioeta")
             root.put("version", 1)

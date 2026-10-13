@@ -42,14 +42,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.cinocinorob.bioeta.AppViewModel
 
-enum class Tab(val label: String) { AGE("Riepilogo"), LABS("Analisi"), ASSIST("Claude"), WEAR("Recupero"), SETTINGS("Profilo") }
+enum class Tab(val label: String) { TODAY("Oggi"), ACTIVITY("Attività"), WEAR("Recupero"), HEALTH("Salute"), ASSIST("Claude") }
 
 private fun tabIcon(t: Tab): ImageVector = when (t) {
-    Tab.AGE -> BioIcons.Heart
-    Tab.LABS -> BioIcons.Drop
-    Tab.ASSIST -> BioIcons.Chat
+    Tab.TODAY -> BioIcons.Sparkle
+    Tab.ACTIVITY -> BioIcons.Bolt
     Tab.WEAR -> BioIcons.Moon
-    Tab.SETTINGS -> BioIcons.Person
+    Tab.HEALTH -> BioIcons.Drop
+    Tab.ASSIST -> BioIcons.Chat
 }
 
 @Composable
@@ -63,17 +63,22 @@ fun App(
     onPickBackupFolder: () -> Unit,
 ) {
     val pal = LocalPalette.current
-    var tab by rememberSaveable { mutableStateOf(Tab.AGE) }
+    var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var creating by rememberSaveable { mutableStateOf(false) }
     var analyteKey by rememberSaveable { mutableStateOf<String?>(null) }
     var showInfo by rememberSaveable { mutableStateOf(startOnPrivacy) }
     var showInsights by rememberSaveable { mutableStateOf(false) }
     var showBp by rememberSaveable { mutableStateOf(false) }
+    var showProfile by rememberSaveable { mutableStateOf(false) }
+    var showJournal by rememberSaveable { mutableStateOf(false) }
+    var healthSection by rememberSaveable { mutableStateOf(0) }
     var pendingQuestion by rememberSaveable { mutableStateOf<String?>(null) }
     val askClaude: (String) -> Unit = { q ->
         showInsights = false
         showBp = false
+        showProfile = false
+        showJournal = false
         pendingQuestion = q.ifBlank { null }
         tab = Tab.ASSIST
     }
@@ -88,12 +93,14 @@ fun App(
         }
     }
 
-    val subOpen = showInfo || showInsights || showBp || creating || editingId != null || analyteKey != null || draft != null
+    val subOpen = showInfo || showInsights || showBp || showProfile || showJournal || creating || editingId != null || analyteKey != null || draft != null
     BackHandler(enabled = subOpen) {
         when {
             showInfo -> showInfo = false
             showInsights -> showInsights = false
             showBp -> showBp = false
+            showJournal -> showJournal = false
+            showProfile -> showProfile = false
             draft != null -> vm.importDraft = null
             creating || editingId != null -> { creating = false; editingId = null }
             analyteKey != null -> analyteKey = null
@@ -104,13 +111,15 @@ fun App(
         showInfo -> InfoScreen(onBack = { showInfo = false })
         showInsights -> InsightsScreen(vm, onBack = { showInsights = false }, onAsk = askClaude)
         showBp -> BloodPressureScreen(vm, onBack = { showBp = false }, onAsk = askClaude)
+        showJournal -> JournalScreen(vm, onBack = { showJournal = false })
+        showProfile -> ProfileRoute(vm, onBack = { showProfile = false }, onExport, onImport, onPickBackupFolder, onOpenInfo = { showInfo = true })
         draft != null -> PanelEditor(
             initial = draft.panel,
             isNew = true,
             importNotes = draft.notes,
             highlighted = draft.foundKeys,
             profile = vm.profile,
-            onSave = { vm.savePanel(it); vm.importDraft = null; tab = Tab.LABS; vm.message = "Referto salvato." },
+            onSave = { vm.savePanel(it); vm.importDraft = null; tab = Tab.HEALTH; healthSection = 1; vm.message = "Referto salvato." },
             onDelete = { vm.importDraft = null },
             onBack = { vm.importDraft = null },
         )
@@ -137,29 +146,43 @@ fun App(
         ) { pad ->
             val m = Modifier.padding(pad)
             when (tab) {
-                Tab.AGE -> AgeScreen(
+                Tab.TODAY -> TodayScreen(
                     vm, m,
-                    onOpenInfo = { showInfo = true },
-                    onGoLabs = { tab = Tab.LABS },
-                    onGoWear = { tab = Tab.WEAR },
-                    onGoProfile = { tab = Tab.SETTINGS },
-                    onImportReport = onImportReport,
-                    onGoInsights = { showInsights = true },
                     onGoRecovery = { tab = Tab.WEAR },
+                    onGoActivity = { tab = Tab.ACTIVITY },
+                    onGoHealth = { tab = Tab.HEALTH; healthSection = 0 },
                     onGoBp = { showBp = true },
+                    onOpenProfile = { showProfile = true },
+                    onOpenJournal = { showJournal = true },
                     onAsk = askClaude,
+                    onRequestPermissions = onRequestPermissions,
                 )
-                Tab.LABS -> LabsScreen(
-                    vm, m,
-                    onEdit = { editingId = it },
-                    onNew = { creating = true },
-                    onImportReport = onImportReport,
-                    onAnalyte = { analyteKey = it },
-                    onGoBp = { showBp = true },
-                )
+                Tab.ACTIVITY -> ActivityScreen(vm, m, onRequestPermissions)
+                Tab.WEAR -> WearableScreen(vm, m, onRequestPermissions, onOpenJournal = { showJournal = true })
+                Tab.HEALTH -> Column(m) {
+                    SegmentPill(listOf("Panoramica", "Analisi del sangue"), healthSection, onSelect = { healthSection = it },
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
+                    if (healthSection == 0) AgeScreen(
+                        vm, Modifier,
+                        onOpenInfo = { showInfo = true },
+                        onGoLabs = { healthSection = 1 },
+                        onGoWear = { tab = Tab.WEAR },
+                        onGoProfile = { showProfile = true },
+                        onImportReport = onImportReport,
+                        onGoInsights = { showInsights = true },
+                        onGoRecovery = { tab = Tab.WEAR },
+                        onGoBp = { showBp = true },
+                        onAsk = askClaude,
+                    ) else LabsScreen(
+                        vm, Modifier,
+                        onEdit = { editingId = it },
+                        onNew = { creating = true },
+                        onImportReport = onImportReport,
+                        onAnalyte = { analyteKey = it },
+                        onGoBp = { showBp = true },
+                    )
+                }
                 Tab.ASSIST -> AssistantScreen(vm, m, pendingQuestion, onConsumeInitial = { pendingQuestion = null })
-                Tab.WEAR -> WearableScreen(vm, m, onRequestPermissions)
-                Tab.SETTINGS -> SettingsScreen(vm, m, onExport, onImport, onPickBackupFolder, onOpenInfo = { showInfo = true })
             }
         }
     }
@@ -210,7 +233,7 @@ fun FloatingTabBar(selected: Tab, onSelect: (Tab) -> Unit) {
         ) {
             Tab.entries.forEach { t ->
                 val sel = t == selected
-                val c = when (t) { Tab.AGE -> Tint.heart; Tab.LABS -> Tint.blood; Tab.ASSIST -> Tint.sleep; Tab.WEAR -> Tint.sleep; Tab.SETTINGS -> Tint.blue }
+                val c = when (t) { Tab.TODAY -> Pillar.recovery[1]; Tab.ACTIVITY -> Pillar.load[1]; Tab.WEAR -> Pillar.sleep[1]; Tab.HEALTH -> Tint.blood; Tab.ASSIST -> Tint.blue }
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(28.dp))
                         .background(if (sel) c.copy(alpha = 0.14f) else Color.Transparent)
@@ -223,4 +246,45 @@ fun FloatingTabBar(selected: Tab, onSelect: (Tab) -> Unit) {
             }
         }
     }
+}
+
+
+@Composable
+fun SegmentPill(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val pal = LocalPalette.current
+    androidx.compose.foundation.layout.Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(pal.field).padding(4.dp),
+    ) {
+        options.forEachIndexed { i, o ->
+            val sel = i == selected
+            androidx.compose.foundation.layout.Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (sel) pal.card else Color.Transparent)
+                    .clickable { onSelect(i) }.padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text(o, fontSize = 13.sp, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, color = if (sel) pal.text else pal.text2) }
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileRoute(
+    vm: AppViewModel,
+    onBack: () -> Unit,
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onPickBackupFolder: () -> Unit,
+    onOpenInfo: () -> Unit,
+) {
+    val pal = LocalPalette.current
+    Scaffold(
+        containerColor = pal.bg,
+        topBar = {
+            androidx.compose.material3.TopAppBar(
+                title = {},
+                navigationIcon = { androidx.compose.material3.IconButton(onClick = onBack) { Icon(BioIcons.Back, "Indietro", tint = Tint.blue) } },
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(containerColor = pal.bg),
+            )
+        },
+    ) { pad -> SettingsScreen(vm, Modifier.padding(pad), onExport, onImport, onPickBackupFolder, onOpenInfo) }
 }

@@ -20,6 +20,12 @@ import it.cinocinorob.bioeta.science.BloodPressure
 import it.cinocinorob.bioeta.science.BpReading
 import it.cinocinorob.bioeta.science.BpSummary
 import it.cinocinorob.bioeta.science.DailyValue
+import it.cinocinorob.bioeta.science.DayLoad
+import it.cinocinorob.bioeta.science.Fitness
+import it.cinocinorob.bioeta.science.Journal
+import it.cinocinorob.bioeta.science.JournalEntry
+import it.cinocinorob.bioeta.science.TagEffect
+import it.cinocinorob.bioeta.science.TargetLoad
 import it.cinocinorob.bioeta.science.ExerciseLoad
 import it.cinocinorob.bioeta.science.Insight
 import it.cinocinorob.bioeta.science.Readiness
@@ -78,6 +84,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val rec = health.readRecovery(RECOVERY_WINDOW)
                     sleepNights = rec.nights
                     exercises = rec.exercises
+                    refreshFitness()
                 }
             } catch (e: Exception) {
                 message = "Lettura da Connessione Salute non riuscita: ${e.message}"
@@ -131,7 +138,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun autoBackupNow(announce: Boolean = false) {
         if (backup.folderUri == null) return
-        val json = LabStore.toJson(panels, profile, bpReadings).toString(2)
+        val json = LabStore.toJson(panels, profile, bpReadings, journal).toString(2)
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { backup.write(json) }
             lastBackup = backup.lastBackup
@@ -145,7 +152,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")!!.use {
-                        it.write(LabStore.toJson(panels, profile, bpReadings).toString(2).toByteArray())
+                        it.write(LabStore.toJson(panels, profile, bpReadings, journal).toString(2).toByteArray())
                     }
                 }.isSuccess
             }
@@ -207,6 +214,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private var journalImport: List<JournalEntry> = emptyList()
+
     fun importFrom(uri: Uri) {
         // Se l'utente sceglie un referto (PDF/immagine) invece di un backup, lo indirizza all'import referti
         val type = getApplication<Application>().contentResolver.getType(uri) ?: ""
@@ -220,6 +229,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val text = getApplication<Application>().contentResolver.openInputStream(uri)!!
                         .bufferedReader().use { it.readText() }
                     val root = JSONObject(text)
+                    journalImport = LabStore.journalFromJson(root)
                     Triple(LabStore.panelsFromJson(root), LabStore.profileFromJson(root), LabStore.bpFromJson(root))
                 }.getOrNull()
             }
@@ -228,6 +238,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             val (imported, prof, bpImported) = parsed
+            if (journalImport.isNotEmpty()) {
+                val dates = journalImport.map { it.date }.toSet()
+                journal = (journal.filter { it.date !in dates } + journalImport).sortedBy { it.date }
+                store.saveJournal(journal)
+            }
             if (bpImported.isNotEmpty()) {
                 val bpIds = bpImported.map { it.id }.toSet()
                 bpReadings = (bpReadings.filter { it.id !in bpIds } + bpImported).sortedBy { it.time }
@@ -330,7 +345,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 append("; categoria ESC 2024 domiciliare: ${bp.category.label}\n")
             }
         }
-        return Prompt.context(profile, panels, wearable, extra)
+        val fit = buildString {
+            val tl = todayLoad
+            if (dayLoads.isNotEmpty()) {
+                append("\nAttività (dalla frequenza cardiaca): carico cardiaco di oggi ${tl?.load?.toInt() ?: "n.d."} (obiettivo ${targetLoad.low.toInt()}–${targetLoad.high.toInt()}); ")
+                append("minuti attivi questa settimana ${Fitness.weekActiveMinutes(dayLoads, java.time.LocalDate.now())}/150 (OMS); ")
+                append("carico medio 28 giorni ${dayLoads.map { it.load }.average().toInt()}\n")
+            }
+            todayActivity?.let { append("Passi oggi ${it.steps}\n") }
+            val recentJ = journal.filter { it.date.isAfter(java.time.LocalDate.now().minusDays(7)) }
+            if (recentJ.isNotEmpty()) append("Diario ultimi 7 giorni: " + recentJ.joinToString("; ") { e -> "${e.date}: umore ${e.mood ?: "-"}, energia ${e.energy ?: "-"}, ${e.tags.joinToString(", ")}" } + "\n")
+            tagEffects.forEach { append("Associazione personale: ${it.tag} → prontezza del giorno dopo ${it.diff.toInt()} punti (n=${it.nWith}/${it.nWithout})\n") }
+        }
+        return Prompt.context(profile, panels, wearable, extra + fit)
     }
 
     // ---- Modalità gratuita: domanda inviata all'app Claude dell'utente ----
@@ -499,6 +526,98 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val bpSummary: BpSummary? get() = BloodPressure.summarize(bpReadings)
+
+
+    // ---------------- Fitness ----------------
+
+    var todayActivity by mutableStateOf<HealthRepo.TodayActivity?>(null)
+        private set
+    var dayLoads by mutableStateOf<List<DayLoad>>(emptyList())
+        private set
+    var workouts by mutableStateOf<List<HealthRepo.Workout>>(emptyList())
+        private set
+    var fitnessLoading by mutableStateOf(false)
+        private set
+
+    /** FC a riposo di riferimento per la riserva cardiaca: media 30 gg, altrimenti FC notturna, altrimenti 60. */
+    val restHrRef: Double
+        get() {
+            val today = java.time.LocalDate.now()
+            val rhr = wearable[Metric.RHR].orEmpty().filter { it.date.isAfter(today.minusDays(30)) }.map { it.value }
+            if (rhr.size >= 5) return rhr.average()
+            val night = sleepNights.mapNotNull { it.minHr }.takeLast(14)
+            return if (night.size >= 5) night.average() else 60.0
+        }
+
+    private suspend fun refreshFitness() {
+        val age = profile.ageAt(java.time.LocalDate.now()) ?: return
+        val male = profile.sex == Sex.M
+        fitnessLoading = true
+        try {
+            todayActivity = runCatching { health.todayActivity() }.getOrNull()
+            val rest = restHrRef
+            val (cachedRest, cached) = withContext(Dispatchers.IO) { store.loadLoads() }
+            val reuse = if (kotlin.math.abs(cachedRest - rest) < 2.0) cached.associateBy { it.date } else emptyMap()
+            val zone = java.time.ZoneId.systemDefault()
+            val today = java.time.LocalDate.now(zone)
+            val out = mutableListOf<DayLoad>()
+            for (k in 27 downTo 0) {
+                val d = today.minusDays(k.toLong())
+                val c = reuse[d]
+                if (c != null && k >= 2) { out += c; continue }
+                val samples = runCatching {
+                    health.heartRate(d.atStartOfDay(zone).toInstant(), d.plusDays(1).atStartOfDay(zone).toInstant())
+                }.getOrDefault(emptyList())
+                out += withContext(Dispatchers.Default) { Fitness.dayLoad(d, samples, rest, age, male) }
+            }
+            dayLoads = out
+            withContext(Dispatchers.IO) { store.saveLoads(rest, out) }
+            workouts = runCatching { health.workouts(14) }.getOrDefault(emptyList())
+        } finally {
+            fitnessLoading = false
+        }
+    }
+
+    val todayLoad: DayLoad? get() = dayLoads.lastOrNull { it.date == java.time.LocalDate.now() }
+
+    val targetLoad: TargetLoad
+        get() = Fitness.target(dayLoads, java.time.LocalDate.now(), today.readiness.score, profile.sex == Sex.M)
+
+    // ---------------- Diario ----------------
+
+    var journal by mutableStateOf(store.loadJournal())
+        private set
+
+    fun journalFor(d: java.time.LocalDate): JournalEntry = journal.firstOrNull { it.date == d } ?: JournalEntry(d)
+
+    fun saveJournal(e: JournalEntry) {
+        journal = (journal.filter { it.date != e.date } + e).sortedBy { it.date }
+        store.saveJournal(journal)
+        autoBackupNow()
+    }
+
+    val tagEffects: List<TagEffect>
+        get() = Journal.tagEffects(journal.filter { it.date.isAfter(java.time.LocalDate.now().minusDays(120)) }) { d ->
+            recoveryHistoryLong.firstOrNull { it.first == d }?.second
+        }
+
+    /** Prontezza degli ultimi 120 giorni (per il diario); calcolata su richiesta e memorizzata. */
+    private var longKey: Any? = null
+    private var longCache: List<Pair<java.time.LocalDate, Int?>> = emptyList()
+    private val recoveryHistoryLong: List<Pair<java.time.LocalDate, Int?>>
+        get() {
+            val key = listOf(sleepNights, wearable, exercises, profile, journal.size)
+            if (key != longKey) {
+                val firstDay = journal.minOfOrNull { it.date } ?: java.time.LocalDate.now()
+                val days = java.time.temporal.ChronoUnit.DAYS.between(firstDay, java.time.LocalDate.now()).coerceIn(0, 120)
+                longCache = (days downTo 0).map { k ->
+                    val d = java.time.LocalDate.now().minusDays(k)
+                    d to scoresFor(d).readiness.score
+                }
+                longKey = key
+            }
+            return longCache
+        }
 
     companion object {
         const val DAYS_WINDOW = 120L

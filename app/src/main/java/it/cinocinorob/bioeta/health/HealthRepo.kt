@@ -3,6 +3,8 @@ package it.cinocinorob.bioeta.health
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
@@ -14,11 +16,13 @@ import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
 import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.request.AggregateGroupByDurationRequest
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import it.cinocinorob.bioeta.science.ExerciseLoad
+import it.cinocinorob.bioeta.science.HrSample
 import it.cinocinorob.bioeta.science.SleepNight
 import it.cinocinorob.bioeta.science.Stage
 import it.cinocinorob.bioeta.science.StageType
@@ -77,6 +81,8 @@ class HealthRepo(private val context: Context) {
         HealthPermission.getReadPermission(RespiratoryRateRecord::class),
         HealthPermission.getReadPermission(HeartRateRecord::class),
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
+        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(DistanceRecord::class),
         HISTORY_PERMISSION,
     )
 
@@ -201,6 +207,80 @@ class HealthRepo(private val context: Context) {
         }.getOrDefault(emptyList()) else emptyList()
 
         return RecoveryData(nights, exercises)
+    }
+
+    // ------------------------------------------------------------------
+    // Fitness: FC grezza, attività di oggi, allenamenti
+    // ------------------------------------------------------------------
+
+    suspend fun heartRate(start: Instant, end: Instant): List<HrSample> {
+        if (HealthPermission.getReadPermission(HeartRateRecord::class) !in granted()) return emptyList()
+        return readRecords(HeartRateRecord::class, start, end)
+            .flatMap { r -> r.samples.map { HrSample(it.time, it.beatsPerMinute.toDouble()) } }
+            .filter { it.time >= start && it.time < end }
+    }
+
+    data class TodayActivity(
+        val hourlySteps: List<Long>,
+        val steps: Long,
+        val activeKcal: Double?,
+        val distanceKm: Double?,
+    )
+
+    suspend fun todayActivity(): TodayActivity {
+        val g = granted()
+        val zone = ZoneId.systemDefault()
+        val dayStart = LocalDate.now(zone).atStartOfDay()
+        val now = LocalDateTime.now(zone)
+        val hourly = MutableList(24) { 0L }
+        if (HealthPermission.getReadPermission(StepsRecord::class) in g) runCatching {
+            client.aggregateGroupByDuration(
+                AggregateGroupByDurationRequest(
+                    metrics = setOf(StepsRecord.COUNT_TOTAL),
+                    timeRangeFilter = TimeRangeFilter.between(dayStart, now),
+                    timeRangeSlicer = Duration.ofHours(1),
+                )
+            ).forEach { b ->
+                val h = b.startTime.atZone(zone).hour
+                hourly[h] = b.result[StepsRecord.COUNT_TOTAL] ?: 0L
+            }
+        }
+        var kcal: Double? = null
+        var km: Double? = null
+        runCatching {
+            val metrics = buildSet {
+                if (HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class) in g) add(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
+                if (HealthPermission.getReadPermission(DistanceRecord::class) in g) add(DistanceRecord.DISTANCE_TOTAL)
+            }
+            if (metrics.isNotEmpty()) {
+                val r = client.aggregate(AggregateRequest(metrics, TimeRangeFilter.between(dayStart, now)))
+                kcal = r[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
+                km = r[DistanceRecord.DISTANCE_TOTAL]?.inKilometers
+            }
+        }
+        return TodayActivity(hourly, hourly.sum(), kcal, km)
+    }
+
+    data class Workout(
+        val id: String,
+        val type: Int,
+        val title: String?,
+        val start: Instant,
+        val end: Instant,
+        val samples: List<HrSample>,
+    ) {
+        val minutes: Double get() = Duration.between(start, end).seconds / 60.0
+    }
+
+    suspend fun workouts(days: Long): List<Workout> {
+        val g = granted()
+        if (HealthPermission.getReadPermission(ExerciseSessionRecord::class) !in g) return emptyList()
+        val end = Instant.now()
+        val start = end.minus(Duration.ofDays(days))
+        return readRecords(ExerciseSessionRecord::class, start, end).sortedByDescending { it.startTime }.map { ex ->
+            val hr = runCatching { heartRate(ex.startTime, ex.endTime) }.getOrDefault(emptyList())
+            Workout(ex.metadata.id, ex.exerciseType, ex.title, ex.startTime, ex.endTime, hr)
+        }
     }
 
     private fun mapStage(s: Int): StageType = when (s) {
