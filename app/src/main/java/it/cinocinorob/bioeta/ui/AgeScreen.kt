@@ -53,6 +53,7 @@ fun AgeScreen(
     onImportReport: () -> Unit,
     onGoInsights: () -> Unit,
     onGoRecovery: () -> Unit,
+    onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
 ) {
     val profile = vm.profile
@@ -67,7 +68,30 @@ fun AgeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            LargeHeader("Riepilogo", today.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)))
+            val t = vm.today
+            val mood = moodFor(t.readiness.score, t.readiness.calibrating || !vm.hasAnyHealthPermission)
+            val (title, msg) = gentleMessage(mood, t.readiness.flags.isNotEmpty())
+            val hour = java.time.LocalTime.now().hour
+            val hello = when (hour) { in 5..12 -> "Buongiorno"; in 13..17 -> "Buon pomeriggio"; else -> "Buonasera" } +
+                (profile.name.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(today.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)).uppercase(Locale.ITALIAN),
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.text2, modifier = Modifier.padding(top = 8.dp))
+                Text(hello, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = p.text, lineHeight = 34.sp)
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
+                        .background(Brush.linearGradient(moodColors(mood).map { it.copy(alpha = 0.22f) }))
+                        .clickable { onGoRecovery() }.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Sprout(mood, sizeDp = 92)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(title, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+                        Text(msg, fontSize = 14.sp, lineHeight = 19.sp, color = p.text)
+                    }
+                }
+            }
         }
 
         if (profile.birthDate == null) item {
@@ -80,7 +104,7 @@ fun AgeScreen(
         item {
             val last = series.lastOrNull()
             if (last == null) {
-                GradientHero(listOf(Color(0xFF30C85E), Color(0xFF0FA3A3))) {
+                GradientHero(listOf(Color(0xFF7ADBB0), Color(0xFF45B8B0))) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(BioIcons.Sparkle, null, tint = Color.White, modifier = Modifier.size(20.dp))
                         Text("  Età biologica", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
@@ -101,7 +125,7 @@ fun AgeScreen(
                 }
             } else {
                 val delta = last.result.phenoAge - last.age
-                val colors = if (delta <= 0) listOf(Color(0xFF34C759), Color(0xFF0FA3A3)) else listOf(Color(0xFFFF9F0A), Color(0xFFFF375F))
+                val colors = if (delta <= 0) listOf(Color(0xFF7ADBB0), Color(0xFF45B8B0)) else listOf(Color(0xFFFFBE7A), Color(0xFFF2788A))
                 GradientHero(colors, Modifier.clickable { onGoLabs() }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(BioIcons.Sparkle, null, tint = Color.White, modifier = Modifier.size(18.dp))
@@ -133,6 +157,8 @@ fun AgeScreen(
 
         // ---------- Sonno e prontezza ----------
         if (vm.hasAnyHealthPermission) item { RecoveryMini(vm, onGoRecovery) }
+
+        item { BpMini(vm, onGoBp) }
 
         // ---------- Insight ----------
         val ins = vm.insights

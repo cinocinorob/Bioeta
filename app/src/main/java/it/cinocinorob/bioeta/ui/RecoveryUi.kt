@@ -47,8 +47,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object RecoveryColors {
-    val sleep = listOf(Color(0xFF5E5CE6), Color(0xFFBF5AF2))
-    val ready = listOf(Color(0xFF30D158), Color(0xFF64D2FF))
+    val sleep = listOf(Color(0xFF9D8CFF), Color(0xFFD59BF6))
+    val ready = listOf(Color(0xFF5FD3A0), Color(0xFF7CC8F0))
     val deep = Color(0xFF3634A3)
     val rem = Color(0xFF64D2FF)
     val light = Color(0xFF7D7AFF)

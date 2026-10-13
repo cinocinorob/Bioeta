@@ -92,6 +92,7 @@ fun LabsScreen(
     onNew: () -> Unit,
     onImportReport: () -> Unit,
     onAnalyte: (String) -> Unit,
+    onGoBp: () -> Unit,
 ) {
     val panels = vm.panels.sortedByDescending { it.date }
     val keys = Analytes.all.map { it.key } + Analytes.EGFR
@@ -104,6 +105,7 @@ fun LabsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { LargeHeader("Analisi", "${panels.size} referti") }
+        item { BpMini(vm, onGoBp) }
 
         item {
             HealthCard("Aggiungi un referto", BioIcons.Drop, Tint.blood) {

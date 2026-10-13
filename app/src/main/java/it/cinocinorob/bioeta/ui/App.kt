@@ -1,6 +1,17 @@
 package it.cinocinorob.bioeta.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,9 +69,11 @@ fun App(
     var analyteKey by rememberSaveable { mutableStateOf<String?>(null) }
     var showInfo by rememberSaveable { mutableStateOf(startOnPrivacy) }
     var showInsights by rememberSaveable { mutableStateOf(false) }
+    var showBp by rememberSaveable { mutableStateOf(false) }
     var pendingQuestion by rememberSaveable { mutableStateOf<String?>(null) }
     val askClaude: (String) -> Unit = { q ->
         showInsights = false
+        showBp = false
         pendingQuestion = q.ifBlank { null }
         tab = Tab.ASSIST
     }
@@ -75,11 +88,12 @@ fun App(
         }
     }
 
-    val subOpen = showInfo || showInsights || creating || editingId != null || analyteKey != null || draft != null
+    val subOpen = showInfo || showInsights || showBp || creating || editingId != null || analyteKey != null || draft != null
     BackHandler(enabled = subOpen) {
         when {
             showInfo -> showInfo = false
             showInsights -> showInsights = false
+            showBp -> showBp = false
             draft != null -> vm.importDraft = null
             creating || editingId != null -> { creating = false; editingId = null }
             analyteKey != null -> analyteKey = null
@@ -89,6 +103,7 @@ fun App(
     when {
         showInfo -> InfoScreen(onBack = { showInfo = false })
         showInsights -> InsightsScreen(vm, onBack = { showInsights = false }, onAsk = askClaude)
+        showBp -> BloodPressureScreen(vm, onBack = { showBp = false }, onAsk = askClaude)
         draft != null -> PanelEditor(
             initial = draft.panel,
             isNew = true,
@@ -118,28 +133,7 @@ fun App(
         else -> Scaffold(
             containerColor = pal.bg,
             snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = {
-                Column {
-                    HorizontalDivider(color = pal.sep, thickness = 0.5.dp)
-                    NavigationBar(containerColor = pal.card.copy(alpha = 0.97f), tonalElevation = 0.dp) {
-                        Tab.entries.forEach { t ->
-                            NavigationBarItem(
-                                selected = tab == t,
-                                onClick = { tab = t },
-                                label = { Text(t.label, fontSize = 11.sp) },
-                                icon = { Icon(tabIcon(t), contentDescription = t.label, modifier = Modifier.size(24.dp)) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = when (t) { Tab.AGE -> Tint.heart; Tab.ASSIST -> Tint.sleep; else -> Tint.blue },
-                                    selectedTextColor = when (t) { Tab.AGE -> Tint.heart; Tab.ASSIST -> Tint.sleep; else -> Tint.blue },
-                                    indicatorColor = Color.Transparent,
-                                    unselectedIconColor = pal.text2,
-                                    unselectedTextColor = pal.text2,
-                                ),
-                            )
-                        }
-                    }
-                }
-            },
+            bottomBar = { FloatingTabBar(tab, onSelect = { tab = it }) },
         ) { pad ->
             val m = Modifier.padding(pad)
             when (tab) {
@@ -152,6 +146,7 @@ fun App(
                     onImportReport = onImportReport,
                     onGoInsights = { showInsights = true },
                     onGoRecovery = { tab = Tab.WEAR },
+                    onGoBp = { showBp = true },
                     onAsk = askClaude,
                 )
                 Tab.LABS -> LabsScreen(
@@ -160,6 +155,7 @@ fun App(
                     onNew = { creating = true },
                     onImportReport = onImportReport,
                     onAnalyte = { analyteKey = it },
+                    onGoBp = { showBp = true },
                 )
                 Tab.ASSIST -> AssistantScreen(vm, m, pendingQuestion, onConsumeInitial = { pendingQuestion = null })
                 Tab.WEAR -> WearableScreen(vm, m, onRequestPermissions)
@@ -192,5 +188,39 @@ fun App(
             confirmButton = { TextButton(onClick = { vm.importReport(pwUri, pw.trim()) }, enabled = pw.isNotBlank()) { Text("Apri") } },
             dismissButton = { TextButton(onClick = { vm.passwordFor = null }) { Text("Annulla") } },
         )
+    }
+}
+
+
+/** Barra di navigazione flottante a pillola, traslucida, con l'elemento attivo evidenziato. */
+@Composable
+fun FloatingTabBar(selected: Tab, onSelect: (Tab) -> Unit) {
+    val pal = LocalPalette.current
+    androidx.compose.foundation.layout.Box(
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth()
+                .shadow(18.dp, RoundedCornerShape(34.dp), clip = false, ambientColor = Color(0x33806A4A), spotColor = Color(0x33806A4A))
+                .clip(RoundedCornerShape(34.dp))
+                .background(pal.card.copy(alpha = if (pal.dark) 0.94f else 0.96f))
+                .border(1.dp, pal.sep.copy(alpha = 0.7f), RoundedCornerShape(34.dp))
+                .padding(6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Tab.entries.forEach { t ->
+                val sel = t == selected
+                val c = when (t) { Tab.AGE -> Tint.heart; Tab.LABS -> Tint.blood; Tab.ASSIST -> Tint.sleep; Tab.WEAR -> Tint.sleep; Tab.SETTINGS -> Tint.blue }
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(28.dp))
+                        .background(if (sel) c.copy(alpha = 0.14f) else Color.Transparent)
+                        .clickable { onSelect(t) }.padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(tabIcon(t), t.label, tint = if (sel) c else pal.text2, modifier = Modifier.size(22.dp))
+                    Text(t.label, fontSize = 10.sp, color = if (sel) c else pal.text2, fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold, maxLines = 1)
+                }
+            }
+        }
     }
 }

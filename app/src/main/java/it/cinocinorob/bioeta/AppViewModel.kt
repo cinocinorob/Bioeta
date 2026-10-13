@@ -16,6 +16,9 @@ import it.cinocinorob.bioeta.data.Sex
 import it.cinocinorob.bioeta.assistant.CitationCheck
 import it.cinocinorob.bioeta.assistant.Claude
 import it.cinocinorob.bioeta.assistant.Prompt
+import it.cinocinorob.bioeta.science.BloodPressure
+import it.cinocinorob.bioeta.science.BpReading
+import it.cinocinorob.bioeta.science.BpSummary
 import it.cinocinorob.bioeta.science.DailyValue
 import it.cinocinorob.bioeta.science.ExerciseLoad
 import it.cinocinorob.bioeta.science.Insight
@@ -128,7 +131,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun autoBackupNow(announce: Boolean = false) {
         if (backup.folderUri == null) return
-        val json = LabStore.toJson(panels, profile).toString(2)
+        val json = LabStore.toJson(panels, profile, bpReadings).toString(2)
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { backup.write(json) }
             lastBackup = backup.lastBackup
@@ -142,7 +145,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")!!.use {
-                        it.write(LabStore.toJson(panels, profile).toString(2).toByteArray())
+                        it.write(LabStore.toJson(panels, profile, bpReadings).toString(2).toByteArray())
                     }
                 }.isSuccess
             }
@@ -217,14 +220,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     val text = getApplication<Application>().contentResolver.openInputStream(uri)!!
                         .bufferedReader().use { it.readText() }
                     val root = JSONObject(text)
-                    LabStore.panelsFromJson(root) to LabStore.profileFromJson(root)
+                    Triple(LabStore.panelsFromJson(root), LabStore.profileFromJson(root), LabStore.bpFromJson(root))
                 }.getOrNull()
             }
             if (parsed == null) {
                 message = "File non valido: qui si importa il backup .json. Per i referti PDF usa Analisi → Importa referto."
                 return@launch
             }
-            val (imported, prof) = parsed
+            val (imported, prof, bpImported) = parsed
+            if (bpImported.isNotEmpty()) {
+                val bpIds = bpImported.map { it.id }.toSet()
+                bpReadings = (bpReadings.filter { it.id !in bpIds } + bpImported).sortedBy { it.time }
+                store.saveBp(bpReadings)
+            }
             // Unione per id: i prelievi importati sostituiscono quelli con lo stesso id
             val ids = imported.map { it.id }.toSet()
             panels = (panels.filter { it.id !in ids } + imported).sortedBy { it.date }
@@ -269,6 +277,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     steps7d = rec(Metric.STEPS),
                     vo2 = vo2,
                     phenoDelta = last?.let { it.result.phenoAge - it.age },
+                    bp = bpSummary?.takeIf { java.time.Duration.between(bpReadings.last().time, java.time.LocalDateTime.now()).toDays() <= 60 },
                 )
             )
         }
@@ -299,6 +308,57 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var thinkingStep by mutableStateOf<String?>(null)
         private set
 
+    /** Contesto pseudonimizzato inviato all'assistente (API o app Claude). */
+    fun assistantContext(): String {
+        val t = today
+        val recovery = buildString {
+            append("Punteggi BioEtà di oggi (algoritmo trasparente dell'app, non validato clinicamente):\n")
+            append("- Sonno: ${t.sleep?.score ?: "n.d."}; Prontezza: ${t.readiness.score ?: "in calibrazione"}\n")
+            (t.sleep?.contributors.orEmpty() + t.readiness.contributors).forEach { c ->
+                append("- ${c.label}: ${c.score ?: "n.d."}/100 — ${c.detail}\n")
+            }
+            t.readiness.flags.forEach { append("- Avviso: $it\n") }
+        }
+        val bp = bpSummary
+        val extra = buildString {
+            append(recovery)
+            if (bp != null) {
+                append("\nPressione arteriosa domiciliare (media ultimi 7 giorni, primo giorno escluso): ${bp.meanSys.toInt()}/${bp.meanDia.toInt()} mmHg su ${bp.n} misure in ${bp.days} giorni")
+                bp.morning?.let { append("; mattino ${it.first.toInt()}/${it.second.toInt()}") }
+                bp.evening?.let { append("; sera ${it.first.toInt()}/${it.second.toInt()}") }
+                bp.trendSys?.let { append("; tendenza sistolica ${String.format(java.util.Locale.ITALY, "%+.1f", it)} mmHg/mese") }
+                append("; categoria ESC 2024 domiciliare: ${bp.category.label}\n")
+            }
+        }
+        return Prompt.context(profile, panels, wearable, extra)
+    }
+
+    // ---- Modalità gratuita: domanda inviata all'app Claude dell'utente ----
+    var assistantMode by mutableStateOf(settings.getString("assistant_mode", "free") ?: "free")
+        private set
+    var pastedReport by mutableStateOf<CitationCheck.Report?>(null)
+        private set
+    var checkingPaste by mutableStateOf(false)
+        private set
+
+    fun selectAssistantMode(m: String) {
+        assistantMode = m
+        settings.edit().putString("assistant_mode", m).apply()
+    }
+
+    fun freePrompt(question: String): String = Prompt.forClaudeApp(assistantContext(), question)
+
+    fun checkPastedAnswer(text: String) {
+        if (text.isBlank()) return
+        checkingPaste = true
+        viewModelScope.launch {
+            pastedReport = withContext(Dispatchers.IO) { CitationCheck.checkPasted(text) }
+            checkingPaste = false
+        }
+    }
+
+    fun clearPasted() { pastedReport = null }
+
     fun saveApiKey(k: String) {
         apiKey = k.trim()
         secrets.edit().putString("api_key", apiKey).apply()
@@ -319,16 +379,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun ask(question: String) {
         val q = question.trim()
         if (q.isEmpty() || thinking || apiKey.isBlank()) return
-        val t = today
-        val recovery = buildString {
-            append("Punteggi BioEtà di oggi (algoritmo trasparente dell'app, non validato clinicamente):\n")
-            append("- Sonno: ${t.sleep?.score ?: "n.d."}; Prontezza: ${t.readiness.score ?: "in calibrazione"}\n")
-            (t.sleep?.contributors.orEmpty() + t.readiness.contributors).forEach { c ->
-                append("- ${c.label}: ${c.score ?: "n.d."}/100 — ${c.detail}\n")
-            }
-            t.readiness.flags.forEach { append("- Avviso: $it\n") }
-        }
-        val ctx = Prompt.context(profile, panels, wearable, recovery)
+        val ctx = assistantContext()
         // Solo coppie domanda/risposta complete, per mantenere l'alternanza user/assistant
         val prior = chat.zipWithNext().filter { (u, a) -> u.fromUser && !a.fromUser && !a.isError }
             .flatMap { listOf(it.first, it.second) }
@@ -428,6 +479,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     val today: DayScores get() = recoveryHistory.last()
+
+
+    // ---------------- Pressione arteriosa ----------------
+
+    var bpReadings by mutableStateOf(store.loadBp())
+        private set
+
+    fun addBp(r: BpReading) {
+        bpReadings = (bpReadings.filter { it.id != r.id } + r).sortedBy { it.time }
+        store.saveBp(bpReadings)
+        autoBackupNow()
+    }
+
+    fun deleteBp(id: String) {
+        bpReadings = bpReadings.filter { it.id != id }
+        store.saveBp(bpReadings)
+        autoBackupNow()
+    }
+
+    val bpSummary: BpSummary? get() = BloodPressure.summarize(bpReadings)
 
     companion object {
         const val DAYS_WINDOW = 120L

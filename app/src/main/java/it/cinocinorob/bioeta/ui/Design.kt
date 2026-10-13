@@ -41,7 +41,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-// ======================= Palette (ispirata a Salute di iOS) =======================
+// ======================= Palette (calda e gentile, pastello) =======================
 
 data class Palette(
     val bg: Color,
@@ -54,60 +54,81 @@ data class Palette(
 )
 
 private val LightPalette = Palette(
-    bg = Color(0xFFF2F2F7), card = Color.White, text = Color(0xFF000000),
-    text2 = Color(0xFF8A8A8E), sep = Color(0xFFDCDCE0), field = Color(0xFFF2F2F7), dark = false,
+    bg = Color(0xFFF7F3EC), card = Color(0xFFFFFFFF), text = Color(0xFF221F2E),
+    text2 = Color(0xFF8E8899), sep = Color(0xFFECE6DC), field = Color(0xFFF3EEE6), dark = false,
 )
 private val DarkPalette = Palette(
-    bg = Color(0xFF000000), card = Color(0xFF1C1C1E), text = Color.White,
-    text2 = Color(0xFF98989F), sep = Color(0xFF38383A), field = Color(0xFF2C2C2E), dark = true,
+    bg = Color(0xFF141318), card = Color(0xFF211F28), text = Color(0xFFF4F1FA),
+    text2 = Color(0xFF9C97A8), sep = Color(0xFF34313D), field = Color(0xFF2B2833), dark = true,
 )
 
-/** Colori per categoria, come le sezioni dell'app Salute. */
+/** Colori per categoria: tinte pastello sature quanto basta per restare leggibili. */
 object Tint {
-    val heart = Color(0xFFFF2D55)
-    val hrv = Color(0xFFFF375F)
-    val sleep = Color(0xFF5E5CE6)
-    val activity = Color(0xFFFF9500)
-    val resp = Color(0xFF32ADE6)
-    val spo2 = Color(0xFF0A84FF)
-    val body = Color(0xFFAF52DE)
-    val blood = Color(0xFFFF3B30)
-    val bio = Color(0xFF30C85E)
-    val vo2 = Color(0xFFFF6B3D)
-    val blue = Color(0xFF007AFF)
-    val good = Color(0xFF30C85E)
-    val bad = Color(0xFFFF3B30)
-    val warn = Color(0xFFFF9500)
+    val heart = Color(0xFFFF6B7D)
+    val hrv = Color(0xFFFF7FA3)
+    val sleep = Color(0xFF8E7CFF)
+    val activity = Color(0xFFFF9F5A)
+    val resp = Color(0xFF4FB8E8)
+    val spo2 = Color(0xFF5B8DEF)
+    val body = Color(0xFFB57BEE)
+    val blood = Color(0xFFF2617A)
+    val bio = Color(0xFF3FBF8F)
+    val vo2 = Color(0xFFFF8A5B)
+    val blue = Color(0xFF5B7CF0)
+    val good = Color(0xFF3FBF8F)
+    val bad = Color(0xFFF2617A)
+    val warn = Color(0xFFF5A524)
+    val bp = Color(0xFFE85D9A)
 }
 
 val LocalPalette = staticCompositionLocalOf { LightPalette }
+
+/** Nunito (SIL OFL 1.1): carattere arrotondato, font variabile incluso nell'app. */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+val Rounded = androidx.compose.ui.text.font.FontFamily(
+    listOf(400, 500, 600, 700, 800).map { w ->
+        androidx.compose.ui.text.font.Font(
+            it.cinocinorob.bioeta.R.font.nunito,
+            weight = FontWeight(w),
+            variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
+                androidx.compose.ui.text.font.FontVariation.weight(w),
+            ),
+        )
+    }
+)
 
 @Composable
 fun BioTheme(content: @Composable () -> Unit) {
     val p = if (isSystemInDarkTheme()) DarkPalette else LightPalette
     val scheme = if (p.dark) darkColorScheme(
-        primary = Color(0xFF0A84FF), onPrimary = Color.White,
+        primary = Color(0xFF8FA6FF), onPrimary = Color(0xFF14131A),
         background = p.bg, onBackground = p.text, surface = p.card, onSurface = p.text,
         surfaceVariant = p.field, onSurfaceVariant = p.text2,
         surfaceContainer = p.card, surfaceContainerHigh = p.card, surfaceContainerHighest = p.field,
         surfaceContainerLow = p.card, outline = p.sep, outlineVariant = p.sep, error = Tint.bad,
-        secondaryContainer = Color(0xFF2C2C2E), onSecondaryContainer = p.text,
+        secondaryContainer = p.field, onSecondaryContainer = p.text,
     ) else lightColorScheme(
         primary = Tint.blue, onPrimary = Color.White,
         background = p.bg, onBackground = p.text, surface = p.card, onSurface = p.text,
         surfaceVariant = p.field, onSurfaceVariant = p.text2,
         surfaceContainer = p.card, surfaceContainerHigh = p.card, surfaceContainerHighest = p.field,
         surfaceContainerLow = p.card, outline = p.sep, outlineVariant = p.sep, error = Tint.bad,
-        secondaryContainer = Color(0xFFE5E5EA), onSecondaryContainer = p.text,
+        secondaryContainer = Color(0xFFEDE7FF), onSecondaryContainer = p.text,
     )
     val base = Typography()
-    val typo = base.copy(
-        displayMedium = base.displayMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-1).sp),
-        headlineLarge = base.headlineLarge.copy(fontWeight = FontWeight.Bold, fontSize = 34.sp, letterSpacing = (-0.5).sp),
-        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+    fun TextStyle.r() = copy(fontFamily = Rounded)
+    val typo = Typography(
+        displayLarge = base.displayLarge.r(), displayMedium = base.displayMedium.r().copy(fontWeight = FontWeight.ExtraBold),
+        displaySmall = base.displaySmall.r(), headlineLarge = base.headlineLarge.r().copy(fontWeight = FontWeight.ExtraBold, fontSize = 32.sp),
+        headlineMedium = base.headlineMedium.r(), headlineSmall = base.headlineSmall.r(),
+        titleLarge = base.titleLarge.r().copy(fontWeight = FontWeight.ExtraBold), titleMedium = base.titleMedium.r().copy(fontWeight = FontWeight.Bold),
+        titleSmall = base.titleSmall.r(), bodyLarge = base.bodyLarge.r(), bodyMedium = base.bodyMedium.r(), bodySmall = base.bodySmall.r(),
+        labelLarge = base.labelLarge.r().copy(fontWeight = FontWeight.Bold), labelMedium = base.labelMedium.r(), labelSmall = base.labelSmall.r(),
     )
     CompositionLocalProvider(LocalPalette provides p) {
-        MaterialTheme(colorScheme = scheme, typography = typo, content = content)
+        MaterialTheme(colorScheme = scheme, typography = typo, shapes = androidx.compose.material3.Shapes(
+            small = RoundedCornerShape(14.dp), medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(28.dp),
+        ), content = content)
     }
 }
 
@@ -165,11 +186,11 @@ fun HealthCard(
         modifier
             .fillMaxWidth()
             .softShadow(p.dark)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(26.dp))
             .background(p.card)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (title != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -235,7 +256,7 @@ fun Pill(text: String, color: Color) {
 fun InsetGroup(content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPalette.current
     Column(
-        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(18.dp)).background(p.card),
+        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(26.dp)).background(p.card),
         content = content,
     )
 }
@@ -290,8 +311,8 @@ fun VSpace(h: Int) = Spacer(Modifier.height(h.dp))
 /** Ombra morbida e diffusa (solo in modalità chiara). */
 fun Modifier.softShadow(dark: Boolean): Modifier =
     if (dark) this else this.shadow(
-        elevation = 6.dp, shape = RoundedCornerShape(18.dp), clip = false,
-        ambientColor = Color(0x22000000), spotColor = Color(0x1A000000),
+        elevation = 10.dp, shape = RoundedCornerShape(26.dp), clip = false,
+        ambientColor = Color(0x14806A4A), spotColor = Color(0x14806A4A),
     )
 
 /** Card con sfondo a gradiente per i contenuti principali. */
@@ -300,8 +321,8 @@ fun GradientHero(colors: List<Color>, modifier: Modifier = Modifier, content: @C
     Column(
         modifier
             .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(24.dp), clip = false, ambientColor = colors.first().copy(alpha = 0.4f), spotColor = colors.first().copy(alpha = 0.4f))
-            .clip(RoundedCornerShape(24.dp))
+            .shadow(14.dp, RoundedCornerShape(30.dp), clip = false, ambientColor = colors.first().copy(alpha = 0.35f), spotColor = colors.first().copy(alpha = 0.35f))
+            .clip(RoundedCornerShape(30.dp))
             .background(Brush.linearGradient(colors))
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),

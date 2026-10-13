@@ -49,6 +49,7 @@ fun levelLabel(l: Level): String = when (l) {
 }
 
 fun areaTint(a: Area): Color = when (a) {
+    Area.BP -> Tint.bp
     Area.LIPIDS -> Tint.heart
     Area.GLUCOSE -> Tint.activity
     Area.INFLAMMATION -> Tint.blood

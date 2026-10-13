@@ -73,4 +73,25 @@ FORMATO
         recovery?.let { sb.append("\n").append(it) }
         return sb.toString()
     }
+
+    /**
+     * Testo completo da incollare nell'app Claude o su claude.ai (piano gratuito o a pagamento).
+     * Richiede citazioni con PMID/DOI così che BioEtà possa verificarle quando la risposta viene incollata.
+     */
+    fun forClaudeApp(context: String, question: String): String = buildString {
+        append("Ti scrivo dall'app BioEtà. Rispondi in italiano seguendo questo metodo.\n\n")
+        append(SYSTEM.replace(
+            "Prima di qualsiasi affermazione su effetti, rischi o interventi, cerca le prove con lo strumento pubmed_search.",
+            "Prima di qualsiasi affermazione su effetti, rischi o interventi, se hai la ricerca web attiva cerca le prove su PubMed (pubmed.ncbi.nlm.nih.gov) e nelle linee guida; se non puoi cercare, cita solo studi di cui conosci con certezza PMID o DOI e dichiaralo.",
+        ).replace(
+            "Leggi l'abstract (pubmed_abstract) di ogni articolo che citi",
+            "Leggi l'abstract di ogni articolo che citi",
+        ).replace(
+            "Cita solo PMID restituiti dagli strumenti in questa conversazione.",
+            "Riporta per ogni studio PMID e, se possibile, DOI: verranno controllati automaticamente su PubMed.",
+        ))
+        append("\n\n")
+        append(context)
+        append("\nDOMANDA: ").append(question.ifBlank { "Commenta i miei dati più recenti e indica, con le prove disponibili, cosa posso migliorare." })
+    }
 }

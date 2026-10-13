@@ -62,6 +62,7 @@ const val DISCLAIMER_SHORT = "Informazioni a scopo educativo: non sono diagnosi 
 fun AssistantScreen(vm: AppViewModel, modifier: Modifier, initialQuestion: String?, onConsumeInitial: () -> Unit) {
     when {
         !vm.disclaimerAccepted -> DisclaimerGate(vm, modifier)
+        vm.assistantMode == "free" -> FreeClaudeView(vm, modifier, initialQuestion, onConsumeInitial)
         vm.apiKey.isBlank() -> ApiKeySetup(vm, modifier)
         else -> ChatView(vm, modifier, initialQuestion, onConsumeInitial)
     }
@@ -81,7 +82,7 @@ private fun DisclaimerGate(vm: AppViewModel, modifier: Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         LargeHeader("Assistente", "Claude + PubMed")
-        GradientHero(listOf(Color(0xFF5E5CE6), Color(0xFF0A84FF))) {
+        GradientHero(listOf(Color(0xFFB9A8FF), Color(0xFF7F8CF5))) {
             Icon(BioIcons.Sparkle, null, tint = Color.White, modifier = Modifier.size(32.dp))
             Text("Prima di iniziare", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(
@@ -97,12 +98,12 @@ private fun DisclaimerGate(vm: AppViewModel, modifier: Modifier) {
             Caption("Anche con le fonti, un modello linguistico può sbagliare: interpretare male uno studio, generalizzare oltre la popolazione studiata o tralasciare prove contrarie. L'app controlla che ogni PMID citato esista su PubMed e se è stato effettivamente letto durante la ricerca, ma non può verificare automaticamente che ogni frase rispecchi lo studio. Le fonti sono cliccabili: controllale.")
         }
         HealthCard("Privacy", BioIcons.Person, Tint.blue) {
-            Caption("Quando invii una domanda, l'app trasmette ad Anthropic (fornitore di Claude) età, sesso, i valori degli ultimi 4 referti e le medie dello smartwatch. Non invia nome né altri dati identificativi. Le ricerche su PubMed contengono solo termini scientifici. Nient'altro lascia il telefono.")
+            Caption("Modalità gratuita: l'app prepara un testo con età, sesso, valori degli ultimi 4 referti, pressione e medie dello smartwatch (senza nome) e sei tu a inviarlo dalla tua app Claude, con il tuo account. Modalità API: lo stesso testo viene inviato ad Anthropic con la tua chiave. Le ricerche su PubMed per verificare le fonti contengono solo identificativi degli articoli.")
         }
         InsetGroup {
             CheckRow(c1, { c1 = it }, "Ho capito che le risposte non sostituiscono il parere del medico.")
             CheckRow(c2, { c2 = it }, "Ho capito che l'IA può commettere errori e che devo verificare le fonti.")
-            CheckRow(c3, { c3 = it }, "Acconsento all'invio dei miei dati pseudonimizzati ad Anthropic quando faccio una domanda.", last = true)
+            CheckRow(c3, { c3 = it }, "Acconsento a condividere i miei dati pseudonimizzati con Claude (Anthropic) quando faccio una domanda.", last = true)
         }
         Button(
             onClick = { vm.acceptDisclaimer() }, enabled = c1 && c2 && c3,
@@ -135,6 +136,7 @@ private fun ApiKeySetup(vm: AppViewModel, modifier: Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         LargeHeader("Collega Claude", "Assistente")
+        ModeSwitch(vm)
         HealthCard("Chiave API Anthropic", BioIcons.Sparkle, Tint.sleep) {
             Body("L'app usa la tua chiave personale dell'API di Claude: paghi solo quello che usi, direttamente ad Anthropic.")
             Caption("1. Dal browser apri console.anthropic.com e accedi.\n2. Aggiungi credito (Billing) e imposta un limite di spesa mensile.\n3. API Keys → Create Key, poi copiala e incollala qui.")
@@ -216,6 +218,7 @@ private fun ChatView(vm: AppViewModel, modifier: Modifier, initialQuestion: Stri
                     if (vm.chat.isNotEmpty()) TextButton(onClick = { vm.clearChat() }) { Text("Nuova", color = Tint.blue) }
                 }
             }
+            item { ModeSwitch(vm) }
             item {
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Tint.warn.copy(alpha = 0.12f)).padding(12.dp),

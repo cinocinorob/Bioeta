@@ -47,12 +47,20 @@ object Refs {
     val WATSON = Ref("Watson et al., Sleep 2015", "Recommended amount of sleep for a healthy adult: AASM/SRS joint consensus statement", "26039963", "10.5665/sleep.4716", StudyType.CONSENSUS)
     val CAPPUCCIO = Ref("Cappuccio et al., Sleep 2010", "Sleep duration and all-cause mortality: a systematic review and meta-analysis of prospective studies", "20469800", "10.1093/sleep/33.5.585", StudyType.META_OBS)
     val PALUCH = Ref("Paluch et al., Lancet Public Health 2022", "Daily steps and all-cause mortality: a meta-analysis of 15 international cohorts", "35247352", "10.1016/S2468-2667(21)00302-9", StudyType.META_OBS)
+    val ESC_BP = Ref("McEvoy et al., Eur Heart J 2024", "2024 ESC Guidelines for the management of elevated blood pressure and hypertension", "39210715", "10.1093/eurheartj/ehae178", StudyType.GUIDELINE)
+    val ESH_BP = Ref("Mancia et al., J Hypertens 2023", "2023 ESH Guidelines for the management of arterial hypertension", "37345492", "10.1097/HJH.0000000000003480", StudyType.GUIDELINE)
+    val ETTEHAD = Ref("Ettehad et al., Lancet 2016", "Blood pressure lowering for prevention of cardiovascular disease and death: a systematic review and meta-analysis", "26724178", "10.1016/S0140-6736(15)01225-8", StudyType.META_RCT)
+    val SALT = Ref("He et al., BMJ 2013", "Effect of longer term modest salt reduction on blood pressure: Cochrane systematic review and meta-analysis", "23558162", "10.1136/bmj.f1325", StudyType.META_RCT)
+    val DASH = Ref("Filippou et al., Adv Nutr 2020", "DASH diet and blood pressure reduction in adults with and without hypertension: systematic review and meta-analysis of RCTs", "32330233", "10.1093/advances/nmaa041", StudyType.META_RCT)
+    val EXERCISE_BP = Ref("Edwards et al., Br J Sports Med 2023", "Exercise training and resting blood pressure: a large-scale pairwise and network meta-analysis of RCTs", "37491419", "10.1136/bjsports-2022-106503", StudyType.META_RCT)
+    val WEIGHT_BP = Ref("Neter et al., Hypertension 2003", "Influence of weight reduction on blood pressure: a meta-analysis of randomized controlled trials", "12975389", "10.1161/01.HYP.0000094221.86888.AE", StudyType.META_RCT)
+    val ALCOHOL_BP = Ref("Roerecke et al., Lancet Public Health 2017", "The effect of a reduction in alcohol consumption on blood pressure: a systematic review and meta-analysis", "29253389", "10.1016/S2468-2667(17)30003-8", StudyType.META_RCT)
     val LEVINE = Ref("Levine et al., Aging 2018", "An epigenetic biomarker of aging for lifespan and healthspan", "29676998", "10.18632/aging.101414", StudyType.META_OBS)
 }
 
 enum class Level { POSITIVE, INFO, ATTENTION, ALERT }
 
-enum class Area(val label: String) { LIPIDS("Lipidi"), GLUCOSE("Glicemia"), INFLAMMATION("Infiammazione"), KIDNEY("Rene"), VITAMINS("Vitamine"), FITNESS("Forma fisica"), HEART("Cuore"), SLEEP("Sonno"), ACTIVITY("Attività"), AGING("Età biologica") }
+enum class Area(val label: String) { BP("Pressione"), LIPIDS("Lipidi"), GLUCOSE("Glicemia"), INFLAMMATION("Infiammazione"), KIDNEY("Rene"), VITAMINS("Vitamine"), FITNESS("Forma fisica"), HEART("Cuore"), SLEEP("Sonno"), ACTIVITY("Attività"), AGING("Età biologica") }
 
 data class EvidencePoint(
     val text: String,
@@ -94,6 +102,7 @@ data class InsightInput(
     val steps7d: Double? = null,   // passi/giorno
     val vo2: Double? = null,       // mL/kg/min
     val phenoDelta: Double? = null,
+    val bp: BpSummary? = null,
 )
 
 object InsightEngine {
@@ -102,6 +111,39 @@ object InsightEngine {
 
     fun build(i: InsightInput): List<Insight> {
         val out = mutableListOf<Insight>()
+
+        // ---------------- Pressione arteriosa (misure domiciliari) ----------------
+        i.bp?.let { b ->
+            val lvl = when (b.category) {
+                BpCategory.SEVERE, BpCategory.HIGH -> Level.ALERT
+                BpCategory.HYPERTENSION -> Level.ALERT
+                BpCategory.ELEVATED -> Level.ATTENTION
+                BpCategory.NON_ELEVATED -> Level.POSITIVE
+            }
+            val txt = "Media domiciliare ${n(b.meanSys)}/${n(b.meanDia)} mmHg su ${b.n} misure in ${b.days} giorni: ${b.category.label.lowercase()} secondo le soglie domiciliari ESC 2024 (< 120/70 non elevata, 120–134/70–84 elevata, ≥ 135/85 ipertensione). " +
+                (if (!b.protocolComplete) "Per una valutazione affidabile servono almeno 3 giorni con 2 misure mattino e sera. " else "") +
+                when (b.category) {
+                    BpCategory.SEVERE -> "Valori molto elevati: ricontrolla a breve e contatta il medico; con dolore toracico, mancanza di fiato, disturbi neurologici o cefalea intensa chiama il 112."
+                    BpCategory.HIGH, BpCategory.HYPERTENSION -> "Valori da discutere con il medico, che valuterà conferma diagnostica e rischio cardiovascolare."
+                    else -> ""
+                }
+            val ev = buildList {
+                add(EvidencePoint("A domicilio, 135/85 mmHg equivale alla soglia ambulatoriale di 140/90; la categoria «elevata» indica un rischio intermedio da gestire anzitutto con lo stile di vita.", "linea guida", false, Refs.ESC_BP))
+                add(EvidencePoint("Protocollo di automisurazione: seduto da 5 minuti, schiena appoggiata, bracciale all'altezza del cuore, 2 misure a 1 minuto di distanza al mattino e alla sera per 3–7 giorni, escludendo il primo giorno.", "linea guida", false, Refs.ESH_BP))
+                if (b.category != BpCategory.NON_ELEVATED) {
+                    add(EvidencePoint("Ogni 10 mmHg in meno di sistolica riducono del 20% gli eventi cardiovascolari maggiori (RR 0,80) e del 13% la mortalità totale nei trial di trattamento.", "alta", false, Refs.ETTEHAD))
+                    add(EvidencePoint("Ridurre il sale di circa 4,4 g/die abbassa la pressione di 4,2/2,1 mmHg (5,4/2,8 negli ipertesi).", "moderata", false, Refs.SALT))
+                    add(EvidencePoint("L'esercizio fisico riduce la pressione a riposo: aerobico −4,5/−2,5, contro resistenza −4,6/−3,0, combinato −6,0/−2,5, isometrico (es. wall squat, handgrip) −8,2/−4,0 mmHg.", "moderata", false, Refs.EXERCISE_BP))
+                    add(EvidencePoint("La dieta DASH riduce la pressione di 3,2/2,5 mmHg rispetto a una dieta di controllo (GRADE moderato).", "moderata", true, Refs.DASH))
+                    add(EvidencePoint("Ogni kg perso riduce la pressione di circa 1,05/0,92 mmHg.", "moderata", false, Refs.WEIGHT_BP))
+                    add(EvidencePoint("Ridurre l'alcol abbassa la pressione solo in chi beve più di 2 drink al giorno (fino a −5,5/−4,0 mmHg in chi ne beve ≥ 6).", "moderata", false, Refs.ALCOHOL_BP))
+                }
+            }
+            out += Insight(
+                "bp", Area.BP, lvl, "Pressione arteriosa", txt, ev,
+                "La mia pressione domiciliare media è ${n(b.meanSys)}/${n(b.meanDia)} mmHg. Come la interpreto e quali interventi hanno le prove migliori?",
+            )
+        }
 
         // ---------------- LDL ----------------
         i.ldl?.let { ldl ->

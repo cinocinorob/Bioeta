@@ -92,6 +92,13 @@ object PubMed {
         }
     }
 
+    /** PMID corrispondente a un DOI, se indicizzato in PubMed. */
+    fun pmidForDoi(doi: String): String? {
+        val js = JSONObject(get("${BASE}esearch.fcgi?db=pubmed&retmode=json&retmax=1&term=${enc("$doi[doi]")}$TOOL"))
+        val ids = js.getJSONObject("esearchresult").getJSONArray("idlist")
+        return if (ids.length() > 0) ids.getString(0) else null
+    }
+
     fun abstract(pmid: String): String {
         val txt = get("${BASE}efetch.fcgi?db=pubmed&rettype=abstract&retmode=text&id=${enc(pmid)}$TOOL")
         return txt.trim().take(6000)

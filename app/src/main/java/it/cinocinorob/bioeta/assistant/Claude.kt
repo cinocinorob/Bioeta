@@ -176,7 +176,28 @@ object CitationCheck {
         val notConsulted: List<String>,
     )
 
+    private val DOI = Regex("""\b(10\.\d{4,9}/[^\s\]\)>,;"']+)""")
+
     fun cited(text: String): List<String> = PMID.findAll(text).map { it.groupValues[1] }.distinct().toList()
+
+    fun citedDois(text: String): List<String> = DOI.findAll(text).map { it.groupValues[1].trimEnd('.') }.distinct().toList()
+
+    /** Verifica una risposta incollata (da claude.ai o dall'app Claude): PMID e DOI. */
+    fun checkPasted(text: String): Report {
+        val pmids = cited(text).toMutableList()
+        val unresolvedDois = mutableListOf<String>()
+        for (d in citedDois(text).take(25)) {
+            val id = runCatching { PubMed.pmidForDoi(d) }.getOrNull()
+            if (id != null) { if (id !in pmids) pmids += id } else unresolvedDois += "doi:$d"
+        }
+        val found = runCatching { PubMed.summaries(pmids.take(40)) }.getOrDefault(emptyList())
+        val ids = found.map { it.pmid }.toSet()
+        return Report(
+            verified = found.sortedByDescending { it.rank },
+            notFound = pmids.filter { it !in ids } + unresolvedDois,
+            notConsulted = emptyList(),
+        )
+    }
 
     fun check(text: String, consulted: Map<String, PubMed.Summary>): Report {
         val ids = cited(text)

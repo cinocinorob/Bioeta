@@ -57,6 +57,7 @@ fun SettingsScreen(
     val ctx = LocalContext.current
     val pal = LocalPalette.current
     val p = vm.profile
+    var nameText by remember(p.name) { mutableStateOf(p.name) }
     var birthText by remember(p.birthDate) { mutableStateOf(p.birthDate?.itDate() ?: "") }
     var vo2Text by remember(p.vo2Manual) { mutableStateOf(p.vo2Manual?.f(1) ?: "") }
     val parsedBirth = runCatching { LocalDate.parse(birthText.trim(), DateTimeFormatter.ofPattern("d/M/uuuu")) }.getOrNull()
@@ -73,6 +74,12 @@ fun SettingsScreen(
         item { LargeHeader("Profilo") }
         item {
             HealthCard("Dati personali", BioIcons.Person, Tint.body) {
+                OutlinedTextField(
+                    value = nameText, onValueChange = { nameText = it.take(30) },
+                    label = { Text("Come ti chiami? (per il saluto)") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    colors = fieldColors, shape = RoundedCornerShape(10.dp),
+                )
                 OutlinedTextField(
                     value = birthText, onValueChange = { birthText = it },
                     label = { Text("Data di nascita (gg/mm/aaaa)") },
@@ -101,7 +108,7 @@ fun SettingsScreen(
                 )
                 Button(
                     onClick = {
-                        vm.updateProfile(p.copy(birthDate = parsedBirth, vo2Manual = parseNum(vo2Text)))
+                        vm.updateProfile(p.copy(birthDate = parsedBirth, vo2Manual = parseNum(vo2Text), name = nameText.trim()))
                         vm.message = "Profilo salvato."
                     },
                     enabled = (birthText.isBlank() || parsedBirth != null) && (vo2Text.isBlank() || parseNum(vo2Text) != null),
