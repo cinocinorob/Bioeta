@@ -126,7 +126,7 @@ class Gallery {
             }
             HealthCard("Sonno", BioIcons.Moon, Tint.sleep) { Hypnogram(night) }
             Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                Mood.entries.forEach { Sprout(it, sizeDp = 70) }
+                Mood.entries.forEach { HeartAvatar(it, 60.0, sizeDp = 70) }
             }
             ActivityRings(0.8f, 0.6f, 0.45f)
         }
