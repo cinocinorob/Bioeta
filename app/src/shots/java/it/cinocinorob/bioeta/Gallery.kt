@@ -133,12 +133,12 @@ class Gallery {
         }
     }
 
-    @Test fun recoveryLight() = paparazzi.snapshot { BioTheme { Recovery() } }
+    @Test fun recoveryLight() = paparazzi.snapshot { BioTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) { Recovery() } } }
 
-    @Test fun todayLight() = paparazzi.snapshot { BioTheme { Today() } }
-    @Test fun activityLight() = paparazzi.snapshot { BioTheme { Activity() } }
+    @Test fun todayLight() = paparazzi.snapshot { BioTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) { Today() } } }
+    @Test fun activityLight() = paparazzi.snapshot { BioTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) { Activity() } } }
     @Test fun todayDark() {
         paparazzi.unsafeUpdateConfig(DeviceConfig.PIXEL_5.copy(screenHeight = 3400, nightMode = NightMode.NIGHT))
-        paparazzi.snapshot { BioTheme { Today() } }
+        paparazzi.snapshot { BioTheme { androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) { Today() } } }
     }
 }
