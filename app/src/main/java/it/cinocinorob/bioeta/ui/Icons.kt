@@ -41,10 +41,12 @@ object BioIcons {
     val Plus = stroked("plus", "M12,5v14M5,12h14")
     val Info = stroked("info", "M12,3a9,9 0 1,1 0,18a9,9 0 1,1 0,-18M12,11v6M12,7.5v0.5")
     val Refresh = stroked("refresh", "M20,11a8,8 0 1,0 -2.3,5.7M20,4v7h-7")
-    val Back = stroked("back", "M15,5l-7,7l7,7", 2.6f)
+    /** Freccia "indietro" Material. */
+    val Back = filled("back", "M20,11H7.83l5.59,-5.59L12,4l-8,8l8,8l1.41,-1.41L7.83,13H20v-2z")
     val Trash = stroked("trash", "M4,7h16M9,7V4h6v3M6,7l1,13h10l1,-13")
     val Send = filled("send", "M3,20.5l18,-8.5l-18,-8.5l0,6.6l12.5,1.9l-12.5,1.9z")
     val Chat = filled("chat", "M4,4h16a2,2 0 0,1 2,2v10a2,2 0 0,1 -2,2H9l-5,4v-4H4a2,2 0 0,1 -2,-2V6a2,2 0 0,1 2,-2z")
     val Shield = filled("shield", "M12,2l8,3v6c0,5 -3.4,9.4 -8,11c-4.6,-1.6 -8,-6 -8,-11V5z")
+    val Stethoscope = stroked("stetho", "M6,3v6a5,5 0 0,0 10,0V3M11,14v2a5,5 0 0,0 10,0v-2M21,14a2,2 0 1,0 0.01,0", 2.0f)
     val Gear = stroked("gear", "M12,9a3,3 0 1,1 0,6a3,3 0 1,1 0,-6M12,2v3M12,19v3M2,12h3M19,12h3M4.9,4.9l2.1,2.1M17,17l2.1,2.1M4.9,19.1l2.1,-2.1M17,7l2.1,-2.1")
 }

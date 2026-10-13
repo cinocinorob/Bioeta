@@ -53,6 +53,7 @@ fun SettingsScreen(
     onImport: () -> Unit,
     onPickBackupFolder: () -> Unit,
     onOpenInfo: () -> Unit,
+    onOpenDiagnostics: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val pal = LocalPalette.current
@@ -163,6 +164,11 @@ fun SettingsScreen(
             }
         }
         if (vm.apiKey.isNotBlank()) item { ModelPicker(vm) }
+        item {
+            HealthCard("Diagnostica Connessione Salute", BioIcons.Info, Tint.blue, onClick = onOpenDiagnostics) {
+                Caption("Verifica permessi, dati presenti e app che li scrivono.")
+            }
+        }
         if (vm.hcAvailable) item {
             HealthCard("Connessione Salute", BioIcons.Heart, Tint.heart,
                 onClick = { runCatching { ctx.startActivity(android.content.Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)) } }) {

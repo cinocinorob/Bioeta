@@ -550,11 +550,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
 
     private suspend fun refreshFitness() {
-        val age = profile.ageAt(java.time.LocalDate.now()) ?: return
+        // L'attività di oggi e gli allenamenti non dipendono dal profilo: si leggono sempre
+        todayActivity = runCatching { health.todayActivity() }.getOrNull()
+        workouts = runCatching { health.workouts(14) }.getOrDefault(emptyList())
+        // Il carico cardiaco usa FCmax stimata dall'età: senza data di nascita si usa 40 anni (segnalato nella UI)
+        val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         val male = profile.sex == Sex.M
         fitnessLoading = true
         try {
-            todayActivity = runCatching { health.todayActivity() }.getOrNull()
             val rest = restHrRef
             val (cachedRest, cached) = withContext(Dispatchers.IO) { store.loadLoads() }
             val reuse = if (kotlin.math.abs(cachedRest - rest) < 2.0) cached.associateBy { it.date } else emptyMap()
@@ -572,7 +575,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             dayLoads = out
             withContext(Dispatchers.IO) { store.saveLoads(rest, out) }
-            workouts = runCatching { health.workouts(14) }.getOrDefault(emptyList())
         } finally {
             fitnessLoading = false
         }
@@ -619,6 +621,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             return longCache
         }
+
+
+    // ---------------- Diagnostica Connessione Salute ----------------
+    var diagnostics by mutableStateOf<List<HealthRepo.DiagRow>?>(null)
+        private set
+    var diagnosing by mutableStateOf(false)
+        private set
+
+    fun runDiagnostics() {
+        viewModelScope.launch {
+            diagnosing = true
+            diagnostics = runCatching { health.diagnose() }.getOrNull()
+            diagnosing = false
+        }
+    }
 
     companion object {
         const val DAYS_WINDOW = 120L

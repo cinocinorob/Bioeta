@@ -106,7 +106,6 @@ class Gallery {
                 BigValue("128/79", "mmHg", size = 40); BpScale(128.0, 79.0)
             }
             InsightCard(InsightEngine.build(InsightInput(45.0, true, ldl = 132.0)).first(), null)
-            FloatingTabBar(Tab.TODAY) {}
         }
     }
 

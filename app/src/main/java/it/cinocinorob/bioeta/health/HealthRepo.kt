@@ -14,6 +14,7 @@ import androidx.health.connect.client.records.RespiratoryRateRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
 import androidx.health.connect.client.records.WeightRecord
 import androidx.health.connect.client.request.AggregateGroupByDurationRequest
@@ -83,10 +84,23 @@ class HealthRepo(private val context: Context) {
         HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
         HealthPermission.getReadPermission(DistanceRecord::class),
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         HISTORY_PERMISSION,
     )
 
     fun sdkStatus(): Int = HealthConnectClient.getSdkStatus(context, PROVIDER)
+
+    /** Ultimo errore per tipo di dato (mostrato nella diagnostica invece di essere ignorato). */
+    val errors = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    inline fun <T> track(name: String, block: () -> T): T? = try {
+        block().also { errors.remove(name) }
+    } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        errors[name] = (e.javaClass.simpleName + ": " + (e.message ?: "")).take(300)
+        null
+    }
 
     private val client: HealthConnectClient by lazy { HealthConnectClient.getOrCreate(context) }
 
@@ -101,38 +115,38 @@ class HealthRepo(private val context: Context) {
 
         fun has(k: KClass<out Record>) = HealthPermission.getReadPermission(k) in granted
 
-        if (has(RestingHeartRateRecord::class)) runCatching {
+        if (has(RestingHeartRateRecord::class)) track("FC a riposo") {
             out[Metric.RHR] = dailyMean(readRecords(RestingHeartRateRecord::class, start, end)
                 .map { it.time to it.beatsPerMinute.toDouble() }, zone)
         }
-        if (has(HeartRateVariabilityRmssdRecord::class)) runCatching {
+        if (has(HeartRateVariabilityRmssdRecord::class)) track("HRV") {
             out[Metric.HRV] = dailyMean(readRecords(HeartRateVariabilityRmssdRecord::class, start, end)
                 .map { it.time to it.heartRateVariabilityMillis }, zone)
         }
-        if (has(Vo2MaxRecord::class)) runCatching {
+        if (has(Vo2MaxRecord::class)) track("VO2max") {
             out[Metric.VO2] = dailyMean(readRecords(Vo2MaxRecord::class, start, end)
                 .map { it.time to it.vo2MillilitersPerMinuteKilogram }, zone)
         }
-        if (has(WeightRecord::class)) runCatching {
+        if (has(WeightRecord::class)) track("Peso") {
             out[Metric.WEIGHT] = dailyMean(readRecords(WeightRecord::class, start, end)
                 .map { it.time to it.weight.inKilograms }, zone)
         }
-        if (has(OxygenSaturationRecord::class)) runCatching {
+        if (has(OxygenSaturationRecord::class)) track("SpO2") {
             out[Metric.SPO2] = dailyMean(readRecords(OxygenSaturationRecord::class, start, end)
                 .map { it.time to it.percentage.value }, zone)
         }
-        if (has(RespiratoryRateRecord::class)) runCatching {
+        if (has(RespiratoryRateRecord::class)) track("Respirazione") {
             out[Metric.RESP] = dailyMean(readRecords(RespiratoryRateRecord::class, start, end)
                 .map { it.time to it.rate }, zone)
         }
-        if (has(SleepSessionRecord::class)) runCatching {
+        if (has(SleepSessionRecord::class)) track("Sonno (riepilogo)") {
             val sessions = readRecords(SleepSessionRecord::class, start, end)
             val byDay = sessions.groupBy { it.endTime.atZone(zone).toLocalDate() }
             out[Metric.SLEEP] = byDay.map { (d, list) ->
                 DailyPoint(d, list.sumOf { asleepHours(it) })
             }.sortedBy { it.date }
         }
-        if (has(StepsRecord::class)) runCatching {
+        if (has(StepsRecord::class)) track("Passi giornalieri") {
             val today = LocalDate.now(zone)
             val groups = client.aggregateGroupByPeriod(
                 AggregateGroupByPeriodRequest(
@@ -168,7 +182,7 @@ class HealthRepo(private val context: Context) {
         val start = end.minus(Duration.ofDays(days))
         val hasHr = HealthPermission.getReadPermission(HeartRateRecord::class) in granted
 
-        val nights = if (HealthPermission.getReadPermission(SleepSessionRecord::class) in granted) runCatching {
+        val nights = if (HealthPermission.getReadPermission(SleepSessionRecord::class) in granted) track("Sonno (fasi)") {
             val sessions = readRecords(SleepSessionRecord::class, start, end)
             // Notte principale = sessione più lunga che termina in quel giorno (i pisolini sono esclusi)
             sessions.groupBy { it.endTime.atZone(zone).toLocalDate() }
@@ -190,9 +204,9 @@ class HealthRepo(private val context: Context) {
                     }
                     SleepNight(date, main.startTime, main.endTime, stages, avg, mn)
                 }.sortedBy { it.date }
-        }.getOrDefault(emptyList()) else emptyList()
+        } ?: emptyList() else emptyList()
 
-        val exercises = if (HealthPermission.getReadPermission(ExerciseSessionRecord::class) in granted) runCatching {
+        val exercises = if (HealthPermission.getReadPermission(ExerciseSessionRecord::class) in granted) track("Allenamenti") {
             readRecords(ExerciseSessionRecord::class, start, end).map { ex ->
                 val minutes = Duration.between(ex.startTime, ex.endTime).seconds / 60.0
                 var avg: Double? = null
@@ -204,7 +218,7 @@ class HealthRepo(private val context: Context) {
                 }
                 ExerciseLoad(ex.startTime.atZone(zone).toLocalDate(), minutes, avg)
             }
-        }.getOrDefault(emptyList()) else emptyList()
+        } ?: emptyList() else emptyList()
 
         return RecoveryData(nights, exercises)
     }
@@ -215,9 +229,11 @@ class HealthRepo(private val context: Context) {
 
     suspend fun heartRate(start: Instant, end: Instant): List<HrSample> {
         if (HealthPermission.getReadPermission(HeartRateRecord::class) !in granted()) return emptyList()
-        return readRecords(HeartRateRecord::class, start, end)
-            .flatMap { r -> r.samples.map { HrSample(it.time, it.beatsPerMinute.toDouble()) } }
-            .filter { it.time >= start && it.time < end }
+        return track("Frequenza cardiaca") {
+            readRecords(HeartRateRecord::class, start, end)
+                .flatMap { r -> r.samples.map { HrSample(it.time, it.beatsPerMinute.toDouble()) } }
+                .filter { it.time >= start && it.time < end }
+        } ?: emptyList()
     }
 
     data class TodayActivity(
@@ -225,6 +241,7 @@ class HealthRepo(private val context: Context) {
         val steps: Long,
         val activeKcal: Double?,
         val distanceKm: Double?,
+        val totalKcal: Double? = null,
     )
 
     suspend fun todayActivity(): TodayActivity {
@@ -233,33 +250,96 @@ class HealthRepo(private val context: Context) {
         val dayStart = LocalDate.now(zone).atStartOfDay()
         val now = LocalDateTime.now(zone)
         val hourly = MutableList(24) { 0L }
-        if (HealthPermission.getReadPermission(StepsRecord::class) in g) runCatching {
-            client.aggregateGroupByDuration(
-                AggregateGroupByDurationRequest(
-                    metrics = setOf(StepsRecord.COUNT_TOTAL),
-                    timeRangeFilter = TimeRangeFilter.between(dayStart, now),
-                    timeRangeSlicer = Duration.ofHours(1),
-                )
-            ).forEach { b ->
-                val h = b.startTime.atZone(zone).hour
-                hourly[h] = b.result[StepsRecord.COUNT_TOTAL] ?: 0L
+        var total: Long? = null
+        if (HealthPermission.getReadPermission(StepsRecord::class) in g) {
+            track("Passi di oggi") {
+                client.aggregateGroupByDuration(
+                    AggregateGroupByDurationRequest(
+                        metrics = setOf(StepsRecord.COUNT_TOTAL),
+                        timeRangeFilter = TimeRangeFilter.between(dayStart, now),
+                        timeRangeSlicer = Duration.ofHours(1),
+                    )
+                ).forEach { b ->
+                    val h = b.startTime.atZone(zone).hour
+                    hourly[h] = b.result[StepsRecord.COUNT_TOTAL] ?: 0L
+                }
+                total = client.aggregate(AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(dayStart, now)))[StepsRecord.COUNT_TOTAL]
             }
         }
         var kcal: Double? = null
         var km: Double? = null
-        runCatching {
+        var tot: Double? = null
+        track("Calorie e distanza") {
             val metrics = buildSet {
                 if (HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class) in g) add(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL)
+                if (HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class) in g) add(TotalCaloriesBurnedRecord.ENERGY_TOTAL)
                 if (HealthPermission.getReadPermission(DistanceRecord::class) in g) add(DistanceRecord.DISTANCE_TOTAL)
             }
             if (metrics.isNotEmpty()) {
                 val r = client.aggregate(AggregateRequest(metrics, TimeRangeFilter.between(dayStart, now)))
                 kcal = r[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
+                tot = r[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories
                 km = r[DistanceRecord.DISTANCE_TOTAL]?.inKilometers
             }
         }
-        return TodayActivity(hourly, hourly.sum(), kcal, km)
+        return TodayActivity(hourly, maxOf(total ?: 0L, hourly.sum()), kcal, km, tot)
     }
+
+    // ------------------------------------------------------------------
+    // Diagnostica: cosa c'è davvero in Connessione Salute
+    // ------------------------------------------------------------------
+
+    data class DiagRow(
+        val label: String,
+        val permission: String,
+        val granted: Boolean,
+        val count7d: Int?,
+        val latest: Instant?,
+        val origins: List<String>,
+        val error: String?,
+    )
+
+    suspend fun diagnose(): List<DiagRow> {
+        val g = runCatching { granted() }.getOrDefault(emptySet())
+        val end = Instant.now()
+        val start = end.minus(Duration.ofDays(7))
+        suspend fun <T : Record> row(label: String, k: KClass<T>, time: (T) -> Instant): DiagRow {
+            val perm = HealthPermission.getReadPermission(k)
+            if (perm !in g) return DiagRow(label, perm, false, null, null, emptyList(), errors[label])
+            return try {
+                val resp = client.readRecords(ReadRecordsRequest(k, TimeRangeFilter.between(start, end), pageSize = 1000))
+                val recs = resp.records
+                DiagRow(
+                    label, perm, true, recs.size, recs.maxOfOrNull(time),
+                    recs.map { it.metadata.dataOrigin.packageName }.distinct().map(::appLabel), errors[label],
+                )
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DiagRow(label, perm, true, null, null, emptyList(), e.javaClass.simpleName + ": " + (e.message ?: ""))
+            }
+        }
+        return listOf(
+            row("Passi", StepsRecord::class) { it.endTime },
+            row("Sonno", SleepSessionRecord::class) { it.endTime },
+            row("Frequenza cardiaca", HeartRateRecord::class) { it.endTime },
+            row("FC a riposo", RestingHeartRateRecord::class) { it.time },
+            row("HRV", HeartRateVariabilityRmssdRecord::class) { it.time },
+            row("Allenamenti", ExerciseSessionRecord::class) { it.endTime },
+            row("Calorie totali", TotalCaloriesBurnedRecord::class) { it.endTime },
+            row("Calorie attive", ActiveCaloriesBurnedRecord::class) { it.endTime },
+            row("Distanza", DistanceRecord::class) { it.endTime },
+            row("Respirazione", RespiratoryRateRecord::class) { it.time },
+            row("VO2max", Vo2MaxRecord::class) { it.time },
+            row("SpO2", OxygenSaturationRecord::class) { it.time },
+            row("Peso", WeightRecord::class) { it.time },
+        )
+    }
+
+    private fun appLabel(pkg: String): String = runCatching {
+        val pm = context.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+    }.getOrDefault(pkg)
 
     data class Workout(
         val id: String,

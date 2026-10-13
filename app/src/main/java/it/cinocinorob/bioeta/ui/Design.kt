@@ -83,51 +83,52 @@ object Tint {
 
 val LocalPalette = staticCompositionLocalOf { LightPalette }
 
-/** Nunito (SIL OFL 1.1): carattere arrotondato, font variabile incluso nell'app. */
-@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
-val Rounded = androidx.compose.ui.text.font.FontFamily(
-    listOf(400, 500, 600, 700, 800).map { w ->
-        androidx.compose.ui.text.font.Font(
-            it.cinocinorob.bioeta.R.font.nunito,
-            weight = FontWeight(w),
-            variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
-                androidx.compose.ui.text.font.FontVariation.weight(w),
-            ),
-        )
-    }
+/** Schema di riserva (quando i colori dinamici non sono disponibili): verde salvia, tonale Material 3. */
+private val FallbackLight = lightColorScheme(
+    primary = Color(0xFF2E6A55), onPrimary = Color.White, primaryContainer = Color(0xFFB2F0D6), onPrimaryContainer = Color(0xFF002117),
+    secondary = Color(0xFF4C6358), onSecondary = Color.White, secondaryContainer = Color(0xFFCEE9DA), onSecondaryContainer = Color(0xFF092016),
+    tertiary = Color(0xFF3E6374), tertiaryContainer = Color(0xFFC2E8FC),
+    background = Color(0xFFF6FBF6), onBackground = Color(0xFF171D1A), surface = Color(0xFFF6FBF6), onSurface = Color(0xFF171D1A),
+    surfaceVariant = Color(0xFFDBE5DE), onSurfaceVariant = Color(0xFF404944),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF0F5F0), surfaceContainer = Color(0xFFEAEFEA),
+    surfaceContainerHigh = Color(0xFFE4EAE5), surfaceContainerHighest = Color(0xFFDFE4DF),
+    outline = Color(0xFF707973), outlineVariant = Color(0xFFBFC9C2), error = Color(0xFFBA1A1A),
+)
+private val FallbackDark = darkColorScheme(
+    primary = Color(0xFF96D4BA), onPrimary = Color(0xFF003828), primaryContainer = Color(0xFF12513E), onPrimaryContainer = Color(0xFFB2F0D6),
+    secondary = Color(0xFFB3CCBF), secondaryContainer = Color(0xFF354B41), onSecondaryContainer = Color(0xFFCEE9DA),
+    tertiary = Color(0xFFA6CCE0), tertiaryContainer = Color(0xFF254B5B),
+    background = Color(0xFF0F1512), onBackground = Color(0xFFDEE4DF), surface = Color(0xFF0F1512), onSurface = Color(0xFFDEE4DF),
+    surfaceVariant = Color(0xFF404944), onSurfaceVariant = Color(0xFFBFC9C2),
+    surfaceContainerLowest = Color(0xFF0A0F0D), surfaceContainerLow = Color(0xFF171D1A), surfaceContainer = Color(0xFF1B211E),
+    surfaceContainerHigh = Color(0xFF252B28), surfaceContainerHighest = Color(0xFF303633),
+    outline = Color(0xFF89938D), outlineVariant = Color(0xFF404944), error = Color(0xFFFFB4AB),
 )
 
+val LocalDynamicColor = androidx.compose.runtime.compositionLocalOf { true }
+
 @Composable
-fun BioTheme(content: @Composable () -> Unit) {
-    val p = if (isSystemInDarkTheme()) DarkPalette else LightPalette
-    val scheme = if (p.dark) darkColorScheme(
-        primary = Color(0xFF8FA6FF), onPrimary = Color(0xFF14131A),
-        background = p.bg, onBackground = p.text, surface = p.card, onSurface = p.text,
-        surfaceVariant = p.field, onSurfaceVariant = p.text2,
-        surfaceContainer = p.card, surfaceContainerHigh = p.card, surfaceContainerHighest = p.field,
-        surfaceContainerLow = p.card, outline = p.sep, outlineVariant = p.sep, error = Tint.bad,
-        secondaryContainer = p.field, onSecondaryContainer = p.text,
-    ) else lightColorScheme(
-        primary = Tint.blue, onPrimary = Color.White,
-        background = p.bg, onBackground = p.text, surface = p.card, onSurface = p.text,
-        surfaceVariant = p.field, onSurfaceVariant = p.text2,
-        surfaceContainer = p.card, surfaceContainerHigh = p.card, surfaceContainerHighest = p.field,
-        surfaceContainerLow = p.card, outline = p.sep, outlineVariant = p.sep, error = Tint.bad,
-        secondaryContainer = Color(0xFFEDE7FF), onSecondaryContainer = p.text,
-    )
-    val base = Typography()
-    fun TextStyle.r() = copy(fontFamily = Rounded)
-    val typo = Typography(
-        displayLarge = base.displayLarge.r(), displayMedium = base.displayMedium.r().copy(fontWeight = FontWeight.ExtraBold),
-        displaySmall = base.displaySmall.r(), headlineLarge = base.headlineLarge.r().copy(fontWeight = FontWeight.ExtraBold, fontSize = 32.sp),
-        headlineMedium = base.headlineMedium.r(), headlineSmall = base.headlineSmall.r(),
-        titleLarge = base.titleLarge.r().copy(fontWeight = FontWeight.ExtraBold), titleMedium = base.titleMedium.r().copy(fontWeight = FontWeight.Bold),
-        titleSmall = base.titleSmall.r(), bodyLarge = base.bodyLarge.r(), bodyMedium = base.bodyMedium.r(), bodySmall = base.bodySmall.r(),
-        labelLarge = base.labelLarge.r().copy(fontWeight = FontWeight.Bold), labelMedium = base.labelMedium.r(), labelSmall = base.labelSmall.r(),
+fun BioTheme(dynamic: Boolean = true, content: @Composable () -> Unit) {
+    val dark = isSystemInDarkTheme()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scheme = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
+        runCatching { if (dark) androidx.compose.material3.dynamicDarkColorScheme(ctx) else androidx.compose.material3.dynamicLightColorScheme(ctx) }
+            .getOrDefault(if (dark) FallbackDark else FallbackLight)
+    } else if (dark) FallbackDark else FallbackLight
+    // La palette dell'app deriva dallo schema Material: superfici tonali, niente ombre "iOS"
+    val p = Palette(
+        bg = scheme.surface,
+        card = scheme.surfaceContainerLow,
+        text = scheme.onSurface,
+        text2 = scheme.onSurfaceVariant,
+        sep = scheme.outlineVariant,
+        field = scheme.surfaceContainerHighest,
+        dark = dark,
     )
     CompositionLocalProvider(LocalPalette provides p) {
-        MaterialTheme(colorScheme = scheme, typography = typo, shapes = androidx.compose.material3.Shapes(
-            small = RoundedCornerShape(14.dp), medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(28.dp),
+        MaterialTheme(colorScheme = scheme, typography = Typography(), shapes = androidx.compose.material3.Shapes(
+            extraSmall = RoundedCornerShape(8.dp), small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp),
+            large = RoundedCornerShape(24.dp), extraLarge = RoundedCornerShape(28.dp),
         ), content = content)
     }
 }
@@ -151,15 +152,16 @@ fun epochLabel(x: Double): String =
 /** Intestazione grande in stile iOS, con data in maiuscoletto sopra. */
 @Composable
 fun LargeHeader(title: String, overline: String? = null) {
+    if (LocalHideHeader.current) return
     val p = LocalPalette.current
-    Column(Modifier.padding(top = 8.dp, bottom = 4.dp)) {
-        if (overline != null) Text(
-            overline.uppercase(Locale.ITALIAN),
-            style = MaterialTheme.typography.labelMedium, color = p.text2, fontWeight = FontWeight.SemiBold,
-        )
-        Text(title, style = MaterialTheme.typography.headlineLarge, color = p.text)
+    Column(Modifier.padding(top = 4.dp, bottom = 4.dp)) {
+        Text(title, style = MaterialTheme.typography.headlineMedium, color = p.text)
+        if (overline != null) Text(overline, style = MaterialTheme.typography.bodyMedium, color = p.text2)
     }
 }
+
+/** Nelle schede principali il titolo è nella LargeTopAppBar: l'intestazione nel contenuto si nasconde. */
+val LocalHideHeader = androidx.compose.runtime.compositionLocalOf { false }
 
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
@@ -186,7 +188,7 @@ fun HealthCard(
         modifier
             .fillMaxWidth()
             .softShadow(p.dark)
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(p.card)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 18.dp, vertical = 16.dp),
@@ -284,10 +286,7 @@ fun GroupRow(
                 if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = p.text2, maxLines = 2)
             }
             if (trailing != null) { Spacer(Modifier.width(8.dp)); trailing() }
-            if (onClick != null) {
-                Spacer(Modifier.width(6.dp))
-                Icon(BioIcons.Chevron, null, tint = p.sep, modifier = Modifier.size(14.dp))
-            }
+
         }
         if (showDivider) HorizontalDivider(Modifier.padding(start = 16.dp), color = p.sep, thickness = 0.5.dp)
     }
@@ -310,10 +309,7 @@ fun VSpace(h: Int) = Spacer(Modifier.height(h.dp))
 
 /** Ombra morbida e diffusa (solo in modalità chiara). */
 fun Modifier.softShadow(dark: Boolean): Modifier =
-    if (dark) this else this.shadow(
-        elevation = 10.dp, shape = RoundedCornerShape(26.dp), clip = false,
-        ambientColor = Color(0x14806A4A), spotColor = Color(0x14806A4A),
-    )
+    this
 
 /** Card con sfondo a gradiente per i contenuti principali. */
 @Composable

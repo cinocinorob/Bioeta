@@ -115,6 +115,7 @@ fun TodayScreen(
     onOpenJournal: () -> Unit,
     onAsk: (String) -> Unit,
     onRequestPermissions: () -> Unit,
+    onOpenDiagnostics: () -> Unit = {},
 ) {
     val p = LocalPalette.current
     val t = vm.today
@@ -131,26 +132,9 @@ fun TodayScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // ---------- Intestazione ----------
         item {
-            val hour = LocalTime.now().hour
-            val hello = when (hour) { in 5..12 -> "Buongiorno"; in 13..17 -> "Buon pomeriggio"; else -> "Buonasera" } +
-                (profile.name.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)).uppercase(Locale.ITALIAN),
-                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = p.text2)
-                    Text(hello, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = p.text, lineHeight = 32.sp)
-                }
-                Box(
-                    Modifier.size(46.dp).clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(0xFFFFC8A8), Color(0xFFC6B6FF))))
-                        .clickable(onClick = onOpenProfile),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(profile.name.firstOrNull()?.uppercase() ?: "•", fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                }
-            }
+            Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)).replaceFirstChar { it.uppercase() },
+                style = androidx.compose.material3.MaterialTheme.typography.titleMedium, color = p.text2)
         }
 
         if (!vm.hasAnyHealthPermission && vm.hcAvailable) item {
@@ -160,6 +144,12 @@ fun TodayScreen(
         } else if (vm.missingRecoveryPermissions) item {
             HealthCard("Nuovi dati disponibili", BioIcons.Bolt, Tint.activity, onClick = onRequestPermissions) {
                 Caption("Concedi frequenza cardiaca, allenamenti, calorie e distanza per completare la scheda giornaliera.")
+            }
+        }
+
+        if (vm.hasAnyHealthPermission && !vm.loading && !vm.fitnessLoading && (act == null || act.steps == 0L) && t.night == null) item {
+            HealthCard("Non vedo dati dall'orologio", BioIcons.Info, Tint.warn, onClick = onOpenDiagnostics) {
+                Caption("Né passi di oggi né sonno di stanotte risultano in Connessione Salute. Tocca per la diagnostica: mostra, per ogni tipo di dato, se c'è il permesso, quanti dati ci sono e quale app li scrive.")
             }
         }
 
