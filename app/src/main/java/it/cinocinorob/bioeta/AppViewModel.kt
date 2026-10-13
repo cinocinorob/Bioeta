@@ -65,6 +65,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var loading by mutableStateOf(false)
         private set
+    /** Ultimo dato scritto dall'orologio in Connessione Salute (null = nessuno o non leggibile). */
+    var lastWearable by mutableStateOf<java.time.Instant?>(null)
+        private set
     var message by mutableStateOf<String?>(null)
 
     val phenoSeries: List<PhenoPoint> get() = BioAgeEngine.series(panels, profile)
@@ -72,20 +75,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val hcAvailable: Boolean get() = hcStatus == HealthConnectClient.SDK_AVAILABLE
     val hasAnyHealthPermission: Boolean get() = granted.any { it in health.permissions && it != HealthRepo.HISTORY_PERMISSION }
 
+    private var refreshJob: kotlinx.coroutines.Job? = null
+
     fun refreshHealth() {
         hcStatus = health.sdkStatus()
         if (!hcAvailable) return
-        viewModelScope.launch {
+        // Una sola lettura alla volta: onResume può arrivare più volte di seguito
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             loading = true
             try {
                 granted = health.granted()
                 if (hasAnyHealthPermission) {
+                    lastWearable = runCatching { health.lastWearableData() }.getOrNull()
                     wearable = health.readAll(DAYS_WINDOW)
                     val rec = health.readRecovery(RECOVERY_WINDOW)
                     sleepNights = rec.nights
                     exercises = rec.exercises
                     refreshFitness()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 message = "Lettura da Connessione Salute non riuscita: ${e.message}"
             } finally {
@@ -93,6 +103,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /** Interrompe le letture quando l'app va in secondo piano (Connessione Salute le rifiuterebbe). */
+    fun stopReads() { refreshJob?.cancel(); loading = false }
 
     fun onPermissionsResult(@Suppress("UNUSED_PARAMETER") result: Set<String>) = refreshHealth()
 
@@ -564,17 +577,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val zone = java.time.ZoneId.systemDefault()
             val today = java.time.LocalDate.now(zone)
             val out = mutableListOf<DayLoad>()
+            val failed = mutableSetOf<java.time.LocalDate>()
             for (k in 27 downTo 0) {
                 val d = today.minusDays(k.toLong())
                 val c = reuse[d]
-                if (c != null && k >= 2) { out += c; continue }
-                val samples = runCatching {
-                    health.heartRate(d.atStartOfDay(zone).toInstant(), d.plusDays(1).atStartOfDay(zone).toInstant())
-                }.getOrDefault(emptyList())
+                // Riuso la cache solo per giorni completi: se l'orologio ha sincronizzato in ritardo,
+                // un giorno salvato vuoto o parziale viene ricalcolato.
+                if (c != null && k >= 2 && c.coveredMinutes >= 600) { out += c; continue }
+                val t0 = java.time.Instant.now()
+                val samples = health.heartRate(d.atStartOfDay(zone).toInstant(), d.plusDays(1).atStartOfDay(zone).toInstant())
+                if (health.errors["Frequenza cardiaca"]?.at?.isBefore(t0) == false) failed += d
                 out += withContext(Dispatchers.Default) { Fitness.dayLoad(d, samples, rest, age, male) }
             }
             dayLoads = out
-            withContext(Dispatchers.IO) { store.saveLoads(rest, out) }
+            // I giorni con lettura fallita non vanno in cache: verranno riletti al prossimo avvio
+            withContext(Dispatchers.IO) { store.saveLoads(rest, out.filter { it.date !in failed }) }
         } finally {
             fitnessLoading = false
         }

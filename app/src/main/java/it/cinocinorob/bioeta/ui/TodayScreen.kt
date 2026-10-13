@@ -147,7 +147,16 @@ fun TodayScreen(
             }
         }
 
-        if (vm.hasAnyHealthPermission && !vm.loading && !vm.fitnessLoading && (act == null || act.steps == 0L) && t.night == null) item {
+        val lw = vm.lastWearable
+        val stale = vm.hasAnyHealthPermission && !vm.loading && lw != null &&
+            java.time.Duration.between(lw, java.time.Instant.now()).toHours() >= 14
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        if (stale) item {
+            HealthCard("L'orologio non sincronizza da ${agoText(lw!!)}", BioIcons.Info, Tint.warn, onClick = { openWatchApp(ctx) }) {
+                Caption("Il sonno di stanotte e i dati recenti non sono ancora in Connessione Salute: li scrive l'app Fitbit/Google Health quando sincronizza. Tocca per aprirla e trascina in basso per sincronizzare, poi torna qui. Se succede spesso: Impostazioni → App → Fitbit → Batteria → «Senza restrizioni».")
+            }
+        }
+        if (!stale && vm.hasAnyHealthPermission && !vm.loading && !vm.fitnessLoading && (act == null || act.steps == 0L) && t.night == null) item {
             HealthCard("Non vedo dati dall'orologio", BioIcons.Info, Tint.warn, onClick = onOpenDiagnostics) {
                 Caption("Né passi di oggi né sonno di stanotte risultano in Connessione Salute. Tocca per la diagnostica: mostra, per ogni tipo di dato, se c'è il permesso, quanti dati ci sono e quale app li scrive.")
             }

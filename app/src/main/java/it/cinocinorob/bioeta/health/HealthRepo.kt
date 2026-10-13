@@ -91,14 +91,15 @@ class HealthRepo(private val context: Context) {
     fun sdkStatus(): Int = HealthConnectClient.getSdkStatus(context, PROVIDER)
 
     /** Ultimo errore per tipo di dato (mostrato nella diagnostica invece di essere ignorato). */
-    val errors = java.util.concurrent.ConcurrentHashMap<String, String>()
+    data class ReadError(val message: String, val at: Instant)
+    val errors = java.util.concurrent.ConcurrentHashMap<String, ReadError>()
 
     inline fun <T> track(name: String, block: () -> T): T? = try {
         block().also { errors.remove(name) }
     } catch (e: kotlin.coroutines.cancellation.CancellationException) {
         throw e
     } catch (e: Exception) {
-        errors[name] = (e.javaClass.simpleName + ": " + (e.message ?: "")).take(300)
+        errors[name] = ReadError((e.javaClass.simpleName + ": " + (e.message ?: "")).take(300), Instant.now())
         null
     }
 
@@ -230,7 +231,15 @@ class HealthRepo(private val context: Context) {
     suspend fun heartRate(start: Instant, end: Instant): List<HrSample> {
         if (HealthPermission.getReadPermission(HeartRateRecord::class) !in granted()) return emptyList()
         return track("Frequenza cardiaca") {
-            readRecords(HeartRateRecord::class, start, end)
+            // Connessione Salute a volte rifiuta la lettura se l'app passa in secondo piano
+            // durante una lettura lunga: un secondo tentativo, dopo una breve pausa, di solito riesce.
+            val recs = try {
+                readRecords(HeartRateRecord::class, start, end)
+            } catch (e: SecurityException) {
+                kotlinx.coroutines.delay(700)
+                readRecords(HeartRateRecord::class, start, end)
+            }
+            recs
                 .flatMap { r -> r.samples.map { HrSample(it.time, it.beatsPerMinute.toDouble()) } }
                 .filter { it.time >= start && it.time < end }
         } ?: emptyList()
@@ -297,46 +306,81 @@ class HealthRepo(private val context: Context) {
         val latest: Instant?,
         val origins: List<String>,
         val error: String?,
+        val pastError: ReadError? = null,
+        val capped: Boolean = false,
     )
 
     suspend fun diagnose(): List<DiagRow> {
         val g = runCatching { granted() }.getOrDefault(emptySet())
         val end = Instant.now()
         val start = end.minus(Duration.ofDays(7))
-        suspend fun <T : Record> row(label: String, k: KClass<T>, time: (T) -> Instant): DiagRow {
+        suspend fun <T : Record> row(label: String, k: KClass<T>, errKeys: List<String>, time: (T) -> Instant): DiagRow {
             val perm = HealthPermission.getReadPermission(k)
-            if (perm !in g) return DiagRow(label, perm, false, null, null, emptyList(), errors[label])
+            val past = errKeys.mapNotNull { errors[it] }.maxByOrNull { it.at }
+            if (perm !in g) return DiagRow(label, perm, false, null, null, emptyList(), null, past)
             return try {
-                val resp = client.readRecords(ReadRecordsRequest(k, TimeRangeFilter.between(start, end), pageSize = 1000))
-                val recs = resp.records
-                DiagRow(
-                    label, perm, true, recs.size, recs.maxOfOrNull(time),
-                    recs.map { it.metadata.dataOrigin.packageName }.distinct().map(::appLabel), errors[label],
-                )
+                // Conteggio (fino a 20 pagine) e ultimo dato letto a parte, in ordine decrescente:
+                // con molti campioni (es. FC) la prima pagina non contiene i dati più recenti.
+                var n = 0; var token: String? = null; var pages = 0
+                val origins = linkedSetOf<String>()
+                do {
+                    val resp = client.readRecords(ReadRecordsRequest(k, TimeRangeFilter.between(start, end), pageSize = 1000, pageToken = token))
+                    n += resp.records.size
+                    resp.records.forEach { origins += it.metadata.dataOrigin.packageName }
+                    token = resp.pageToken; pages++
+                } while (token != null && pages < 20)
+                val last = client.readRecords(ReadRecordsRequest(k, TimeRangeFilter.between(start, end), ascendingOrder = false, pageSize = 1))
+                    .records.firstOrNull()?.let(time)
+                DiagRow(label, perm, true, n, last, origins.map(::appLabel), null, past, capped = token != null)
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                DiagRow(label, perm, true, null, null, emptyList(), e.javaClass.simpleName + ": " + (e.message ?: ""))
+                DiagRow(label, perm, true, null, null, emptyList(), e.javaClass.simpleName + ": " + (e.message ?: ""), past)
             }
         }
         return listOf(
-            row("Passi", StepsRecord::class) { it.endTime },
-            row("Sonno", SleepSessionRecord::class) { it.endTime },
-            row("Frequenza cardiaca", HeartRateRecord::class) { it.endTime },
-            row("FC a riposo", RestingHeartRateRecord::class) { it.time },
-            row("HRV", HeartRateVariabilityRmssdRecord::class) { it.time },
-            row("Allenamenti", ExerciseSessionRecord::class) { it.endTime },
-            row("Calorie totali", TotalCaloriesBurnedRecord::class) { it.endTime },
-            row("Calorie attive", ActiveCaloriesBurnedRecord::class) { it.endTime },
-            row("Distanza", DistanceRecord::class) { it.endTime },
-            row("Respirazione", RespiratoryRateRecord::class) { it.time },
-            row("VO2max", Vo2MaxRecord::class) { it.time },
-            row("SpO2", OxygenSaturationRecord::class) { it.time },
-            row("Peso", WeightRecord::class) { it.time },
+            row("Passi", StepsRecord::class, listOf("Passi giornalieri", "Passi di oggi")) { it.endTime },
+            row("Sonno", SleepSessionRecord::class, listOf("Sonno (riepilogo)", "Sonno (fasi)")) { it.endTime },
+            row("Frequenza cardiaca", HeartRateRecord::class, listOf("Frequenza cardiaca")) { it.endTime },
+            row("FC a riposo", RestingHeartRateRecord::class, listOf("FC a riposo")) { it.time },
+            row("HRV", HeartRateVariabilityRmssdRecord::class, listOf("HRV")) { it.time },
+            row("Allenamenti", ExerciseSessionRecord::class, listOf("Allenamenti")) { it.endTime },
+            row("Calorie totali", TotalCaloriesBurnedRecord::class, listOf("Calorie e distanza")) { it.endTime },
+            row("Calorie attive", ActiveCaloriesBurnedRecord::class, listOf("Calorie e distanza")) { it.endTime },
+            row("Distanza", DistanceRecord::class, listOf("Calorie e distanza")) { it.endTime },
+            row("Respirazione", RespiratoryRateRecord::class, listOf("Respirazione")) { it.time },
+            row("VO2max", Vo2MaxRecord::class, listOf("VO2max")) { it.time },
+            row("SpO2", OxygenSaturationRecord::class, listOf("SpO2")) { it.time },
+            row("Peso", WeightRecord::class, listOf("Peso")) { it.time },
         )
     }
 
-    private fun appLabel(pkg: String): String = runCatching {
+    /**
+     * Istante dell'ultimo dato scritto dall'orologio (sonno, HRV, FC a riposo, FC), esclusi i passi
+     * contati dal telefono. Serve a capire se l'app dell'orologio sta sincronizzando.
+     */
+    suspend fun lastWearableData(): Instant? {
+        val g = runCatching { granted() }.getOrDefault(emptySet())
+        val end = Instant.now()
+        val start = end.minus(Duration.ofDays(30))
+        suspend fun <T : Record> last(k: KClass<T>, time: (T) -> Instant): Instant? {
+            if (HealthPermission.getReadPermission(k) !in g) return null
+            return runCatching {
+                client.readRecords(ReadRecordsRequest(k, TimeRangeFilter.between(start, end), ascendingOrder = false, pageSize = 1))
+                    .records.firstOrNull()?.let(time)
+            }.getOrNull()
+        }
+        return listOfNotNull(
+            last(SleepSessionRecord::class) { it.endTime },
+            last(HeartRateVariabilityRmssdRecord::class) { it.time },
+            last(RestingHeartRateRecord::class) { it.time },
+            last(HeartRateRecord::class) { it.endTime },
+        ).maxOrNull()
+    }
+
+    private fun appLabel(pkg: String): String = KNOWN_APPS[pkg]
+        ?: if (pkg.startsWith("com.android.healthconnect") || pkg == PROVIDER) "Telefono (contapassi di Connessione Salute)"
+        else runCatching {
         val pm = context.packageManager
         pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
@@ -411,6 +455,15 @@ class HealthRepo(private val context: Context) {
             .sortedBy { it.date }
 
     companion object {
+
+        val KNOWN_APPS = mapOf(
+            "com.fitbit.FitbitMobile" to "Fitbit / Google Health",
+            "com.google.android.apps.fitness" to "Google Fit",
+            "com.google.android.apps.wearables.maestro.companion" to "Pixel Watch",
+            "com.sec.android.app.shealth" to "Samsung Health",
+            "com.ouraring.oura" to "Oura",
+        )
+        const val FITBIT = "com.fitbit.FitbitMobile"
         const val PROVIDER = "com.google.android.apps.healthdata"
         const val HISTORY_PERMISSION = "android.permission.health.READ_HEALTH_DATA_HISTORY"
 

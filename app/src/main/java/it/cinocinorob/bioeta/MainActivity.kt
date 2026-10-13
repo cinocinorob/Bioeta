@@ -60,6 +60,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+        vm.stopReads()
+    }
+
     override fun onResume() {
         super.onResume()
         vm.refreshHealth()

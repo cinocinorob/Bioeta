@@ -25,6 +25,7 @@
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
         <package android:name="com.anthropic.claude" />
+        <package android:name="com.fitbit.FitbitMobile" />
     </queries>
 
     <application
