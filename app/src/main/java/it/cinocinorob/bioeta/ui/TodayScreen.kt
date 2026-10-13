@@ -117,6 +117,7 @@ fun TodayScreen(
     onRequestPermissions: () -> Unit,
     onOpenDiagnostics: () -> Unit = {},
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val p = LocalPalette.current
     val t = vm.today
     val profile = vm.profile
@@ -150,7 +151,6 @@ fun TodayScreen(
         val lw = vm.lastWearable
         val stale = vm.hasAnyHealthPermission && !vm.loading && lw != null &&
             java.time.Duration.between(lw, java.time.Instant.now()).toHours() >= 14
-        val ctx = androidx.compose.ui.platform.LocalContext.current
         if (stale) item {
             HealthCard("L'orologio non sincronizza da ${agoText(lw!!)}", BioIcons.Info, Tint.warn, onClick = { openWatchApp(ctx) }) {
                 Caption("Il sonno di stanotte e i dati recenti non sono ancora in Connessione Salute: li scrive l'app Fitbit/Google Health quando sincronizza. Tocca per aprirla e trascina in basso per sincronizzare, poi torna qui. Se succede spesso: Impostazioni → App → Fitbit → Batteria → «Senza restrizioni».")
