@@ -1,5 +1,6 @@
 package it.cinocinorob.bioeta.ui
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,7 +64,7 @@ fun ScalePicker(value: Int?, onChange: (Int) -> Unit) {
                     .clickable { onChange(v) }.padding(vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.size(if (sel) 22.dp else 16.dp).clip(CircleShape).background(MOOD_COLORS[v - 1]))
+                Box(Modifier.size(18.dp).clip(CircleShape).background(MOOD_COLORS[v - 1]).then(if (sel) Modifier.border(3.dp, p.card, CircleShape) else Modifier))
                 Text(MOOD_LABELS[v - 1], fontSize = 10.sp, color = if (sel) p.text else p.text2, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 4.dp), textAlign = TextAlign.Center)
             }

@@ -86,7 +86,7 @@ fun TriDial(recovery: Int?, sleep: Int?, loadFraction: Float?, mood: Mood, modif
                 )
             }
         }
-        HeartAvatar(mood, bpm, sizeDp = 130)
+        HeartAvatar(mood, bpm, sizeDp = 160)
     }
 }
 
