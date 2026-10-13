@@ -78,7 +78,8 @@ jobs:
           gradle --no-daemon -Pshots recordPaparazziDebug --tests '*Gallery*' 2>&1 | tee shots.log
       - name: Errori rendering
         if: failure()
-        run: grep -E "^e: |error:|FAILED|Exception" shots.log | head -40 | while IFS= read -r l; do echo "::error title=SHOT::${l:0:900}"; done
+        run: |
+          grep -E "^e: |error:|FAILED|Exception" shots.log | head -40 | while IFS= read -r l; do echo "::error title=SHOT::${l:0:900}"; done
       - name: Pubblica le immagini sul ramo screenshots
         run: |
           mkdir -p /tmp/shots && cp app/src/test/snapshots/images/*.png /tmp/shots/
