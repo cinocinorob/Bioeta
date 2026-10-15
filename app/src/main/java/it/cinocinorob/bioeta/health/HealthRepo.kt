@@ -107,6 +107,30 @@ class HealthRepo(private val context: Context) {
 
     suspend fun granted(): Set<String> = client.permissionController.getGrantedPermissions()
 
+    /** Permesso associato a ogni serie mostrata nella dashboard. */
+    fun permissionFor(metric: Metric): String = when (metric) {
+        Metric.RHR -> HealthPermission.getReadPermission(RestingHeartRateRecord::class)
+        Metric.HRV -> HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
+        Metric.SLEEP -> HealthPermission.getReadPermission(SleepSessionRecord::class)
+        Metric.STEPS -> HealthPermission.getReadPermission(StepsRecord::class)
+        Metric.VO2 -> HealthPermission.getReadPermission(Vo2MaxRecord::class)
+        Metric.RESP -> HealthPermission.getReadPermission(RespiratoryRateRecord::class)
+        Metric.SPO2 -> HealthPermission.getReadPermission(OxygenSaturationRecord::class)
+        Metric.WEIGHT -> HealthPermission.getReadPermission(WeightRecord::class)
+    }
+
+    /** Chiave diagnostica usata da readAll per distinguere un errore da una serie vuota. */
+    fun readErrorKeyFor(metric: Metric): String = when (metric) {
+        Metric.RHR -> "FC a riposo"
+        Metric.HRV -> "HRV"
+        Metric.SLEEP -> "Sonno (riepilogo)"
+        Metric.STEPS -> "Passi giornalieri"
+        Metric.VO2 -> "VO2max"
+        Metric.RESP -> "Respirazione"
+        Metric.SPO2 -> "SpO2"
+        Metric.WEIGHT -> "Peso"
+    }
+
     suspend fun readAll(days: Long): Map<Metric, List<DailyPoint>> {
         val granted = granted()
         val zone = ZoneId.systemDefault()
@@ -252,6 +276,8 @@ class HealthRepo(private val context: Context) {
         return track("Frequenza cardiaca") {
             // Connessione Salute a volte rifiuta la lettura se l'app passa in secondo piano
             // durante una lettura lunga: un secondo tentativo, dopo una breve pausa, di solito riesce.
+            // Legge tutte le pagine: un singolo readRecords() può restituire solo la prima
+            // pagina e troncare il carico giornaliero nei giorni con molti record cardiaci.
             val recs = try {
                 readRecords(HeartRateRecord::class, start, end)
             } catch (e: SecurityException) {
