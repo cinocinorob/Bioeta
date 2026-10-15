@@ -59,16 +59,16 @@ private val LightPalette = Palette(
     text2 = Color(0xFF8E8899), sep = Color(0xFFECE6DC), field = Color(0xFFF3EEE6), dark = false,
 )
 private val DarkPalette = Palette(
-    bg = Color(0xFF141318), card = Color(0xFF211F28), text = Color(0xFFF4F1FA),
-    text2 = Color(0xFF9C97A8), sep = Color(0xFF34313D), field = Color(0xFF2B2833), dark = true,
+    bg = Color(0xFF0A1014), card = Color(0xFF141E24), text = Color(0xFFF2F7F5),
+    text2 = Color(0xFF9AAEAA), sep = Color(0xFF26363A), field = Color(0xFF1B2A2F), dark = true,
 )
 
 /** Colori per categoria: tinte pastello sature quanto basta per restare leggibili. */
 object Tint {
-    val heart = Color(0xFFFF6B7D)
-    val hrv = Color(0xFFFF7FA3)
+    val heart = Color(0xFFFF718B)
+    val hrv = Color(0xFF62D9C2)
     val sleep = Color(0xFF8E7CFF)
-    val activity = Color(0xFFFF9F5A)
+    val activity = Color(0xFF62C8F5)
     val resp = Color(0xFF4FB8E8)
     val spo2 = Color(0xFF5B8DEF)
     val body = Color(0xFFB57BEE)
@@ -76,7 +76,7 @@ object Tint {
     val bio = Color(0xFF3FBF8F)
     val vo2 = Color(0xFFFF8A5B)
     val blue = Color(0xFF5B7CF0)
-    val good = Color(0xFF3FBF8F)
+    val good = Color(0xFF54D6A5)
     val bad = Color(0xFFF2617A)
     val warn = Color(0xFFF5A524)
     val bp = Color(0xFFE85D9A)

@@ -313,6 +313,7 @@ class HealthRepo(private val context: Context) {
         val activeKcal: Double?,
         val distanceKm: Double?,
         val totalKcal: Double? = null,
+        val recordedExerciseMinutes: Int = 0,
     )
 
     suspend fun todayActivity(): TodayActivity {
@@ -355,7 +356,32 @@ class HealthRepo(private val context: Context) {
                 km = r[DistanceRecord.DISTANCE_TOTAL]?.inKilometers
             }
         }
-        return TodayActivity(hourly, maxOf(total ?: 0L, hourly.sum()), kcal, km, tot)
+        var exerciseMinutes = 0
+        if (HealthPermission.getReadPermission(ExerciseSessionRecord::class) in g) {
+            track("Allenamenti di oggi") {
+                val sessions = readRecords(ExerciseSessionRecord::class, dayStart, now)
+                    .mapNotNull { ex ->
+                        val s = maxOf(ex.startTime, dayStart)
+                        val e = minOf(ex.endTime, now)
+                        if (e.isAfter(s)) s to e else null
+                    }.sortedBy { it.first }
+                var intervalStart: Instant? = null
+                var intervalEnd: Instant? = null
+                var seconds = 0L
+                for ((s, e) in sessions) {
+                    val currentEnd = intervalEnd
+                    if (intervalStart == null) { intervalStart = s; intervalEnd = e }
+                    else if (!s.isAfter(currentEnd)) { if (e.isAfter(currentEnd)) intervalEnd = e }
+                    else {
+                        seconds += Duration.between(intervalStart, currentEnd).seconds
+                        intervalStart = s; intervalEnd = e
+                    }
+                }
+                if (intervalStart != null && intervalEnd != null) seconds += Duration.between(intervalStart, intervalEnd).seconds
+                exerciseMinutes = (seconds / 60L).toInt()
+            }
+        }
+        return TodayActivity(hourly, maxOf(total ?: 0L, hourly.sum()), kcal, km, tot, exerciseMinutes)
     }
 
     // ------------------------------------------------------------------

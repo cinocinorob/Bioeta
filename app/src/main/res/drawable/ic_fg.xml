@@ -1,20 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Anello con tracciato a gradino: "tempo" + "segnale fisiologico" -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:strokeColor="#7FE0C3"
-        android:strokeWidth="5"
-        android:fillColor="#00000000"
-        android:pathData="M54,30 A24,24 0 1,1 53.99,30" />
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M36,56 L45,56 L49,46 L55,64 L60,52 L72,52" />
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#0D171B" android:pathData="M0,0h108v108h-108z" />
+    <path android:fillColor="#54D6A5" android:pathData="M54,15 C36,29 24,43 26,58 C28,75 44,83 58,75 C73,67 82,48 83,25 C72,37 61,43 48,47 C42,49 37,54 35,61 C31,43 43,27 54,15 Z" />
+    <path android:fillColor="#72A8FF" android:pathData="M36,77 C48,63 60,54 76,46 C69,64 56,78 38,85 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M34,57 L44,57 L49,48 L55,66 L61,54 L73,54 L73,58 L59,58 L55,62 L49,56 L46,61 L34,61 Z" />
 </vector>

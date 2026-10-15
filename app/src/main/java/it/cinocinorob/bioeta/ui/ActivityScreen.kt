@@ -172,11 +172,15 @@ fun ActivityScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
         item {
             HealthCard("Carico cardiaco · 4 settimane", BioIcons.Pulse, Pillar.load[1]) {
                 val days = vm.dayLoads
-                if (days.isEmpty()) Caption("In attesa dei dati di frequenza cardiaca.") else {
-                    LoadBars(days.map { it.date to it.load }, target.low, target.high)
-                    val chronic = days.filter { it.date.isBefore(today) && it.coveredMinutes > 600 }.map { it.load }
-                    if (chronic.size >= 7) Caption("Carico medio giornaliero: ${chronic.average().f(0)} · obiettivo di oggi ${target.low.f(0)}–${target.high.f(0)} (${target.basis})")
-                    load?.let { ZoneBar(it.zoneMinutes) }
+                val coveredToday = load?.coveredMinutes ?: 0
+                if (days.isEmpty() || coveredToday < 60) {
+                    Caption("Carico non disponibile: BioEtà non ha ancora abbastanza campioni di frequenza cardiaca per oggi. Controlla in Connessione Salute che la frequenza cardiaca sia autorizzata e sincronizzata.")
+                } else {
+                    LoadBars(days.filter { it.coveredMinutes >= 60 }.map { it.date to it.load }, target.low, target.high)
+                    val chronic = days.filter { it.date.isBefore(today) && it.coveredMinutes >= 600 }.map { it.load }
+                    if (chronic.size >= 7) Caption("Carico medio giornaliero nei giorni con dati sufficienti: ${chronic.average().f(0)} · obiettivo di oggi ${target.low.f(0)}–${target.high.f(0)} (${target.basis})")
+                    if (coveredToday >= 600) load?.let { ZoneBar(it.zoneMinutes) }
+                    else Caption("Copertura parziale: ${coveredToday} minuti di frequenza cardiaca disponibili. Il carico può essere sottostimato.")
                 }
                 Caption("Carico = TRIMP di Banister calcolato minuto per minuto dalla frequenza cardiaca, sopra il 30% della riserva cardiaca. Le zone seguono le intensità ACSM.")
             }
@@ -190,6 +194,7 @@ fun ActivityScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
                 }
                 ProgressBar(week / 150f, listOf(Color(0xFF8FE3C2), Color(0xFF2FB68A)))
                 WeekActiveBars(vm)
+                if ((act?.recordedExerciseMinutes ?: 0) > 0) Caption("Allenamenti registrati oggi in Connessione Salute: ${act?.recordedExerciseMinutes} min. Il totale settimanale sopra è calcolato dai campioni di frequenza cardiaca e può essere più basso se un'attività non ha dati FC.")
                 Caption("OMS 2020: 150–300 minuti a settimana di attività moderata o 75–150 vigorosa (1 minuto vigoroso conta come 2), più esercizi di forza almeno 2 giorni a settimana.")
             }
         }
