@@ -124,7 +124,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
                         val rec = health.readRecovery(RECOVERY_WINDOW)
                         // In caso di errore di lettura, non sostituire dati validi con liste vuote.
-                        if (!health.errors.containsKey("Sonno (fasi)")) sleepNights = rec.nights
+                        if (health.permissionFor(Metric.SLEEP) !in granted || !health.errors.containsKey("Sonno (fasi)")) {
+                            sleepNights = rec.nights
+                        }
                         if (!health.errors.containsKey("Allenamenti")) exercises = rec.exercises
                         refreshFitness()
                         lastFull = System.currentTimeMillis()
@@ -549,6 +551,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 nights = sleepNights.filter { !it.date.isAfter(date) },
                 lastNightScore = s?.second?.score,
                 exercises = exercises.filter { !it.date.isAfter(date) },
+                cardiacLoads = dayLoads
+                    .filter { !it.date.isAfter(date) && it.coveredMinutes > 0 }
+                    .map { DailyValue(it.date, it.load) },
             )
         )
         return DayScores(date, s?.first, s?.second, r)
