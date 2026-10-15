@@ -252,6 +252,8 @@ class HealthRepo(private val context: Context) {
         return track("Frequenza cardiaca") {
             // Connessione Salute a volte rifiuta la lettura se l'app passa in secondo piano
             // durante una lettura lunga: un secondo tentativo, dopo una breve pausa, di solito riesce.
+            // Legge tutte le pagine: un singolo readRecords() può restituire solo la prima
+            // pagina e troncare il carico giornaliero nei giorni con molti record cardiaci.
             val recs = try {
                 readRecords(HeartRateRecord::class, start, end)
             } catch (e: SecurityException) {
