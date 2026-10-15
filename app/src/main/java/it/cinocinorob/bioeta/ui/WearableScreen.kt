@@ -38,6 +38,8 @@ fun metricTint(m: Metric): Color = when (m) {
     Metric.RESP -> Tint.resp
     Metric.SPO2 -> Tint.spo2
     Metric.WEIGHT -> Tint.body
+    Metric.BODY_FAT -> Tint.body
+    Metric.LEAN_MASS -> Tint.body
 }
 
 fun metricIcon(m: Metric): ImageVector = when (m) {
@@ -49,6 +51,8 @@ fun metricIcon(m: Metric): ImageVector = when (m) {
     Metric.RESP -> BioIcons.Wind
     Metric.SPO2 -> BioIcons.Drop
     Metric.WEIGHT -> BioIcons.Person
+    Metric.BODY_FAT -> BioIcons.Person
+    Metric.LEAN_MASS -> BioIcons.Person
 }
 
 private fun fmtValue(m: Metric, v: Double): String = when (m) {
@@ -75,7 +79,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { VitalsCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
         item { TagEffectsCard(vm) }
-        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori") }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori e composizione corporea") }
         if (vm.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.heart) }
 
         when (vm.hcStatus) {
@@ -99,7 +103,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
 
         if (vm.hcAvailable && !vm.hasAnyHealthPermission) item {
             HealthCard("Collega Connessione Salute", BioIcons.Heart, Tint.heart) {
-                Body("Lettura (mai scrittura) di FC a riposo, HRV, sonno, passi, VO₂max, peso, SpO₂ e frequenza respiratoria. Nessun dato lascia il telefono.")
+                Body("Lettura (mai scrittura) di FC a riposo, HRV, sonno, passi, VO₂max, peso, percentuale di grasso corporeo, massa magra, SpO₂ e frequenza respiratoria. I dati restano sul telefono, salvo uso esplicito dell’assistente online.")
                 Caption("Verifica che l'app Fitbit condivida i dati con Connessione Salute: Impostazioni → Connessione Salute → App → Fitbit.")
                 Button(onClick = onRequestPermissions) { Text("Concedi accesso") }
             }
@@ -110,7 +114,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
                 Column(Modifier.weight(1f)) {
                     Caption("Ultimi 7 giorni rispetto alla tua baseline (giorni 8–67 precedenti)")
                     if (HealthRepo.HISTORY_PERMISSION !in vm.granted) {
-                        Caption("Senza il permesso \"dati storici\" la baseline si completa solo col tempo.", Tint.warn)
+                        Caption("Senza il permesso per i dati storici, BioEtà legge al massimo gli ultimi 30 giorni; la baseline potrebbe essere incompleta.", Tint.warn)
                     }
                 }
                 TextButton(onClick = { vm.refreshHealth(force = true) }) { Text("Aggiorna", color = Tint.blue) }
@@ -126,7 +130,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
 
         item {
             HealthCard("Come leggere questi dati", BioIcons.Info, Tint.blue) {
-                Caption("Questi indicatori non vengono convertiti in \"anni\": non esiste un modello pubblico e validato che lo faccia. Il confronto con la propria baseline è più informativo delle norme di popolazione, perché HRV e FC a riposo variano molto tra persone. Deviazioni di una settimana riflettono spesso sonno, alcol, carico di allenamento, stress o infezioni iniziali; contano di più le tendenze di mesi. La banda colorata nel grafico è la baseline ± 1 DS.")
+                Caption("Questi indicatori non vengono convertiti in \"anni\": non esiste un modello pubblico e validato che lo faccia. Il confronto con la propria baseline è più informativo delle norme di popolazione, perché HRV e FC a riposo variano molto tra persone. Peso, grasso corporeo e massa magra sono letti da Connessione Salute se una fonte li sincronizza; le stime da bioimpedenza oscillano e vanno interpretate come tendenze, non misure esatte. Deviazioni di una settimana possono riflettere sonno, carico, stress o infezioni; contano di più le tendenze di mesi. La banda colorata nel grafico è la baseline ± 1 DS.")
             }
         }
     }
