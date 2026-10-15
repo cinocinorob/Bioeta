@@ -331,6 +331,8 @@ object Readiness {
         val nights: List<SleepNight>,
         val lastNightScore: Int?,
         val exercises: List<ExerciseLoad>,
+        /** Carico cardiaco giornaliero già stimato dai campioni FC, se disponibile. */
+        val cardiacLoads: List<DailyValue> = emptyList(),
     )
 
     private data class Z(val today: Double, val z: Double, val base: Double)
@@ -376,21 +378,31 @@ object Readiness {
         cs += Contributor("resp", "Frequenza respiratoria", respDelta?.let { piecewise(it, 0.5 to 100.0, 1.0 to 80.0, 2.0 to 40.0, 3.0 to 0.0).roundToInt() }, W_RESP,
             respDelta?.let { "${f(respToday!!.value, 1)} atti/min (${if (it >= 0) "+" else ""}${f(it, 1)} rispetto alla tua media)" } ?: "Baseline in costruzione")
 
-        // Carico di allenamento: forma = fitness − fatica, normalizzata sulla fitness
+        // Carico di allenamento: preferisci il carico cardiaco calcolato dai campioni FC
+        // sull'intera giornata; usa le sessioni di allenamento solo come fallback.
         val restHr = rz?.base ?: i.rhr.map { it.value }.takeIf { it.isNotEmpty() }?.average()
         val loadScore: Int?
         val loadDetail: String
-        if (i.age != null && restHr != null && i.exercises.isNotEmpty()) {
-            val daily = i.exercises.filter { it.avgHr != null }.groupBy { it.date }
+        val observedCardiacLoads = i.cardiacLoads.filter { !it.date.isAfter(i.date) && it.value >= 0.0 }
+        val daily: Map<LocalDate, Double> = if (observedCardiacLoads.size >= 3) {
+            observedCardiacLoads.associate { it.date to it.value }
+        } else if (i.age != null && restHr != null) {
+            i.exercises.filter { it.avgHr != null }.groupBy { it.date }
                 .mapValues { (_, l) -> l.sumOf { trimp(it.minutes, it.avgHr!!, restHr, i.age, i.male) } }
-            val (fit, fat) = fitnessFatigue(daily, i.date.plusDays(1))
-            if (fit > 5) {
+        } else emptyMap()
+        if (daily.size >= 3) {
+            // La serie disponibile è limitata allo storico effettivamente letto: niente giorni
+            // non osservati inventati come zero prima dell'inizio dei dati.
+            val first = daily.keys.minOrNull()!!
+            val span = (java.time.temporal.ChronoUnit.DAYS.between(first, i.date) + 1).toInt().coerceIn(1, 120)
+            val (fit, fat) = fitnessFatigue(daily, i.date.plusDays(1), days = span)
+            if (fit > 1e-6) {
                 val form = (fit - fat) / fit
                 loadScore = piecewise(form, -1.0 to 15.0, -0.6 to 35.0, -0.3 to 65.0, -0.1 to 90.0, 0.0 to 100.0).roundToInt()
-                loadDetail = "Fatica recente ${f(fat, 0)} vs forma di fondo ${f(fit, 0)} (TRIMP/giorno)"
-            } else { loadScore = null; loadDetail = "Allenamenti insufficienti per stimare il carico" }
-        } else { loadScore = null; loadDetail = "Nessun allenamento con frequenza cardiaca registrato" }
-        cs += Contributor("load", "Carico di allenamento", loadScore, W_LOAD, loadDetail)
+                loadDetail = "Fatica recente ${f(fat, 0)} vs carico di fondo ${f(fit, 0)} (carico cardiaco/giorno)"
+            } else { loadScore = null; loadDetail = "Carico cardiaco insufficiente per stimare forma e fatica" }
+        } else { loadScore = null; loadDetail = "Dati cardiaci insufficienti per stimare il carico" }
+        cs += Contributor("load", "Carico cardiaco", loadScore, W_LOAD, loadDetail)
 
         // Segnali di allerta (combinazioni osservate prima di infezioni nei dati da wearable)
         val rhrHigh = (rz?.z ?: 0.0) >= 2.0
