@@ -28,6 +28,7 @@ import it.cinocinorob.bioeta.health.HealthRepo
 import it.cinocinorob.bioeta.health.Metric
 import it.cinocinorob.bioeta.health.MetricSummary
 import kotlin.math.abs
+import java.time.LocalDate
 
 fun metricTint(m: Metric): Color = when (m) {
     Metric.RHR -> Tint.heart
@@ -38,6 +39,8 @@ fun metricTint(m: Metric): Color = when (m) {
     Metric.RESP -> Tint.resp
     Metric.SPO2 -> Tint.spo2
     Metric.WEIGHT -> Tint.body
+    Metric.BODY_FAT -> Tint.body
+    Metric.LEAN_MASS -> Tint.body
 }
 
 fun metricIcon(m: Metric): ImageVector = when (m) {
@@ -49,6 +52,8 @@ fun metricIcon(m: Metric): ImageVector = when (m) {
     Metric.RESP -> BioIcons.Wind
     Metric.SPO2 -> BioIcons.Drop
     Metric.WEIGHT -> BioIcons.Person
+    Metric.BODY_FAT -> BioIcons.Person
+    Metric.LEAN_MASS -> BioIcons.Person
 }
 
 private fun fmtValue(m: Metric, v: Double): String = when (m) {
@@ -72,10 +77,11 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
     ) {
         item { LargeHeader("Recupero", "Sonno e prontezza") }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { WellnessQuestCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { VitalsCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
         item { TagEffectsCard(vm) }
-        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori") }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori e composizione corporea") }
         if (vm.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.heart) }
 
         when (vm.hcStatus) {
@@ -99,7 +105,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
 
         if (vm.hcAvailable && !vm.hasAnyHealthPermission) item {
             HealthCard("Collega Connessione Salute", BioIcons.Heart, Tint.heart) {
-                Body("Lettura (mai scrittura) di FC a riposo, HRV, sonno, passi, VO₂max, peso, SpO₂ e frequenza respiratoria. Nessun dato lascia il telefono.")
+                Body("Lettura (mai scrittura) di FC a riposo, HRV, sonno, passi, VO₂max, peso, percentuale di grasso corporeo, massa magra, SpO₂ e frequenza respiratoria. I dati restano sul telefono, salvo uso esplicito dell’assistente online.")
                 Caption("Verifica che l'app Fitbit condivida i dati con Connessione Salute: Impostazioni → Connessione Salute → App → Fitbit.")
                 Button(onClick = onRequestPermissions) { Text("Concedi accesso") }
             }
@@ -110,7 +116,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
                 Column(Modifier.weight(1f)) {
                     Caption("Ultimi 7 giorni rispetto alla tua baseline (giorni 8–67 precedenti)")
                     if (HealthRepo.HISTORY_PERMISSION !in vm.granted) {
-                        Caption("Senza il permesso \"dati storici\" la baseline si completa solo col tempo.", Tint.warn)
+                        Caption("Senza il permesso per i dati storici, BioEtà legge al massimo gli ultimi 30 giorni; la baseline potrebbe essere incompleta.", Tint.warn)
                     }
                 }
                 TextButton(onClick = { vm.refreshHealth(force = true) }) { Text("Aggiorna", color = Tint.blue) }
@@ -126,8 +132,55 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
 
         item {
             HealthCard("Come leggere questi dati", BioIcons.Info, Tint.blue) {
-                Caption("Questi indicatori non vengono convertiti in \"anni\": non esiste un modello pubblico e validato che lo faccia. Il confronto con la propria baseline è più informativo delle norme di popolazione, perché HRV e FC a riposo variano molto tra persone. Deviazioni di una settimana riflettono spesso sonno, alcol, carico di allenamento, stress o infezioni iniziali; contano di più le tendenze di mesi. La banda colorata nel grafico è la baseline ± 1 DS.")
+                Caption("Questi indicatori non vengono convertiti in \"anni\": non esiste un modello pubblico e validato che lo faccia. Il confronto con la propria baseline è più informativo delle norme di popolazione, perché HRV e FC a riposo variano molto tra persone. Peso, grasso corporeo e massa magra sono letti da Connessione Salute se una fonte li sincronizza; le stime da bioimpedenza oscillano e vanno interpretate come tendenze, non misure esatte. Deviazioni di una settimana possono riflettere sonno, carico, stress o infezioni; contano di più le tendenze di mesi. La banda colorata nel grafico è la baseline ± 1 DS.")
             }
+        }
+    }
+}
+
+
+@Composable
+private fun WellnessQuestCard(vm: AppViewModel) {
+    val today = LocalDate.now()
+    val from = today.minusDays(6)
+    val steps = vm.wearable[Metric.STEPS].orEmpty().filter { !it.date.isBefore(from) && !it.date.isAfter(today) }
+    val sleep = vm.wearable[Metric.SLEEP].orEmpty().filter { !it.date.isBefore(from) && !it.date.isAfter(today) }
+    val moveDays = steps.count { it.value >= 7000.0 }
+    val sleepNights = sleep.count { it.value in 7.0..9.0 }
+    val stepsKnown = steps.map { it.date }.toSet().size
+    val sleepKnown = sleep.map { it.date }.toSet().size
+    HealthCard("BioEtà Quest", BioIcons.Sparkle, Tint.blue) {
+        Body("Missioni settimanali: premiano la costanza, non il valore di un singolo giorno. Sono obiettivi motivazionali, non soglie cliniche.")
+        SectionLabel("MOVIMENTO")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Cammina in 5 giorni", color = LocalPalette.current.text)
+                Caption("$moveDays/5 giorni con almeno 7.000 passi")
+            }
+            Pill("$moveDays/5", if (moveDays >= 5) Tint.good else Tint.blue)
+        }
+        LinearProgressIndicator(
+            progress = (moveDays / 5f).coerceIn(0f, 1f),
+            modifier = Modifier.fillMaxWidth(),
+            color = Tint.blue,
+        )
+        SectionLabel("RECUPERO")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Dai spazio al sonno", color = LocalPalette.current.text)
+                Caption("$sleepNights/5 notti tra 7 e 9 ore")
+            }
+            Pill("$sleepNights/5", if (sleepNights >= 5) Tint.good else Tint.blue)
+        }
+        LinearProgressIndicator(
+            progress = (sleepNights / 5f).coerceIn(0f, 1f),
+            modifier = Modifier.fillMaxWidth(),
+            color = Tint.sleep,
+        )
+        if (moveDays >= 5 && sleepNights >= 5) {
+            Caption("Badge della settimana: Equilibrio! Hai completato entrambe le missioni.", Tint.good)
+        } else {
+            Caption("Nessuna penalità per riposo, imprevisti o dati mancanti. Dati disponibili: passi $stepsKnown/7 giorni, sonno $sleepKnown/7 notti.")
         }
     }
 }

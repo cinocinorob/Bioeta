@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.BodyFatRecord
+import androidx.health.connect.client.records.LeanBodyMassRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
@@ -51,6 +53,8 @@ enum class Metric(
     RESP("Frequenza respiratoria", "atti/min", null, 1),
     SPO2("SpO₂", "%", null, 1),
     WEIGHT("Peso", "kg", null, 1),
+    BODY_FAT("Grasso corporeo", "%", null, 1),
+    LEAN_MASS("Massa magra", "kg", null, 1),
 }
 
 data class DailyPoint(val date: LocalDate, val value: Double)
@@ -78,6 +82,8 @@ class HealthRepo(private val context: Context) {
         HealthPermission.getReadPermission(SleepSessionRecord::class),
         HealthPermission.getReadPermission(Vo2MaxRecord::class),
         HealthPermission.getReadPermission(WeightRecord::class),
+        HealthPermission.getReadPermission(BodyFatRecord::class),
+        HealthPermission.getReadPermission(LeanBodyMassRecord::class),
         HealthPermission.getReadPermission(OxygenSaturationRecord::class),
         HealthPermission.getReadPermission(RespiratoryRateRecord::class),
         HealthPermission.getReadPermission(HeartRateRecord::class),
@@ -117,6 +123,8 @@ class HealthRepo(private val context: Context) {
         Metric.RESP -> HealthPermission.getReadPermission(RespiratoryRateRecord::class)
         Metric.SPO2 -> HealthPermission.getReadPermission(OxygenSaturationRecord::class)
         Metric.WEIGHT -> HealthPermission.getReadPermission(WeightRecord::class)
+        Metric.BODY_FAT -> HealthPermission.getReadPermission(BodyFatRecord::class)
+        Metric.LEAN_MASS -> HealthPermission.getReadPermission(LeanBodyMassRecord::class)
     }
 
     /** Chiave diagnostica usata da readAll per distinguere un errore da una serie vuota. */
@@ -129,13 +137,15 @@ class HealthRepo(private val context: Context) {
         Metric.RESP -> "Respirazione"
         Metric.SPO2 -> "SpO2"
         Metric.WEIGHT -> "Peso"
+        Metric.BODY_FAT -> "Grasso corporeo"
+        Metric.LEAN_MASS -> "Massa magra"
     }
 
     suspend fun readAll(days: Long): Map<Metric, List<DailyPoint>> {
         val granted = granted()
         val zone = ZoneId.systemDefault()
         val end = Instant.now()
-        val start = end.minus(Duration.ofDays(days))
+        val start = queryStart(days, granted, end)
         val out = mutableMapOf<Metric, List<DailyPoint>>()
 
         fun has(k: KClass<out Record>) = HealthPermission.getReadPermission(k) in granted
@@ -155,6 +165,14 @@ class HealthRepo(private val context: Context) {
         if (has(WeightRecord::class)) track("Peso") {
             out[Metric.WEIGHT] = dailyMean(readRecords(WeightRecord::class, start, end)
                 .map { it.time to it.weight.inKilograms }, zone)
+        }
+        if (has(BodyFatRecord::class)) track("Grasso corporeo") {
+            out[Metric.BODY_FAT] = dailyMean(readRecords(BodyFatRecord::class, start, end)
+                .map { it.time to it.percentage.value }, zone)
+        }
+        if (has(LeanBodyMassRecord::class)) track("Massa magra") {
+            out[Metric.LEAN_MASS] = dailyMean(readRecords(LeanBodyMassRecord::class, start, end)
+                .map { it.time to it.mass.inKilograms }, zone)
         }
         if (has(OxygenSaturationRecord::class)) track("SpO2") {
             out[Metric.SPO2] = dailyMean(readRecords(OxygenSaturationRecord::class, start, end)
@@ -205,7 +223,7 @@ class HealthRepo(private val context: Context) {
         val granted = granted()
         val zone = ZoneId.systemDefault()
         val end = Instant.now()
-        val start = end.minus(Duration.ofDays(days))
+        val start = queryStart(days, granted, end)
         val hasHr = HealthPermission.getReadPermission(HeartRateRecord::class) in granted
 
         val nights = if (HealthPermission.getReadPermission(SleepSessionRecord::class) in granted) track("Sonno (fasi)") {
@@ -276,8 +294,7 @@ class HealthRepo(private val context: Context) {
         return track("Frequenza cardiaca") {
             // Connessione Salute a volte rifiuta la lettura se l'app passa in secondo piano
             // durante una lettura lunga: un secondo tentativo, dopo una breve pausa, di solito riesce.
-            // Legge tutte le pagine: un singolo readRecords() può restituire solo la prima
-            // pagina e troncare il carico giornaliero nei giorni con molti record cardiaci.
+            // Il helper readRecords() scorre tutte le pagine prima di restituire i campioni.
             val recs = try {
                 readRecords(HeartRateRecord::class, start, end)
             } catch (e: SecurityException) {
@@ -399,6 +416,8 @@ class HealthRepo(private val context: Context) {
             row("VO2max", Vo2MaxRecord::class, listOf("VO2max")) { it.time },
             row("SpO2", OxygenSaturationRecord::class, listOf("SpO2")) { it.time },
             row("Peso", WeightRecord::class, listOf("Peso")) { it.time },
+            row("Grasso corporeo", BodyFatRecord::class, listOf("Grasso corporeo")) { it.time },
+            row("Massa magra", LeanBodyMassRecord::class, listOf("Massa magra")) { it.time },
         )
     }
 
@@ -425,6 +444,16 @@ class HealthRepo(private val context: Context) {
         ).maxOrNull()
     }
 
+    /**
+     * Health Connect limita la lettura dei dati di altre app ai 30 giorni precedenti
+     * se non è concesso READ_HEALTH_DATA_HISTORY. Evita query più lunghe in quel caso,
+     * perché una query fuori finestra può fallire e far perdere anche i dati recenti.
+     */
+    private fun queryStart(days: Long, granted: Set<String>, end: Instant): Instant {
+        val allowedDays = if (HISTORY_PERMISSION in granted) days else minOf(days, 30L)
+        return end.minus(Duration.ofDays(allowedDays))
+    }
+
     private fun appLabel(pkg: String): String = KNOWN_APPS[pkg]
         ?: if (pkg.startsWith("com.android.healthconnect") || pkg == PROVIDER) "Telefono (contapassi di Connessione Salute)"
         else runCatching {
@@ -447,7 +476,7 @@ class HealthRepo(private val context: Context) {
         val g = granted()
         if (HealthPermission.getReadPermission(ExerciseSessionRecord::class) !in g) return emptyList()
         val end = Instant.now()
-        val start = end.minus(Duration.ofDays(days))
+        val start = queryStart(days, g, end)
         return readRecords(ExerciseSessionRecord::class, start, end).sortedByDescending { it.startTime }.map { ex ->
             val hr = runCatching { heartRate(ex.startTime, ex.endTime) }.getOrDefault(emptyList())
             Workout(ex.metadata.id, ex.exerciseType, ex.title, ex.startTime, ex.endTime, hr)
