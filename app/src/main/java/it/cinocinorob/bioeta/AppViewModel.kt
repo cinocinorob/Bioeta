@@ -110,10 +110,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     lastWearable = runCatching { health.lastWearableData() }.getOrNull()
                     updateWidget()
                     if (force || System.currentTimeMillis() - lastFull > 10 * 60_000L || wearable.isEmpty()) {
-                        wearable = health.readAll(DAYS_WINDOW)
+                        // Una lettura parziale non deve cancellare serie valide già caricate:
+                        // conserva la cache solo per metriche autorizzate la cui lettura è fallita.
+                        val fresh = health.readAll(DAYS_WINDOW)
+                        val failedButStillGranted = Metric.entries.filter { metric ->
+                            health.permissionFor(metric) in granted &&
+                                metric !in fresh.keys &&
+                                health.errors.containsKey(health.readErrorKeyFor(metric))
+                        }.toSet()
+                        wearable = fresh + wearable.filter { (metric, _) ->
+                            health.permissionFor(metric) in granted && metric in failedButStillGranted
+                        }
+
                         val rec = health.readRecovery(RECOVERY_WINDOW)
-                        sleepNights = rec.nights
-                        exercises = rec.exercises
+                        // In caso di errore di lettura, non sostituire dati validi con liste vuote.
+                        if (!health.errors.containsKey("Sonno (fasi)")) sleepNights = rec.nights
+                        if (!health.errors.containsKey("Allenamenti")) exercises = rec.exercises
                         refreshFitness()
                         lastFull = System.currentTimeMillis()
                         updateWidget()
@@ -645,7 +657,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun refreshFitness() {
         // L'attività di oggi e gli allenamenti non dipendono dal profilo: si leggono sempre
         todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
-        workouts = runCatching { health.workouts(14) }.getOrDefault(emptyList())
+        val freshWorkouts = runCatching { health.workouts(14) }.getOrNull()
+        if (freshWorkouts != null && !health.errors.containsKey("Allenamenti")) workouts = freshWorkouts
         // Il carico cardiaco usa FCmax stimata dall'età: senza data di nascita si usa 40 anni (segnalato nella UI)
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         val male = profile.sex == Sex.M
