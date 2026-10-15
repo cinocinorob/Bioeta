@@ -566,7 +566,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Ultimi 14 giorni, dal più vecchio. */
     val recoveryHistory: List<DayScores>
         get() {
-            val key = listOf(sleepNights, exercises, wearable, profile, java.time.LocalDate.now())
+            val key = listOf(sleepNights, exercises, wearable, dayLoads, profile, java.time.LocalDate.now())
             if (key != cacheKey) {
                 cacheHistory = (13 downTo 0).map { scoresFor(java.time.LocalDate.now().minusDays(it.toLong())) }
                 cacheKey = key
