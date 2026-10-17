@@ -52,7 +52,16 @@ object PhenoAge {
     const val B_AGE = 0.0804
 
     private const val GAMMA = 0.0076927
-    private const val B_CONV = 0.09165
+    /**
+     * Pendenza del modello di Gompertz sull'età usata per convertire il punteggio di mortalità in anni.
+     * Valore 0.090165 come nella formula pubblicata dagli autori (brevetto Levine US20200347461A1) e nelle
+     * implementazioni di riferimento (pyaging). Fino alla versione 0.8 dell'app era usato per errore
+     * 0.09165, che sottostimava la differenza dall'età anagrafica (≈ +1,7 anni a 45 anni): vedi docs/METHODS.md.
+     */
+    private const val B_CONV = 0.090165
+
+    /** Versione dell'implementazione (tracciabilità delle modifiche, vedi docs/METHODS.md). */
+    const val ALGO_VERSION = 2
 
     /** Anni di PhenoAge per unità di predittore lineare (approssimazione valida per M piccolo). */
     const val YEARS_PER_XB = 1.0 / B_CONV
