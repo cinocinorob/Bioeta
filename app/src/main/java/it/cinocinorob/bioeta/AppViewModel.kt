@@ -681,6 +681,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Ultimi 28 giorni di attività (minuti attivi misurati/stimati, carico cardiaco), dal più vecchio. */
     private val initialDays = workoutStore.loadDays()?.takeIf { it.version == ACTIVITY_ALGO_VERSION }
     var dayActivities by mutableStateOf(initialDays?.days ?: emptyList())
+        private set
 
     /**
      * FC a riposo di riferimento per carico e minuti attivi, stabilizzata: resta quella usata per lo storico
@@ -695,7 +696,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         activityRest = r
         return r
     }
-        private set
     val dayLoads: List<DayLoad> get() = dayActivities.map { it.toDayLoad() }
     val todayDayActivity: DayActivity? get() = dayActivities.lastOrNull { it.date == java.time.LocalDate.now() }
 
