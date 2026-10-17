@@ -243,7 +243,7 @@ fun RpeLoadCard(vm: AppViewModel) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Media 4 sett.", sm.chronicWeek?.f(0) ?: "—", if (sm.chronicWeek != null) "UA/sett." else "dopo 14 gg", Modifier.weight(1f))
             StatChip("Rapporto", sm.ratio?.f(2) ?: "—", "7 gg / media", Modifier.weight(1f))
-            StatChip("Monotonia", sm.monotony?.f(1) ?: "—", "media/DS", Modifier.weight(1f))
+            StatChip("Monotonia", sm.monotony?.f(1) ?: "—", "indice", Modifier.weight(1f))
         }
         val msg = when {
             sm.ratio == null -> "Il confronto con le 4 settimane compare dopo 14 giorni di voti."
