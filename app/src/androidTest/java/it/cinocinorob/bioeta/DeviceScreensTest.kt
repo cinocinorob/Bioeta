@@ -244,7 +244,9 @@ class DeviceScreensTest {
             compose.onNodeWithText("allenamenti importati", substring = true).performClick()
             waitText("Allenamenti importati")
             screenshot("fonti_sincronizzazione")
-            compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
+            // Verifica: entrambi gli allenamenti della mattina sono stati importati
+            compose.onNode(hasScrollableList()).performScrollToNode(hasText("Corsa"))
+            compose.onNode(hasScrollableList()).performScrollToNode(hasText("Bici"))
             screenshot("allenamenti_importati")
             waitText("Bici", 20_000)
             waitText("Corsa", 20_000)
