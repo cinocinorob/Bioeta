@@ -125,7 +125,8 @@ jobs:
           gradle --no-daemon assembleDebug assembleDebugAndroidTest 2>&1 | tee compile.log
       - name: Errori di compilazione dei test
         if: failure()
-        run: grep -E "^e: |error:|FAILED|What went wrong" -A2 compile.log | head -40 | while IFS= read -r l; do echo "::error title=ATEST::${l:0:900}"; done
+        run: |
+          grep -E "^e: |error:|FAILED|What went wrong" -A2 compile.log | head -40 | while IFS= read -r l; do echo "::error title=ATEST::${l:0:900}"; done
       - name: Emulatore Android 15 (Europe/Rome) e test end-to-end
         uses: reactivecircus/android-emulator-runner@v2
         with:
