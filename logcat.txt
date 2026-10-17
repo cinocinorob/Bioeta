@@ -1,0 +1,25 @@
+--------- beginning of main
+10-17 22:05:49.112  3421  3588 I TestRunner: run started: 1 tests
+10-17 22:05:49.113  3421  3588 I TestRunner: started: seedLaunchAndCapture(it.cinocinorob.bioeta.DeviceScreensTest)
+10-17 22:05:50.921  3421  3588 I BioEtaE2E: permessi concessi: 26
+10-17 22:05:53.479  3421  3588 I BioEtaE2E: inseriti 682 record
+10-17 22:06:12.717  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/01_home.png
+10-17 22:06:15.074  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/02_home_eta_fisiologia.png
+10-17 22:06:17.077  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/03_home_attivita.png
+10-17 22:06:19.352  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/04_home_fine.png
+10-17 22:06:22.921  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/05_attivita.png
+10-17 22:06:24.915  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/06_attivita_carico.png
+10-17 22:06:26.580  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/07_attivita_allenamenti.png
+10-17 22:06:28.467  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/08_fonti_sincronizzazione.png
+10-17 22:06:30.163  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/09_allenamenti_importati.png
+10-17 22:06:34.494  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/10_salute.png
+10-17 22:06:36.001  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/11_salute_recupero.png
+10-17 22:06:39.146  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/12_eta_biologica.png
+10-17 22:06:40.824  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/13_eta_dettagli.png
+10-17 22:06:43.648  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/14_analisi.png
+10-17 22:06:47.985  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/15_dettaglio_fc_riposo.png
+10-17 22:06:51.120  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/16_profilo.png
+10-17 22:06:53.608  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/17_home_tema_chiaro.png
+10-17 22:06:56.291  3421  3588 I BioEtaE2E: screenshot /data/local/tmp/bioeta/18_attivita_tema_chiaro.png
+10-17 22:06:57.128  3421  3588 I TestRunner: finished: seedLaunchAndCapture(it.cinocinorob.bioeta.DeviceScreensTest)
+10-17 22:06:57.152  3421  3588 I TestRunner: run finished: 1 tests, 0 failed, 0 ignored
