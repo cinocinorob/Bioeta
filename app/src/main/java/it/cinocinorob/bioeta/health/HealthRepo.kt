@@ -24,6 +24,7 @@ import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import it.cinocinorob.bioeta.data.ReadWindow
 import it.cinocinorob.bioeta.science.ActivityKind
 import it.cinocinorob.bioeta.science.ExerciseLoad
 import it.cinocinorob.bioeta.science.Session
@@ -294,7 +295,14 @@ class HealthRepo(private val context: Context) {
                 if (v <= 0L) null else DailyPoint(d, v.toDouble())
             }
         }
-        return out
+        // Il primo giorno della finestra può essere incompleto: lo si scarta, così una lettura breve non
+        // sovrascrive mai un valore completo con uno parziale.
+        val firstPoint = ReadWindow.firstCompleteDay(start, zone, overnight = false)
+        val firstNight = ReadWindow.firstCompleteDay(start, zone, overnight = true)
+        return out.mapValues { (m, pts) ->
+            val first = if (m == Metric.SLEEP) firstNight else firstPoint
+            pts.filter { !it.date.isBefore(first) }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -369,7 +377,9 @@ class HealthRepo(private val context: Context) {
             }
         } ?: emptyList() else emptyList()
 
-        return RecoveryData(nights, exercises)
+        val firstNight = ReadWindow.firstCompleteDay(start, zone, overnight = true)
+        val firstDay = ReadWindow.firstCompleteDay(start, zone, overnight = false)
+        return RecoveryData(nights.filter { !it.date.isBefore(firstNight) }, exercises.filter { !it.date.isBefore(firstDay) })
     }
 
     // ------------------------------------------------------------------
@@ -570,10 +580,9 @@ class HealthRepo(private val context: Context) {
      * se non è concesso READ_HEALTH_DATA_HISTORY. Evita query più lunghe in quel caso,
      * perché una query fuori finestra può fallire e far perdere anche i dati recenti.
      */
-    private fun queryStart(days: Long, granted: Set<String>, end: Instant): Instant {
-        val allowedDays = if (HISTORY_PERMISSION in granted) days else minOf(days, 30L)
-        return end.minus(Duration.ofDays(allowedDays))
-    }
+    /** Inizio lettura allineato alla mezzanotte locale (vedi [ReadWindow]). */
+    private fun queryStart(days: Long, granted: Set<String>, end: Instant): Instant =
+        ReadWindow.start(days, end, ZoneId.systemDefault(), HISTORY_PERMISSION in granted)
 
     private fun appLabel(pkg: String): String = KNOWN_APPS[pkg]
         ?: if (pkg.startsWith("com.android.healthconnect") || pkg == PROVIDER) "Telefono (contapassi di Connessione Salute)"
