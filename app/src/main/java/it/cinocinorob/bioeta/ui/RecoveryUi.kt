@@ -1,5 +1,8 @@
 package it.cinocinorob.bioeta.ui
 
+import it.cinocinorob.bioeta.science.ScoreReliability
+import it.cinocinorob.bioeta.science.Reliability
+import it.cinocinorob.bioeta.science.ReliabilityInfo
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -188,7 +191,7 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (vm.missingRecoveryPermissions) {
-            HealthCard("Nuovi permessi per Sonno e Prontezza", BioIcons.Moon, Tint.sleep, onClick = onRequestPermissions) {
+            HealthCard("Nuovi permessi per Sonno e Recupero", BioIcons.Moon, Tint.sleep, onClick = onRequestPermissions) {
                 Caption("Per i punteggi servono anche frequenza cardiaca e allenamenti. Tocca per concederli.")
             }
         }
@@ -197,13 +200,15 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
             Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(24.dp)).background(p.card).padding(vertical = 18.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
                 ScoreRing(today.sleep?.score, "SONNO", RecoveryColors.sleep)
                 Text(today.sleep?.band ?: "Nessuna notte", fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
+                PersonalLine(vm.sleepPercentile, "notti", today.night?.let { n -> today.sleep?.let { ScoreReliability.sleep(it, n) } })
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                ScoreRing(today.readiness.score, "PRONTEZZA", RecoveryColors.ready)
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                ScoreRing(today.readiness.score, "RECUPERO", RecoveryColors.ready)
                 Text(when { today.readiness.calibrating -> "In calibrazione"; today.readiness.provisional -> today.readiness.band + " · provvisorio"; else -> today.readiness.band }, fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
+                PersonalLine(vm.readinessPercentile, "giornate", ScoreReliability.readiness(today.readiness))
             }
         }
         (today.readiness.flags + (today.sleep?.flags ?: emptyList())).forEach { fl ->
@@ -215,7 +220,8 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
         }
 
         // Prontezza
-        HealthCard("Prontezza", BioIcons.Bolt, Color(0xFF30C85E)) {
+        HealthCard("Recupero", BioIcons.Bolt, Tint.brand,
+            info = "Indice BioEtà (0–100) dal confronto con la TUA baseline: HRV notturna (30%), FC a riposo (20%), sonno della notte (20%), debito di sonno (10%), frequenza respiratoria (5%), carico cardiaco recente con modello fitness–fatica (15%). I pesi sono scelte progettuali dichiarate, non un algoritmo validato. Il rango \"meglio del X% dei tuoi giorni\" confronta il valore di oggi con i tuoi ultimi 60 giorni ed è il modo più informativo di leggerlo.") {
             if (today.readiness.calibrating) Caption("Servono almeno 3 giorni di HRV o FC a riposo in Connessione Salute. BioEtà usa già tutto lo storico disponibile: se vedi questo messaggio, l'app dell'orologio ha scritto pochi giorni.")
             else if (today.readiness.provisional) Caption("Punteggio provvisorio: baseline su ${today.readiness.baselineDays} giorni. Finché lo storico è sotto i 14 giorni la tua variabilità abituale è stimata unendo i tuoi dati a un valore tipico, quindi il punteggio è più prudente.")
             today.readiness.contributors.forEach { ContributorRow(it) }
@@ -272,7 +278,7 @@ fun RecoveryMini(vm: AppViewModel, onOpen: () -> Unit) {
     ) {
         ScoreRing(t.sleep?.score, "SONNO", RecoveryColors.sleep, size = 84, stroke = 9)
         Spacer(Modifier.width(10.dp))
-        ScoreRing(t.readiness.score, "PRONTEZZA", RecoveryColors.ready, size = 84, stroke = 9)
+        ScoreRing(t.readiness.score, "RECUPERO", RecoveryColors.ready, size = 84, stroke = 9)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text("Oggi", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = p.text)
@@ -280,12 +286,33 @@ fun RecoveryMini(vm: AppViewModel, onOpen: () -> Unit) {
             Caption(
                 when {
                     t.readiness.flags.isNotEmpty() -> "Segnali di stress fisiologico: guarda i dettagli"
-                    t.readiness.calibrating -> "Prontezza in calibrazione"
+                    t.readiness.calibrating -> "Recupero in calibrazione"
                     worst != null && worst.score!! < 60 -> "Da curare: ${worst.label.lowercase()}"
                     else -> "Tocca per i dettagli"
                 }
             )
         }
         androidx.compose.material3.Icon(BioIcons.Chevron, null, tint = p.text2, modifier = Modifier.size(14.dp))
+    }
+}
+
+/** "Meglio del 72% delle tue notti" + affidabilità del punteggio. */
+@Composable
+fun PersonalLine(pct: Int?, what: String, rel: ReliabilityInfo?) {
+    val p = LocalPalette.current
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 4.dp, start = 8.dp, end = 8.dp)) {
+        Text(
+            if (pct != null) "Meglio del $pct% delle tue $what" else "Rango personale dopo 14 $what",
+            style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = if (pct != null) p.text else p.text3,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        if (rel != null) {
+            val c = when (rel.level) {
+                Reliability.HIGH -> Tint.good
+                Reliability.MEDIUM -> Tint.warn
+                Reliability.LOW -> Tint.bad
+            }
+            Text(rel.level.label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = c)
+        }
     }
 }

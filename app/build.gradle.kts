@@ -12,8 +12,8 @@ android {
         applicationId = "it.cinocinorob.bioeta"
         minSdk = 28
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.9.0"
+        versionCode = 11
+        versionName = "0.10.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -77,6 +77,9 @@ dependencies {
     // Widget della schermata Home (Material You)
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.glance:glance-material3:1.1.1")
+
+    // Aggiornamento periodico in background
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     // Lettura referti: testo da PDF (anche protetti) + OCR on-device per scansioni e foto
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")

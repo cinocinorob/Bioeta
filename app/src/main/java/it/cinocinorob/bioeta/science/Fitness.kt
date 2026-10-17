@@ -92,20 +92,33 @@ object Fitness {
      * È una scelta progettuale coerente con il modello fitness-fatica e con l'allenamento guidato
      * dall'HRV (Granero-Gallegos 2020, PMID 33143175), non un algoritmo validato.
      */
-    fun target(history: List<DayLoad>, today: LocalDate, readiness: Int?, male: Boolean): TargetLoad {
+    /** Giorni conclusi con FC per almeno 10 ore, necessari per proporre un obiettivo di carico. */
+    const val TARGET_MIN_DAYS = 14
+
+    /**
+     * Carico obiettivo di oggi, oppure null se negli ultimi 28 giorni ci sono meno di [TARGET_MIN_DAYS] giorni
+     * con l'orologio indossato (FC ≥ 10 h): con poco storico la media di riferimento è inattendibile e
+     * un obiettivo darebbe consigli sbagliati (es. una normale uscita in bici segnalata come eccessiva).
+     */
+    fun target(history: List<DayLoad>, today: LocalDate, readiness: Int?, male: Boolean): TargetLoad? {
         val past = history.filter { it.date.isBefore(today) && !it.date.isBefore(today.minusDays(28)) && it.coveredMinutes > 600 }
+        if (past.size < TARGET_MIN_DAYS) return null
         // ~21 min/die al 50% di FCR ≈ 150 min/settimana moderati
         val floor = 21 * trimpMinute(0.5, male)
-        val chronic = max(if (past.size >= 7) past.map { it.load }.average() else floor, floor)
+        val chronic = max(past.map { it.load }.average(), floor)
         val (a, b, why) = when {
-            readiness == null -> Triple(0.7, 1.1, "prontezza in calibrazione: mantieni il tuo carico abituale")
-            readiness >= 80 -> Triple(0.9, 1.4, "prontezza alta: puoi spingere di più")
-            readiness >= 60 -> Triple(0.7, 1.1, "prontezza buona: carico abituale")
-            readiness >= 40 -> Triple(0.4, 0.8, "prontezza ridotta: meglio un carico leggero")
-            else -> Triple(0.0, 0.5, "prontezza bassa: giornata di recupero")
+            readiness == null -> Triple(0.7, 1.1, "recupero non disponibile: mantieni il tuo carico abituale")
+            readiness >= 80 -> Triple(0.9, 1.4, "recupero alto: puoi spingere di più")
+            readiness >= 60 -> Triple(0.7, 1.1, "recupero buono: carico abituale")
+            readiness >= 40 -> Triple(0.4, 0.8, "recupero ridotto: meglio un carico leggero")
+            else -> Triple(0.0, 0.5, "recupero basso: giornata di recupero")
         }
         return TargetLoad(chronic * a, chronic * b, why)
     }
+
+    /** Giorni completi disponibili per l'obiettivo (per spiegare quanto manca). */
+    fun completeDays(history: List<DayLoad>, today: LocalDate): Int =
+        history.count { it.date.isBefore(today) && !it.date.isBefore(today.minusDays(28)) && it.coveredMinutes > 600 }
 
     fun status(load: Double, t: TargetLoad): LoadStatus = when {
         load < t.low -> LoadStatus.BELOW

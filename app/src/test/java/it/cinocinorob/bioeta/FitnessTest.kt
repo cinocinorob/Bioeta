@@ -44,11 +44,21 @@ class FitnessTest {
     @Test
     fun targetScalesWithReadiness() {
         val hist = (1..28).map { DayLoad(d.minusDays(it.toLong()), 60.0, 20, 5, emptyMap(), 900) }
-        val hi = Fitness.target(hist, d, 85, true)
-        val lo = Fitness.target(hist, d, 30, true)
+        val hi = Fitness.target(hist, d, 85, true)!!
+        val lo = Fitness.target(hist, d, 30, true)!!
         assertEquals(54.0, hi.low, 1e-9); assertEquals(84.0, hi.high, 1e-9)
         assertEquals(0.0, lo.low, 1e-9); assertEquals(30.0, lo.high, 1e-9)
         assertEquals(LoadStatus.ABOVE, Fitness.status(40.0, lo))
+    }
+
+    @Test
+    fun noTargetWithShortHistory() {
+        // 10 giorni completi < 14: nessun obiettivo (evita "sopra l'obiettivo" su una normale uscita)
+        val hist = (1..10).map { DayLoad(d.minusDays(it.toLong()), 20.0, 5, 0, emptyMap(), 900) }
+        assertEquals(null, Fitness.target(hist, d, 85, true))
+        // giorni con poca FC non contano
+        val partial = (1..28).map { DayLoad(d.minusDays(it.toLong()), 20.0, 5, 0, emptyMap(), 300) }
+        assertEquals(null, Fitness.target(partial, d, 85, true))
     }
 
     @Test

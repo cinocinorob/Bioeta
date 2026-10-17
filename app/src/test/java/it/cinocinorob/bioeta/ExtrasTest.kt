@@ -60,3 +60,14 @@ class ExtrasTest {
         assertEquals(VitalState.HIGH, r.vitals.first().state)
     }
 }
+
+class PersonalTest {
+    @Test fun percentileMidRank() {
+        val h = (60..79).toList() // 20 valori
+        org.junit.Assert.assertEquals(null, it.cinocinorob.bioeta.science.Personal.percentile(70, h.take(10)))
+        // 70: 10 valori sotto, 1 uguale → (10 + 0,5)/20 = 52,5% → 53
+        org.junit.Assert.assertEquals(53, it.cinocinorob.bioeta.science.Personal.percentile(70, h))
+        org.junit.Assert.assertEquals(100, it.cinocinorob.bioeta.science.Personal.percentile(99, h))
+        org.junit.Assert.assertEquals(0, it.cinocinorob.bioeta.science.Personal.percentile(10, h))
+    }
+}

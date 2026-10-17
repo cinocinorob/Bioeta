@@ -178,7 +178,7 @@ fun TagEffectsCard(vm: AppViewModel) {
     val eff = vm.tagEffects
     HealthCard("Cosa influenza il tuo recupero", BioIcons.Sparkle, Tint.good) {
         if (eff.isEmpty()) {
-            Caption("Compila il diario per qualche settimana: quando un'abitudine compare in almeno 4 giorni (e manca in almeno 4), qui vedrai come cambia in media la tua prontezza del mattino dopo.")
+            Caption("Compila il diario per qualche settimana: quando un'abitudine compare in almeno 4 giorni (e manca in almeno 4), qui vedrai come cambia in media il tuo recupero del mattino dopo.")
         } else {
             eff.forEach { t ->
                 val c = if (t.diff < -2) Tint.bad else if (t.diff > 2) Tint.good else p.text2
@@ -190,7 +190,7 @@ fun TagEffectsCard(vm: AppViewModel) {
                     Text("${if (t.diff >= 0) "+" else "−"}${kotlin.math.abs(t.diff).f(0)} punti", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = c)
                 }
             }
-            Caption("Differenza media della prontezza del mattino successivo. È un'associazione nei tuoi dati, con pochi giorni: può dipendere dal caso o da altri fattori insieme (es. alcol e cena tardiva nella stessa sera).")
+            Caption("Differenza media del recupero del mattino successivo. È un'associazione nei tuoi dati, con pochi giorni: può dipendere dal caso o da altri fattori insieme (es. alcol e cena tardiva nella stessa sera).")
         }
     }
 }

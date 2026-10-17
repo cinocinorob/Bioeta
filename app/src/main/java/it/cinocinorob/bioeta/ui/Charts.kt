@@ -32,6 +32,11 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -59,18 +64,41 @@ fun HealthChart(
     xLabel: (Double) -> String = ::epochLabel,
     /** Unità mostrata sopra l'asse Y. */
     unit: String? = null,
+    /** Testo del valore selezionato col tocco. */
+    valueLabel: (Double) -> String = { it.f(yDecimals) },
 ) {
     val all = layers.flatMap { it.points }
     if (all.isEmpty()) return
+    // Punti selezionabili col tocco: quelli del primo livello a linea/area (altrimenti del primo livello)
+    val basePts = (layers.firstOrNull { it.kind != LayerKind.DOTS } ?: layers.first()).points.sortedBy { it.first }
+    var sel by androidx.compose.runtime.remember(basePts) { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    val selColor = p0Text()
     val p = LocalPalette.current
     val labelColor = p.text2.toArgb()
     val grid = p.sep
     val cardColor = p.card
     val animV = animatedValue(1f, 700, restartKey = layers.sumOf { it.points.size })
-    Canvas(modifier.fillMaxWidth().height(height.dp)) {
+    val minX0 = all.minOf { it.first }; val maxX0 = all.maxOf { it.first }
+    fun nearest(x: Float, width: Float, density: Float): Int? {
+        if (basePts.isEmpty()) return null
+        val l = 4f * density; val w = width - l - 40f * density
+        val span = if (maxX0 == minX0) 2.0 else maxX0 - minX0
+        val lo = if (maxX0 == minX0) minX0 - 1 else minX0
+        val xv = lo + ((x - l) / w).coerceIn(0f, 1f) * span
+        return basePts.indices.minByOrNull { kotlin.math.abs(basePts[it].first - xv) }
+    }
+    Canvas(
+        modifier.fillMaxWidth().height(height.dp)
+            .pointerInput(basePts) {
+                detectTapGestures { o -> val n = nearest(o.x, size.width.toFloat(), density); sel = if (sel == n) null else n }
+            }
+            .pointerInput(basePts) {
+                detectHorizontalDragGestures(onDragEnd = { }) { change, _ -> sel = nearest(change.position.x, size.width.toFloat(), density) }
+            },
+    ) {
         val left = 4.dp.toPx()
         val right = 40.dp.toPx()
-        val top = (if (unit != null) 18 else 10).dp.toPx()
+        val top = 24.dp.toPx() // spazio per il valore selezionato col tocco
         val bottom = 22.dp.toPx()
         var minX = all.minOf { it.first }
         var maxX = all.maxOf { it.first }
@@ -168,8 +196,26 @@ fun HealthChart(
             }
         }
         }
+        // Selezione col tocco: linea verticale, punto e valore
+        val si = sel
+        if (si != null && si in basePts.indices) {
+            val pt = basePts[si]
+            val x = px(pt.first); val y = py(pt.second)
+            drawLine(selColor.copy(alpha = 0.35f), Offset(x, top), Offset(x, top + h), strokeWidth = 1.dp.toPx())
+            drawCircle(cardColor, 6.dp.toPx(), Offset(x, y))
+            drawCircle(selColor, 4.dp.toPx(), Offset(x, y))
+            val label = xLabel(pt.first) + " · " + valueLabel(pt.second) + (unit?.let { " $it" } ?: "")
+            val tp = Paint().apply { color = cardColor.toArgb(); textSize = 12.dp.toPx(); isAntiAlias = true; isFakeBoldText = true }
+            val tw = tp.measureText(label); val pad = 6.dp.toPx(); val bh = 20.dp.toPx()
+            val bx = (x - tw / 2 - pad).coerceIn(0f, size.width - tw - 2 * pad)
+            drawRoundRect(selColor, Offset(bx, 0f), Size(tw + 2 * pad, bh), CornerRadius(bh / 2))
+            drawContext.canvas.nativeCanvas.drawText(label, bx + pad, bh - 6.dp.toPx(), tp)
+        }
     }
 }
+
+@Composable
+private fun p0Text(): Color = LocalPalette.current.text
 
 /**
  * Anello in stile "Attività": l'arco rappresenta l'età biologica rispetto a quella anagrafica

@@ -2,6 +2,7 @@ package it.cinocinorob.bioeta.ui
 
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -25,6 +26,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -214,9 +217,13 @@ fun HealthCard(
     trailing: String? = null,
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    /** Spiegazione del metodo: mostrata su richiesta (icona ⓘ) invece che come testo fisso nella scheda. */
+    info: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = LocalPalette.current
+    var showInfo by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (showInfo && info != null) InfoDialog(title ?: "Informazioni", info) { showInfo = false }
     Column(
         modifier
             .fillMaxWidth()
@@ -240,6 +247,11 @@ fun HealthCard(
                     modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 if (trailing != null) Text(trailing, color = p.text2, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                if (info != null) {
+                    androidx.compose.material3.IconButton(onClick = { showInfo = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(BioIcons.Info, "Come è calcolato", tint = p.text3, modifier = Modifier.size(17.dp))
+                    }
+                }
                 if (onClick != null) {
                     Spacer(Modifier.width(6.dp))
                     Icon(BioIcons.Chevron, null, tint = p.text3, modifier = Modifier.size(14.dp))
@@ -249,6 +261,25 @@ fun HealthCard(
         content()
     }
 }
+
+/** Finestra con la spiegazione di un parametro o di un metodo di calcolo. */
+@Composable
+fun InfoDialog(title: String, text: String, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(Modifier.androidxVerticalScroll()) {
+                Text(text, style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Chiudi") } },
+    )
+}
+
+@Composable
+private fun Modifier.androidxVerticalScroll(): Modifier =
+    this.verticalScroll(androidx.compose.foundation.rememberScrollState())
 
 /** Valore grande + unità piccola grigia. */
 @Composable

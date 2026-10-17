@@ -99,7 +99,7 @@ class Gallery {
             }
             HealthCard("Carico cardiaco · 4 settimane", BioIcons.Pulse, Pillar.load[1]) {
                 val d = LocalDate.of(2026, 10, 13)
-                LoadBars((27 downTo 0).map { d.minusDays(it.toLong()) to (20 + (it * 37 % 60)).toDouble() }, 42.0, 66.0)
+                DayBars((27 downTo 0).map { k -> DayBar(d.minusDays(k.toLong()), if (k % 9 == 4) null else (20 + (k * 37 % 60)).toDouble(), partial = k % 7 == 3) }, Tint.load, "carico", band = 42.0 to 66.0)
                 ZoneBar(mapOf(Zone.LIGHT to 40, Zone.MODERATE to 25, Zone.VIGOROUS to 9, Zone.MAXIMAL to 1))
             }
             HealthCard("Pressione", BioIcons.Heart, Tint.bp) {
