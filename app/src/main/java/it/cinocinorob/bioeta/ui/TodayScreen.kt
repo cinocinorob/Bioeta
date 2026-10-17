@@ -352,9 +352,9 @@ fun TimelineCard(vm: AppViewModel) {
         vm.today.night?.let { n ->
             add(Ev(n.end.atZone(zone).toLocalTime(), "Risveglio", "${(n.totalSleepMin / 60).f(1)} h di sonno", Pillar.sleep[1]))
         }
-        vm.workouts.filter { it.start.atZone(zone).toLocalDate() == today }.forEach { w ->
-            add(Ev(w.start.atZone(zone).toLocalTime(), exerciseName(w.type, w.title), "${w.minutes.f(0)} min" +
-                (w.samples.takeIf { it.isNotEmpty() }?.let { s -> " · FC media ${s.map { it.bpm }.average().f(0)}" } ?: ""), Pillar.load[1]))
+        vm.displaySessions.filter { it.start.atZone(zone).toLocalDate() == today }.forEach { w ->
+            add(Ev(w.start.atZone(zone).toLocalTime(), exerciseName(w.hcType, w.title), "${w.minutes.f(0)} min" +
+                (vm.workoutStats[w.id]?.avgHr?.let { " · FC media ${it.f(0)}" } ?: ""), Pillar.load[1]))
         }
         vm.bpReadings.filter { it.time.toLocalDate() == today }.forEach { r ->
             add(Ev(r.time.toLocalTime(), "Pressione", "${r.sys}/${r.dia} mmHg", Tint.bp))

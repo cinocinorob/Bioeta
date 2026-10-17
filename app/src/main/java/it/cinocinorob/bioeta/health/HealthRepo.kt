@@ -24,7 +24,9 @@ import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import it.cinocinorob.bioeta.science.ActivityKind
 import it.cinocinorob.bioeta.science.ExerciseLoad
+import it.cinocinorob.bioeta.science.Session
 import it.cinocinorob.bioeta.science.HrSample
 import it.cinocinorob.bioeta.science.SleepNight
 import it.cinocinorob.bioeta.science.Stage
@@ -509,6 +511,40 @@ class HealthRepo(private val context: Context) {
         }
     }
 
+    /** Esito della lettura delle sessioni di esercizio per la sincronizzazione. */
+    data class SessionRead(val sessions: List<Session>, val from: Instant, val to: Instant, val days: Int, val error: String?, val permitted: Boolean)
+
+    /**
+     * Legge TUTTE le sessioni di esercizio nella finestra (tutte le pagine), senza FC: è una lettura
+     * leggera, eseguita nella fase veloce dell'aggiornamento così gli allenamenti compaiono subito.
+     * Finestra: [days] giorni, ridotta a 30 senza il permesso dello storico (limite di Connessione Salute).
+     */
+    suspend fun readSessions(days: Long): SessionRead {
+        val g = granted()
+        val end = Instant.now()
+        val start = queryStart(days, g, end)
+        val nDays = Duration.between(start, end).toDays().toInt()
+        if (HealthPermission.getReadPermission(ExerciseSessionRecord::class) !in g) return SessionRead(emptyList(), start, end, nDays, null, false)
+        return try {
+            val list = readRecords(ExerciseSessionRecord::class, start, end).map { ex ->
+                Session(
+                    id = ex.metadata.id, origin = ex.metadata.dataOrigin.packageName, kind = kindOf(ex.exerciseType),
+                    title = ex.title, start = ex.startTime, end = ex.endTime, hcType = ex.exerciseType,
+                )
+            }
+            errors.remove("Allenamenti (sincronizzazione)")
+            SessionRead(list, start, end, nDays, null, true)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val msg = (e.javaClass.simpleName + ": " + (e.message ?: "")).take(300)
+            errors["Allenamenti (sincronizzazione)"] = ReadError(msg, Instant.now())
+            SessionRead(emptyList(), start, end, nDays, msg, true)
+        }
+    }
+
+    fun originLabel(pkg: String): String = appLabel(pkg)
+
     private fun mapStage(s: Int): StageType = when (s) {
         SleepSessionRecord.STAGE_TYPE_AWAKE, SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED -> StageType.AWAKE
         SleepSessionRecord.STAGE_TYPE_OUT_OF_BED -> StageType.OUT_OF_BED
@@ -557,6 +593,35 @@ class HealthRepo(private val context: Context) {
             .sortedBy { it.date }
 
     companion object {
+
+        /** Mappa i codici di Connessione Salute nelle categorie usate dal motore di calcolo. */
+        fun kindOf(t: Int): ActivityKind = with(ExerciseSessionRecord) {
+            when (t) {
+                EXERCISE_TYPE_RUNNING, EXERCISE_TYPE_RUNNING_TREADMILL -> ActivityKind.RUNNING
+                EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING, EXERCISE_TYPE_BOOT_CAMP -> ActivityKind.HIIT
+                EXERCISE_TYPE_SOCCER, EXERCISE_TYPE_BASKETBALL, EXERCISE_TYPE_RUGBY, EXERCISE_TYPE_FOOTBALL_AMERICAN,
+                EXERCISE_TYPE_FOOTBALL_AUSTRALIAN, EXERCISE_TYPE_HANDBALL, EXERCISE_TYPE_ICE_HOCKEY, EXERCISE_TYPE_ROLLER_HOCKEY,
+                EXERCISE_TYPE_WATER_POLO -> ActivityKind.TEAM_SPORT
+                EXERCISE_TYPE_BOXING, EXERCISE_TYPE_MARTIAL_ARTS -> ActivityKind.COMBAT
+                EXERCISE_TYPE_STAIR_CLIMBING, EXERCISE_TYPE_STAIR_CLIMBING_MACHINE -> ActivityKind.STAIRS
+                EXERCISE_TYPE_ROCK_CLIMBING -> ActivityKind.CLIMBING
+                EXERCISE_TYPE_BIKING, EXERCISE_TYPE_BIKING_STATIONARY -> ActivityKind.BIKING
+                EXERCISE_TYPE_SWIMMING_POOL, EXERCISE_TYPE_SWIMMING_OPEN_WATER -> ActivityKind.SWIMMING
+                EXERCISE_TYPE_WALKING, EXERCISE_TYPE_WHEELCHAIR -> ActivityKind.WALKING
+                EXERCISE_TYPE_HIKING, EXERCISE_TYPE_SNOWSHOEING -> ActivityKind.HIKING
+                EXERCISE_TYPE_ROWING, EXERCISE_TYPE_ROWING_MACHINE, EXERCISE_TYPE_PADDLING -> ActivityKind.ROWING
+                EXERCISE_TYPE_ELLIPTICAL -> ActivityKind.ELLIPTICAL
+                EXERCISE_TYPE_STRENGTH_TRAINING, EXERCISE_TYPE_WEIGHTLIFTING, EXERCISE_TYPE_CALISTHENICS -> ActivityKind.STRENGTH
+                EXERCISE_TYPE_TENNIS, EXERCISE_TYPE_BADMINTON, EXERCISE_TYPE_SQUASH, EXERCISE_TYPE_RACQUETBALL,
+                EXERCISE_TYPE_TABLE_TENNIS, EXERCISE_TYPE_VOLLEYBALL -> ActivityKind.RACKET
+                EXERCISE_TYPE_DANCING, EXERCISE_TYPE_EXERCISE_CLASS, EXERCISE_TYPE_GYMNASTICS -> ActivityKind.DANCE_CLASS
+                EXERCISE_TYPE_SKIING, EXERCISE_TYPE_SNOWBOARDING, EXERCISE_TYPE_SKATING, EXERCISE_TYPE_ICE_SKATING -> ActivityKind.WINTER
+                EXERCISE_TYPE_SURFING -> ActivityKind.WATER
+                EXERCISE_TYPE_YOGA, EXERCISE_TYPE_PILATES, EXERCISE_TYPE_STRETCHING, EXERCISE_TYPE_GUIDED_BREATHING -> ActivityKind.MIND_BODY
+                EXERCISE_TYPE_GOLF, EXERCISE_TYPE_SAILING -> ActivityKind.LIGHT_OTHER
+                else -> ActivityKind.OTHER
+            }
+        }
 
         val KNOWN_APPS = mapOf(
             "com.fitbit.FitbitMobile" to "Fitbit / Google Health",

@@ -45,20 +45,29 @@ jobs:
             grep -A3 "<failure" "$f" | head -20 | tr '\n' ' ' | sed 's/^/::error title=TEST::/' ; echo
           done
 
-      - name: Rinomina APK
-        run: cp app/build/outputs/apk/release/app-release.apk BioEta-${{ github.run_number }}.apk
+      - name: Rinomina APK e calcola SHA-256
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk BioEta-${{ github.run_number }}.apk
+          sha256sum BioEta-${{ github.run_number }}.apk | tee BioEta-${{ github.run_number }}.apk.sha256
+          echo "::notice title=SHA-256::$(cut -d' ' -f1 BioEta-${{ github.run_number }}.apk.sha256)"
 
       - uses: actions/upload-artifact@v4
         with:
           name: BioEta-apk
-          path: BioEta-${{ github.run_number }}.apk
+          path: |
+            BioEta-${{ github.run_number }}.apk
+            BioEta-${{ github.run_number }}.apk.sha256
 
       - name: Pubblica release scaricabile dal telefono
+        # Le release si pubblicano solo da main (dopo la revisione della PR), mai dalle PR
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: BioEtà build ${{ github.run_number }}
-          files: BioEta-${{ github.run_number }}.apk
+          files: |
+            BioEta-${{ github.run_number }}.apk
+            BioEta-${{ github.run_number }}.apk.sha256
           make_latest: true
 
   screenshots:

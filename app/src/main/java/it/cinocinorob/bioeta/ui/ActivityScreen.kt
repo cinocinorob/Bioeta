@@ -214,10 +214,10 @@ fun ActivityScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
         // ---------- Allenamenti ----------
         item { LoadTrendCard(vm) }
         item { SectionLabel("Allenamenti recenti") }
-        if (vm.workouts.isEmpty()) item {
+        if (vm.displaySessions.isEmpty()) item {
             Caption("Nessun allenamento negli ultimi 14 giorni. Avvia un esercizio dall'orologio per vedere qui durata, frequenza cardiaca, zone e carico.")
         }
-        items(vm.workouts.take(12), key = { it.id }) { w -> WorkoutCard(w, vm) }
+        items(vm.displaySessions.take(12), key = { it.id }) { w -> WorkoutCard(w, vm) }
 
         item {
             HealthCard("Come sono calcolati", BioIcons.Info, Tint.blue) {
@@ -228,17 +228,12 @@ fun ActivityScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
 }
 
 @Composable
-private fun WorkoutCard(w: HealthRepo.Workout, vm: AppViewModel) {
+private fun WorkoutCard(w: it.cinocinorob.bioeta.science.Session, vm: AppViewModel) {
     val p = LocalPalette.current
-    val age = vm.profile.ageAt(LocalDate.now()) ?: 45.0
     val zone = ZoneId.systemDefault()
-    val rest = vm.restHrRef
-    val avg = w.samples.takeIf { it.isNotEmpty() }?.map { it.bpm }?.average()
-    val mx = w.samples.maxOfOrNull { it.bpm }
-    val male = vm.profile.sex == Sex.M
-    val trimp = avg?.let { a -> w.minutes * Fitness.trimpMinute(Fitness.hrr(a, rest, Fitness.hrMax(age)), male) }
+    val st = vm.workoutStats[w.id]
     Column(
-        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(26.dp)).background(p.card).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(p.card).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -246,17 +241,18 @@ private fun WorkoutCard(w: HealthRepo.Workout, vm: AppViewModel) {
                 Icon(BioIcons.Bolt, null, tint = Color.White, modifier = Modifier.size(22.dp))
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(exerciseName(w.type, w.title), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
-                Text(w.start.atZone(zone).format(DateTimeFormatter.ofPattern("EEEE d MMM, HH:mm", Locale.ITALIAN)), fontSize = 12.sp, color = p.text2)
+                Text(exerciseName(w.hcType, w.title), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+                Text(w.start.atZone(zone).format(DateTimeFormatter.ofPattern("EEEE d MMM, HH:mm", Locale.ITALIAN)) + " · " + vm.health.originLabel(w.origin), fontSize = 12.sp, color = p.text2)
             }
-            trimp?.let { Pill("carico ${it.f(0)}", Pillar.load[1]) }
+            st?.load?.let { Pill("carico ${it.f(0)}", Pillar.load[1]) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Durata", w.minutes.f(0), "min", Modifier.weight(1f))
-            StatChip("FC media", avg?.f(0) ?: "—", "bpm", Modifier.weight(1f))
-            StatChip("FC max", mx?.f(0) ?: "—", "bpm", Modifier.weight(1f))
+            StatChip("FC media", st?.avgHr?.f(0) ?: "—", "bpm", Modifier.weight(1f))
+            StatChip("FC max", st?.maxHr?.f(0) ?: "—", "bpm", Modifier.weight(1f))
         }
-        if (w.samples.isNotEmpty()) ZoneBar(Fitness.zoneMinutes(w.samples, rest, age))
+        if (st != null && st.hrCoverage > 0) ZoneBar(st.zoneMinutes)
+        else Caption("Nessuna frequenza cardiaca per questo allenamento: minuti attivi stimati dal tipo di attività, carico non calcolabile.")
     }
 }
 
