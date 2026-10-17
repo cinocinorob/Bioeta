@@ -106,6 +106,7 @@ fun SyncScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions: () ->
             item {
                 HealthCard("Connessione Salute", BioIcons.Heart, Tint.heart) {
                     Body("Fonte principale e unica attiva. Permessi concessi: ${vm.granted.count { it in vm.health.permissions }} di ${vm.health.permissions.size}.")
+                    if (vm.health.stepsFromRaw) InlineNotice("L'aggregato dei passi di Connessione Salute è vuoto anche se ci sono record: l'app che li scrive probabilmente non è nell'elenco delle priorità. BioEtà somma i record direttamente (prendendo il massimo tra le app, mai la somma). Per sistemare alla fonte: Impostazioni → Connessione Salute → Dati e accesso → Attività → Priorità delle app.", NoticeKind.WARN)
                     Caption("BioEtà legge solo i tipi di dati autorizzati e non scrive nulla. Per ogni tipo, la diagnostica mostra quanti dati ci sono, quale app li ha scritti e l'ultimo aggiornamento.")
                     OutlinedButton(onClick = onRequestPermissions) { Text("Gestisci permessi") }
                 }

@@ -143,19 +143,24 @@ class DeviceScreensTest {
             }
         }
 
-        // FC di base ogni 5 minuti nelle ultime 72 ore (scrittura in blocchi orari)
+        // Allenamenti di oggi: pedalata con FC ogni 2 minuti e corsa SENZA FC, nella stessa mattina
+        val dayStart0 = today.atStartOfDay(zone).toInstant()
+        val base0 = if (Duration.between(dayStart0, now).toMinutes() > 150) now.minus(Duration.ofMinutes(120)) else now.minus(Duration.ofHours(26))
+        val busyFrom = base0.minus(Duration.ofMinutes(5)); val busyTo = base0.plus(Duration.ofMinutes(90))
+
+        // FC di base ogni 5 minuti nelle ultime 72 ore (scrittura in blocchi orari), esclusi gli allenamenti
+        // (la corsa deve risultare senza frequenza cardiaca, come un orologio che non l'ha registrata)
         var hStart = now.minus(Duration.ofHours(72)).let { Instant.ofEpochSecond(it.epochSecond / 3600 * 3600) }
         while (hStart.isBefore(now.minus(Duration.ofMinutes(5)))) {
             val hEnd = minOf(hStart.plusSeconds(3600), now)
             val samples = generateSequence(hStart) { it.plusSeconds(300) }.takeWhile { it.isBefore(hEnd) }
+                .filter { it.isBefore(busyFrom) || it.isAfter(busyTo) }
                 .map { HeartRateRecord.Sample(it, (64 + (it.epochSecond / 300 % 9)).toLong()) }.toList()
             if (samples.isNotEmpty()) records += HeartRateRecord(startTime = hStart, startZoneOffset = offset(hStart), endTime = hEnd, endZoneOffset = offset(hEnd), samples = samples, metadata = meta)
             hStart = hEnd
         }
 
-        // Allenamenti di oggi: pedalata con FC ogni 2 minuti e corsa SENZA FC, nella stessa mattina
-        val dayStart = today.atStartOfDay(zone).toInstant()
-        val base = if (Duration.between(dayStart, now).toMinutes() > 150) now.minus(Duration.ofMinutes(120)) else now.minus(Duration.ofHours(26))
+        val base = base0
         val bikeS = base; val bikeE = base.plus(Duration.ofMinutes(45))
         val runS = base.plus(Duration.ofMinutes(55)); val runE = base.plus(Duration.ofMinutes(85))
         records += ExerciseSessionRecord(startTime = bikeS, startZoneOffset = offset(bikeS), endTime = bikeE, endZoneOffset = offset(bikeE),
@@ -235,6 +240,7 @@ class DeviceScreensTest {
             screenshot("attivita_allenamenti")
 
             // Fonti e sincronizzazione: entrambi gli allenamenti devono essere stati importati
+            compose.onNode(hasScrollableList()).performScrollToNode(hasText("allenamenti importati", substring = true))
             compose.onNodeWithText("allenamenti importati", substring = true).performClick()
             waitText("Allenamenti importati")
             screenshot("fonti_sincronizzazione")

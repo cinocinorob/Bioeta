@@ -128,12 +128,12 @@ fun HomeScreen(
                         when {
                             last == null && series.isEmpty() -> "PhenoAge: servono 9 esami del sangue"
                             last == null -> "Dati incompleti nell'ultimo prelievo"
-                            else -> "PhenoAge · prelievo ${last.panel.date.itLong()}" + (chrono?.let { " · anagrafica ${it.f(1)}" } ?: "")
+                            else -> "PhenoAge · prelievo ${last.panel.date.itLong()}" + (chrono?.let { " · anagrafica ${it.f(1)}" } ?: "") + (if (prev != null) " · vs prelievo precedente" else "")
                         },
                         it,
                         trend = if (last != null && prev != null) {
                             val d = last.result.phenoAge - prev.result.phenoAge
-                            Trend("${abs(d).f(1)} anni vs prelievo prec.", d > 0, goodWhenUp = false)
+                            Trend("${abs(d).f(1)} anni", d > 0, goodWhenUp = false)
                         } else null,
                         onClick = onGoAge,
                     )
@@ -287,14 +287,15 @@ private fun BaselineTile(vm: AppViewModel, metric: Metric, label: String, icon: 
     val value = s?.recent ?: last?.value
     val trend = if (s?.recent != null && s.baseline != null) {
         val d = s.recent - s.baseline
-        Trend("${abs(d).f(if (metric == Metric.HRV) 0 else 1)} vs baseline", d > 0, metric.higherIsBetter)
+        Trend("${abs(d).f(if (metric == Metric.HRV) 0 else 1)} ${metric.unit}", d > 0, metric.higherIsBetter)
     } else null
     MetricTile(
         label, value?.let { fmtValue(metric, it) }, metric.unit, tint, icon,
         if (value != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
         when {
             value == null -> "Nessun dato in Connessione Salute"
-            s?.recent != null -> "Media 7 giorni · ultimo ${last!!.date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ITALIAN))}"
+            s?.recent != null && s.baseline != null -> "Media 7 gg vs tua baseline (giorni 8–67)"
+            s?.recent != null -> "Media 7 giorni · baseline in costruzione"
             else -> "Ultimo valore del ${last!!.date.itLong()}"
         },
         m, trend = trend, spark = pts.takeLast(14).map { it.value }, onClick = onClick,

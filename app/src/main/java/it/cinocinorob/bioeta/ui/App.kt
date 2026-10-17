@@ -241,8 +241,8 @@ private fun MainTabs(
             LargeTopAppBar(
                 title = {
                     Column {
-                        Text(title, maxLines = 1, style = MaterialTheme.typography.headlineSmall)
-                        Text(subtitle, maxLines = 1, style = MaterialTheme.typography.labelLarge, color = pal.text2)
+                        Text(title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(subtitle, maxLines = 1, style = MaterialTheme.typography.labelLarge, color = pal.text2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 },
                 navigationIcon = {

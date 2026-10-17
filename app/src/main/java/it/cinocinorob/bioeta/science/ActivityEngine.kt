@@ -221,3 +221,46 @@ object ActivityEngine {
 
     fun approxEqual(a: Double, b: Double, eps: Double = 1e-9) = abs(a - b) < eps
 }
+
+/** Blocco di passi grezzo (da StepsRecord). */
+data class StepChunk(val origin: String, val start: Instant, val end: Instant, val count: Long)
+
+/**
+ * Somma dei passi dai record grezzi, usata quando l'aggregazione di Connessione Salute restituisce 0
+ * pur in presenza di record (succede se l'app sorgente non è nell'elenco "priorità delle app" di
+ * Connessione Salute: l'aggregato la esclude). Per evitare doppi conteggi tra app diverse, per ogni
+ * intervallo (ora o giorno) si prende il MASSIMO tra le app, non la somma. I record a cavallo di due
+ * intervalli vengono ripartiti in proporzione alla durata.
+ */
+object StepsMerge {
+    fun byBucket(chunks: List<StepChunk>, bucketOf: (Instant) -> Instant, bucketLen: (Instant) -> Duration): Map<Instant, Long> {
+        val perOrigin = HashMap<String, HashMap<Instant, Double>>()
+        for (c in chunks) {
+            if (c.count <= 0 || !c.end.isAfter(c.start)) {
+                if (c.count > 0) perOrigin.getOrPut(c.origin) { HashMap() }.merge(bucketOf(c.start), c.count.toDouble(), Double::plus)
+                continue
+            }
+            val total = Duration.between(c.start, c.end).toMillis().toDouble()
+            var t = c.start
+            while (t.isBefore(c.end)) {
+                val b = bucketOf(t)
+                val bEnd = b.plus(bucketLen(b))
+                val segEnd = minOf(bEnd, c.end)
+                val share = Duration.between(t, segEnd).toMillis() / total * c.count
+                perOrigin.getOrPut(c.origin) { HashMap() }.merge(b, share, Double::plus)
+                t = segEnd
+            }
+        }
+        val out = HashMap<Instant, Long>()
+        for (m in perOrigin.values) for ((b, v) in m) out[b] = maxOf(out[b] ?: 0L, Math.round(v))
+        return out
+    }
+
+    fun hourly(chunks: List<StepChunk>, zone: ZoneId): Map<Instant, Long> =
+        byBucket(chunks, { it.atZone(zone).withMinute(0).withSecond(0).withNano(0).toInstant() }, { Duration.ofHours(1) })
+
+    fun daily(chunks: List<StepChunk>, zone: ZoneId): Map<LocalDate, Long> =
+        byBucket(chunks, { it.atZone(zone).toLocalDate().atStartOfDay(zone).toInstant() },
+            { b -> Duration.between(b, b.atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant()) })
+            .mapKeys { it.key.atZone(zone).toLocalDate() }
+}

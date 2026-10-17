@@ -46,6 +46,18 @@ class MainActivity : ComponentActivity() {
         val openPrivacy = action == "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" ||
             action == "android.intent.action.VIEW_PERMISSION_USAGE"
         setContent {
+            val dark = when (vm.themeMode) {
+                it.cinocinorob.bioeta.ui.ThemeMode.DARK -> true
+                it.cinocinorob.bioeta.ui.ThemeMode.LIGHT -> false
+                it.cinocinorob.bioeta.ui.ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+            androidx.compose.runtime.SideEffect {
+                // Icone della barra di stato leggibili sul tema dell'app (non su quello di sistema)
+                androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
             BioTheme(mode = vm.themeMode) {
                 App(
                     vm = vm,

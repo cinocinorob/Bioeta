@@ -165,4 +165,24 @@ class ActivityEngineTest {
         assertEquals(first, second)
         assertEquals(setOf("old", "a", "b"), second.map { it.id }.toSet()) // "gone" cancellata alla fonte, "old" fuori finestra
     }
+
+    // ------------------------------------------------------------------ passi dai record grezzi
+
+    @Test fun rawStepsTakeMaxAcrossAppsNotSum() {
+        val chunks = listOf(
+            it.cinocinorob.bioeta.science.StepChunk("com.fitbit.FitbitMobile", at(9, 0), at(10, 0), 500),
+            it.cinocinorob.bioeta.science.StepChunk("phone", at(9, 0), at(10, 0), 450),
+        )
+        val h = it.cinocinorob.bioeta.science.StepsMerge.hourly(chunks, rome)
+        assertEquals(500L, h[at(9, 0)])
+    }
+
+    @Test fun rawStepsSplitAcrossHoursAndDays() {
+        val chunks = listOf(it.cinocinorob.bioeta.science.StepChunk("a", at(23, 30), at(0, 30, day.plusDays(1)), 600))
+        val h = it.cinocinorob.bioeta.science.StepsMerge.hourly(chunks, rome)
+        assertEquals(300L, h[at(23, 0)])
+        assertEquals(300L, h[at(0, 0, day.plusDays(1))])
+        val d = it.cinocinorob.bioeta.science.StepsMerge.daily(chunks, rome)
+        assertEquals(300L, d[day]); assertEquals(300L, d[day.plusDays(1)])
+    }
 }

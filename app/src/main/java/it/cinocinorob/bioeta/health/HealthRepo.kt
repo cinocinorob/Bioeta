@@ -27,6 +27,8 @@ import androidx.health.connect.client.time.TimeRangeFilter
 import it.cinocinorob.bioeta.science.ActivityKind
 import it.cinocinorob.bioeta.science.ExerciseLoad
 import it.cinocinorob.bioeta.science.Session
+import it.cinocinorob.bioeta.science.StepChunk
+import it.cinocinorob.bioeta.science.StepsMerge
 import it.cinocinorob.bioeta.science.HrSample
 import it.cinocinorob.bioeta.science.SleepNight
 import it.cinocinorob.bioeta.science.Stage
@@ -143,6 +145,12 @@ class HealthRepo(private val context: Context) {
         Metric.LEAN_MASS -> "Massa magra"
     }
 
+    /** true se i passi mostrati vengono dai record grezzi perché l'aggregato di Connessione Salute era vuoto. */
+    @Volatile var stepsFromRaw = false
+
+    private suspend fun stepChunks(start: Instant, end: Instant): List<StepChunk> =
+        readRecords(StepsRecord::class, start, end).map { StepChunk(it.metadata.dataOrigin.packageName, it.startTime, it.endTime, it.count) }
+
     suspend fun readAll(days: Long): Map<Metric, List<DailyPoint>> {
         val granted = granted()
         val zone = ZoneId.systemDefault()
@@ -204,9 +212,17 @@ class HealthRepo(private val context: Context) {
                     timeRangeSlicer = Period.ofDays(1),
                 )
             )
-            out[Metric.STEPS] = groups.mapNotNull { g ->
+            val agg = groups.mapNotNull { g ->
                 val c = g.result[StepsRecord.COUNT_TOTAL] ?: return@mapNotNull null
-                if (c <= 0L) null else DailyPoint(g.startTime.toLocalDate(), c.toDouble())
+                if (c <= 0L) null else g.startTime.toLocalDate() to c
+            }.toMap()
+            // Ripiego sui record grezzi per i giorni che l'aggregato restituisce vuoti (vedi StepsMerge)
+            val todayStart = today.atStartOfDay(zone).toInstant()
+            val raw = StepsMerge.daily(stepChunks(start, todayStart), zone)
+            stepsFromRaw = raw.keys.any { it !in agg }
+            out[Metric.STEPS] = (raw.keys + agg.keys).toSortedSet().mapNotNull { d ->
+                val v = agg[d] ?: raw[d] ?: return@mapNotNull null
+                if (v <= 0L) null else DailyPoint(d, v.toDouble())
             }
         }
         return out
@@ -340,6 +356,14 @@ class HealthRepo(private val context: Context) {
                     hourly[h] = b.result[StepsRecord.COUNT_TOTAL] ?: 0L
                 }
                 total = client.aggregate(AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(dayStart, now)))[StepsRecord.COUNT_TOTAL]
+                if ((total ?: 0L) == 0L && hourly.sum() == 0L) {
+                    val raw = StepsMerge.hourly(stepChunks(dayStart, now), zone)
+                    if (raw.isNotEmpty()) {
+                        raw.forEach { (b, v) -> val h = b.atZone(zone).hour; if (b >= dayStart) hourly[h] = hourly[h] + v }
+                        total = hourly.sum()
+                        stepsFromRaw = true
+                    }
+                }
             }
         }
         var kcal: Double? = null
