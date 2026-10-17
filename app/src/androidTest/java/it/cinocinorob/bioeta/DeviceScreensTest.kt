@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -75,6 +76,7 @@ class DeviceScreensTest {
     }
 
     private fun screenshot(name: String) {
+        closeSystemDialogs()
         compose.waitForIdle()
         Thread.sleep(700)
         shot++
@@ -201,7 +203,21 @@ class DeviceScreensTest {
         compose.waitUntil(timeoutMs) { compose.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
 
+    /** Chiude i popup di sistema (es. «Pixel Launcher isn't responding» sugli emulatori lenti) che rubano il tasto Indietro. */
+    private fun closeSystemDialogs() {
+        shell("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
+        Thread.sleep(300)
+    }
+
+    private fun back() {
+        closeSystemDialogs()
+        inst.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        Thread.sleep(800)
+    }
+
     private fun tab(name: String) {
+        closeSystemDialogs()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("tab_$name").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("tab_$name").performClick()
         compose.waitForIdle()
         Thread.sleep(1200)
@@ -214,6 +230,7 @@ class DeviceScreensTest {
         shell("mkdir -p $dir")
         shell("rm -f $dir/*.png")
         grantAll()
+        shell("settings put global hide_error_dialogs 1")
         val client = HealthConnectClient.getOrCreate(ctx)
         val granted = client.permissionController.getGrantedPermissions()
         Log.i("BioEtaE2E", "permessi concessi: ${granted.size}")
@@ -270,8 +287,7 @@ class DeviceScreensTest {
             screenshot("allenamenti_importati")
             waitText("Bici", 20_000)
             waitText("Corsa", 20_000)
-            inst.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
-            Thread.sleep(800)
+            back()
 
             tab("HEALTH")
             screenshot("salute")
@@ -291,16 +307,14 @@ class DeviceScreensTest {
             compose.onAllNodesWithText("FC a riposo")[0].performClick()
             Thread.sleep(1200)
             screenshot("dettaglio_fc_riposo")
-            inst.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
-            Thread.sleep(800)
+            back()
 
             // Profilo e tema chiaro
             compose.onNodeWithTag("profile_button").performClick()
             Thread.sleep(1000)
             screenshot("profilo")
             compose.onNodeWithText("Chiaro").performClick()
-            inst.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
-            Thread.sleep(1200)
+            back()
             screenshot("home_tema_chiaro")
             tab("ACTIVITY")
             screenshot("attivita_tema_chiaro")
