@@ -149,7 +149,7 @@ fun VitalsCard(vm: AppViewModel) {
 
 /** Intervallo personale (banda) con il valore della notte (punto). */
 @Composable
-private fun RangeDot(value: Double, low: Double?, high: Double?, color: Color, modifier: Modifier) {
+internal fun RangeDot(value: Double, low: Double?, high: Double?, color: Color, modifier: Modifier) {
     val p = LocalPalette.current
     Canvas(modifier.height(16.dp)) {
         val h = 6.dp.toPx(); val y = size.height / 2

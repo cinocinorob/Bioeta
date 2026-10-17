@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.health.connect.client.HealthConnectClient
 import it.cinocinorob.bioeta.AppViewModel
+import it.cinocinorob.bioeta.science.RadarLevel
 import it.cinocinorob.bioeta.data.Sex
 import it.cinocinorob.bioeta.data.SyncState
 import it.cinocinorob.bioeta.health.HealthRepo
@@ -109,10 +110,16 @@ fun HomeScreen(
         if (vm.hasAnyHealthPermission && lw != null && java.time.Duration.between(lw, java.time.Instant.now()).toHours() >= 14) item {
             InlineNotice("L'orologio non scrive in Connessione Salute da ${agoShort(lw)}: sonno e dati recenti possono mancare.", NoticeKind.WARN, "Verifica", onOpenSync)
         }
-        t.readiness.flags.forEach { fl -> item { InlineNotice(fl, NoticeKind.WARN) } }
+        // Il radar sostituisce l'avviso generico del Recupero quando c'è un quadro da malessere
+        val radarAlert = vm.radar.level == RadarLevel.MINOR || vm.radar.level == RadarLevel.MAJOR
+        if (!radarAlert) t.readiness.flags.forEach { fl -> item { InlineNotice(fl, NoticeKind.WARN) } }
+        item { ChangesNotice(vm) }
+        if (vm.hasAnyHealthPermission && radarAlert) item { RadarCard(vm) }
 
         // ---------------- Quadrante di oggi ----------------
         item { HeroToday(vm, mood, onGoHealth, onGoActivity) }
+        if (vm.hasAnyHealthPermission && !radarAlert) item { RadarCard(vm) }
+        item { RpePrompt(vm) }
 
         // ---------------- Età ----------------
         item { SectionHeader("Età", "Dettagli", onGoAge) }
@@ -212,7 +219,6 @@ fun HomeScreen(
         }
 
         // ---------------- Sezioni del giorno, in forma compatta ----------------
-        if (vm.hasAnyHealthPermission && vm.vitals.outliers >= 2) item { VitalsCard(vm) }
         vm.bedtimeGuide?.let { g ->
             item {
                 CompactRow(BioIcons.Moon, Tint.sleep, "Stasera a letto entro ${Bedtime.fmt(g.bedtime)}",

@@ -19,7 +19,11 @@ import kotlin.math.sqrt
 object ExtraRefs {
     val GARDINER = Ref("Gardiner et al., Sleep Med Rev 2023", "The effect of caffeine on subsequent sleep: a systematic review and meta-analysis", "36870101", "10.1016/j.smrv.2023.101764", StudyType.META_RCT)
     val WINDRED = Ref("Windred et al., Sleep 2024", "Sleep regularity is a stronger predictor of mortality risk than sleep duration: a prospective cohort study", "37738616", "10.1093/sleep/zsad253", StudyType.META_OBS)
-    val MISHRA = Ref("Mishra et al., Nat Biomed Eng 2020", "Pre-symptomatic detection of COVID-19 from smartwatch data", "33208926", "10.1038/s41551-020-00640-6", StudyType.SYSTEMATIC)
+    val MISHRA = Ref("Mishra et al., Nat Biomed Eng 2020", "Pre-symptomatic detection of COVID-19 from smartwatch data", "33208926", "10.1038/s41551-020-00640-6", StudyType.OBS)
+    val ALAVI = Ref("Alavi et al., Nat Med 2022", "Real-time alerting system for COVID-19 and other stress events using wearable data", "34845389", "10.1038/s41591-021-01593-2", StudyType.OBS)
+    val FOSTER2001 = Ref("Foster et al., J Strength Cond Res 2001", "A new approach to monitoring exercise training", "11708692", "", StudyType.OBS)
+    val FOSTER1998 = Ref("Foster, Med Sci Sports Exerc 1998", "Monitoring training in athletes with reference to overtraining syndrome", "9662690", "10.1097/00005768-199807000-00023", StudyType.OBS)
+    val HADDAD = Ref("Haddad et al., Front Neurosci 2017", "Session-RPE method for training load monitoring: validity, ecological usefulness, and influencing factors", "29163016", "10.3389/fnins.2017.00612", StudyType.SYSTEMATIC)
     val GABBETT = Ref("Gabbett, Br J Sports Med 2016", "The training-injury prevention paradox: should athletes be training smarter and harder?", "26758673", "10.1136/bjsports-2015-095788", StudyType.SYSTEMATIC)
     val IMPELLIZZERI = Ref("Impellizzeri et al., IJSPP 2020", "Acute:Chronic Workload Ratio: conceptual issues and fundamental pitfalls", "32502973", "10.1123/ijspp.2019-0864", StudyType.SYSTEMATIC)
 }

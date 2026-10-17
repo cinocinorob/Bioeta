@@ -53,6 +53,21 @@ class WorkoutStore(context: Context) {
         list to statusFrom(o.optJSONObject("status"))
     }.getOrDefault(emptyList<Session>() to SyncStatus())
 
+    private val rpeFile = File(context.filesDir, "rpe.json")
+
+    /** Voti di fatica percepita per allenamento (id → 0..10; −1 = l'utente ha scelto di non votare). */
+    fun loadRpe(): Map<String, Int> = runCatching {
+        val o = JSONObject(rpeFile.readText())
+        o.keys().asSequence().associateWith { o.getInt(it) }
+    }.getOrDefault(emptyMap())
+
+    fun saveRpe(m: Map<String, Int>) {
+        val o = JSONObject(); m.forEach { (k, v) -> o.put(k, v) }
+        val tmp = File(rpeFile.parentFile, rpeFile.name + ".tmp")
+        tmp.writeText(o.toString())
+        tmp.renameTo(rpeFile)
+    }
+
     fun save(sessions: List<Session>, status: SyncStatus) {
         val arr = JSONArray(); sessions.forEach { arr.put(sessionTo(it)) }
         val tmp = File(file.parentFile, file.name + ".tmp")

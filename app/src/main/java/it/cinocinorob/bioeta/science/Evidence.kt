@@ -12,6 +12,7 @@ enum class StudyType(val label: String) {
     META_OBS("Meta-analisi osservazionale"),
     RCT("RCT"),
     SYSTEMATIC("Revisione sistematica"),
+    OBS("Studio osservazionale"),
 }
 
 data class Ref(

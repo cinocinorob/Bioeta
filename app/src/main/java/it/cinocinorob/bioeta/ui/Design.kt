@@ -278,7 +278,7 @@ fun InfoDialog(title: String, text: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun Modifier.androidxVerticalScroll(): Modifier =
+internal fun Modifier.androidxVerticalScroll(): Modifier =
     this.verticalScroll(androidx.compose.foundation.rememberScrollState())
 
 /** Valore grande + unità piccola grigia. */
