@@ -267,7 +267,7 @@ class DeviceScreensTest {
             Thread.sleep(800)
 
             // Profilo e tema chiaro
-            compose.onNode(androidx.compose.ui.test.hasClickLabel("Profilo e impostazioni")).performClick()
+            compose.onNodeWithTag("profile_button").performClick()
             Thread.sleep(1000)
             screenshot("profilo")
             compose.onNodeWithText("Chiaro").performClick()

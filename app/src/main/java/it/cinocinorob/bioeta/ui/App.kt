@@ -254,7 +254,7 @@ private fun MainTabs(
                     if (tab == Tab.LABS) IconButton(onClick = { askClaude("") }) { Icon(BioIcons.Chat, "Chiedi a Claude") }
                     IconButton(onClick = { vm.refreshHealth(force = true) }) { Icon(BioIcons.Refresh, "Aggiorna i dati") }
                     Box(
-                        Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape)
+                        Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape).testTag("profile_button")
                             .background(MaterialTheme.colorScheme.primaryContainer)
                             .clickable(onClickLabel = "Profilo e impostazioni") { push(R_PROFILE) },
                         contentAlignment = Alignment.Center,
