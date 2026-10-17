@@ -679,7 +679,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val displaySessions: List<Session> get() = ActivityEngine.dedupe(sessions)
 
     /** Ultimi 28 giorni di attività (minuti attivi misurati/stimati, carico cardiaco), dal più vecchio. */
-    var dayActivities by mutableStateOf(workoutStore.loadDays()?.takeIf { it.version == ACTIVITY_ALGO_VERSION }?.days ?: emptyList())
+    private val initialDays = workoutStore.loadDays()?.takeIf { it.version == ACTIVITY_ALGO_VERSION }
+    var dayActivities by mutableStateOf(initialDays?.days ?: emptyList())
+
+    /**
+     * FC a riposo di riferimento per carico e minuti attivi, stabilizzata: resta quella usata per lo storico
+     * finché la media dei 30 giorni non si sposta di almeno 2 bpm. Così oggi e i giorni in cache sono calcolati
+     * con lo stesso riferimento e i valori passati non cambiano a ogni apertura per spostamenti di decimi di bpm.
+     */
+    private var activityRest: Double? = initialDays?.rest
+    private fun stableRest(): Double {
+        val cur = restHrRef
+        val prev = activityRest
+        val r = if (prev != null && kotlin.math.abs(prev - cur) < 2.0) prev else cur
+        activityRest = r
+        return r
+    }
         private set
     val dayLoads: List<DayLoad> get() = dayActivities.map { it.toDayLoad() }
     val todayDayActivity: DayActivity? get() = dayActivities.lastOrNull { it.date == java.time.LocalDate.now() }
@@ -742,16 +757,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return withContext(Dispatchers.Default) { ActivityEngine.minuteSeries(samples) } to failed
     }
 
-    private fun computeDay(d: java.time.LocalDate, hr: Map<Long, Double>): DayActivity {
+    private fun computeDay(d: java.time.LocalDate, hr: Map<Long, Double>, rest: Double): DayActivity {
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
-        return ActivityEngine.day(d, zoneId(), hr, displaySessions, restHrRef, age, profile.sex == Sex.M)
+        return ActivityEngine.day(d, zoneId(), hr, displaySessions, rest, age, profile.sex == Sex.M)
     }
 
     /** Solo oggi: per mostrare subito minuti attivi e carico di oggi nella fase veloce. */
     private suspend fun refreshToday() {
         val today = java.time.LocalDate.now(zoneId())
         val (hr, _) = hrMinutesFor(today)
-        val day = withContext(Dispatchers.Default) { computeDay(today, hr) }
+        val rest = stableRest()
+        val day = withContext(Dispatchers.Default) { computeDay(today, hr, rest) }
         dayActivities = (dayActivities.filter { it.date != today } + day).sortedBy { it.date }
     }
 
@@ -760,7 +776,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         fitnessLoading = true
         try {
-            val rest = restHrRef
+            val rest = stableRest()
             val cache = withContext(Dispatchers.IO) { workoutStore.loadDays() }
             val reuse = if (cache != null && cache.version == ACTIVITY_ALGO_VERSION && kotlin.math.abs(cache.rest - rest) < 2.0 && kotlin.math.abs(cache.age - age) < 1.0)
                 cache.days.associateBy { it.date } else emptyMap()
@@ -779,7 +795,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (c != null && k >= 2 && c.hrMinutes >= ActivityEngine.COMPLETE_COVERAGE_MIN && d !in sessionDays) { out += c; continue }
                 val (hr, err) = hrMinutesFor(d)
                 if (err) failed += d
-                out += withContext(Dispatchers.Default) { computeDay(d, hr) }
+                out += withContext(Dispatchers.Default) { computeDay(d, hr, rest) }
             }
             dayActivities = out
             withContext(Dispatchers.IO) { workoutStore.saveDays(rest, age, out.filter { it.date !in failed }) }
@@ -793,7 +809,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun refreshWorkoutStats() {
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         val male = profile.sex == Sex.M
-        val rest = restHrRef
+        val rest = stableRest()
         val maxHr = Fitness.hrMax(age)
         val since = java.time.Instant.now().minus(java.time.Duration.ofDays(14))
         val out = HashMap<String, WorkoutStats>()

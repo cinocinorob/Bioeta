@@ -29,8 +29,10 @@ class HealthSync(private val repo: HealthRepo) {
         val today = LocalDate.now()
         val from = today.minusDays(RECENT_DAYS - 1)
         val ta = runCatching { repo.todayActivity() }.getOrNull() ?: s.today.takeIf { s.todayDate == today }
-        val rec = repo.readRecovery(3)
-        val nights = if (rec.nights.isNotEmpty()) SnapshotMerge.nights(s.nights, rec.nights) else s.nights
+        // Stessa finestra delle serie: con la lettura allineata a mezzanotte la notte e gli allenamenti del
+        // giorno più vecchio (from) sono completi; il giorno prima viene scartato da HealthRepo.
+        val rec = repo.readRecovery(RECENT_DAYS)
+        val nights = if (rec.nights.isNotEmpty()) SnapshotMerge.nights(s.nights, rec.nights.filter { !it.date.isBefore(from) }) else s.nights
         val exercises = if (repo.errors.containsKey("Allenamenti")) s.exercises
             else s.exercises.filter { it.date.isBefore(from) } + rec.exercises.filter { !it.date.isBefore(from) }
         val recent = repo.readAll(RECENT_DAYS)
