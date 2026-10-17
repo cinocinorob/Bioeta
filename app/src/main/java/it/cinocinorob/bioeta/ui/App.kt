@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -270,6 +271,7 @@ private fun MainTabs(
             NavigationBar(containerColor = pal.card, tonalElevation = 0.dp) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
+                        modifier = Modifier.testTag("tab_${t.name}"),
                         selected = tab == t, onClick = { onTab(t) },
                         icon = { Icon(tabIcon(t), null) },
                         label = { Text(t.label, maxLines = 1) },

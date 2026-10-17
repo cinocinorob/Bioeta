@@ -12,8 +12,9 @@ android {
         applicationId = "it.cinocinorob.bioeta"
         minSdk = 28
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.8.0"
+        versionCode = 10
+        versionName = "0.9.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // Chiave fissa: ogni nuova build si installa sopra la precedente senza perdere i dati.
@@ -82,6 +83,14 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
     testImplementation("junit:junit:4.13.2")
+
+    // Test end-to-end su emulatore (dati sintetici in Connessione Salute + screenshot reali)
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
 // Rendering degli schermi per la revisione grafica (solo con -Pshots, non entra nell'APK)

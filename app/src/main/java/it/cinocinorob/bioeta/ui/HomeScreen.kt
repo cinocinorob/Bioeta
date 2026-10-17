@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -81,7 +82,7 @@ fun HomeScreen(
     val mood = moodFor(t.readiness.score, t.readiness.calibrating || !vm.hasAnyHealthPermission)
 
     LazyColumn(
-        modifier.fillMaxSize(),
+        modifier.fillMaxSize().testTag("home_list"),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
