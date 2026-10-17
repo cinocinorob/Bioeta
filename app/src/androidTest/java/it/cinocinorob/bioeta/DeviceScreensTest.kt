@@ -224,7 +224,7 @@ class DeviceScreensTest {
             waitText("Aggiornato", 90_000)
             Thread.sleep(6000) // fase completa: storico, carico, statistiche allenamenti
             screenshot("home")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Recupero e fisiologia"))
+            compose.onNodeWithTag("home_list").performScrollToNode(hasText("I tuoi numeri"))
             screenshot("home_eta_fisiologia")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Allenamenti oggi", substring = true))
             screenshot("home_attivita")
