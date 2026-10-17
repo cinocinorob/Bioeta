@@ -21,6 +21,12 @@ import it.cinocinorob.bioeta.data.BioAgeEngine
 import it.cinocinorob.bioeta.data.Analytes
 import it.cinocinorob.bioeta.data.AutoBackup
 import it.cinocinorob.bioeta.data.Sex
+import it.cinocinorob.bioeta.data.DayScores
+import it.cinocinorob.bioeta.data.Scoring
+import it.cinocinorob.bioeta.data.ScoringInputs
+import it.cinocinorob.bioeta.data.HealthCache
+import it.cinocinorob.bioeta.data.HealthSnapshot
+import it.cinocinorob.bioeta.data.HealthSync
 import it.cinocinorob.bioeta.assistant.CitationCheck
 import it.cinocinorob.bioeta.assistant.Claude
 import it.cinocinorob.bioeta.assistant.Prompt
@@ -69,12 +75,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var granted by mutableStateOf<Set<String>>(emptySet())
         private set
-    var wearable by mutableStateOf<Map<Metric, List<DailyPoint>>>(emptyMap())
+    /** Fotografia salvata dell'ultima lettura: l'app si apre già con i dati (vedi HealthCache). */
+    private val healthCache = HealthCache(app)
+    private var snapshot: HealthSnapshot = healthCache.load()
+
+    var wearable by mutableStateOf<Map<Metric, List<DailyPoint>>>(snapshot.wearable)
         private set
     var loading by mutableStateOf(false)
         private set
     /** Ultimo dato scritto dall'orologio in Connessione Salute (null = nessuno o non leggibile). */
-    var lastWearable by mutableStateOf<java.time.Instant?>(null)
+    var lastWearable by mutableStateOf<java.time.Instant?>(snapshot.lastWearable)
         private set
     var message by mutableStateOf<String?>(null)
 
@@ -88,7 +98,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var lastFull = 0L
 
     /** Momento dell'ultima lettura riuscita da Connessione Salute (mostrato nella dashboard). */
-    var lastRefresh by mutableStateOf<java.time.Instant?>(null)
+    var lastRefresh by mutableStateOf<java.time.Instant?>(snapshot.lastRefresh)
         private set
 
     /**
@@ -109,40 +119,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 granted = health.granted()
                 if (hasAnyHealthPermission) {
-                    todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
-                    val quick = health.readRecovery(3)
-                    if (quick.nights.isNotEmpty()) {
-                        val dates = quick.nights.map { it.date }.toSet()
-                        sleepNights = (sleepNights.filter { it.date !in dates } + quick.nights).sortedBy { it.date }
-                    }
-                    lastWearable = runCatching { health.lastWearableData() }.getOrNull()
+                    val sync = HealthSync(health)
+                    // Lettura incrementale: i cambiamenti dall'ultimo token decidono se serve rileggere tutto
+                    val (needFull, changes) = sync.decide(snapshot, force)
+                    snapshot = sync.quick(snapshot).let { s -> if (changes != null && !changes.expired && changes.newToken != null) s.copy(changesToken = changes.newToken) else s }
+                    applySnapshot(snapshot)
                     // Allenamenti e minuti attivi/carico di oggi già nella fase veloce
                     quietly { syncSessions() }
                     quietly { refreshToday() }
-                    lastRefresh = java.time.Instant.now()
+                    saveSnapshot()
                     updateWidget()
-                    if (force || System.currentTimeMillis() - lastFull > 10 * 60_000L || wearable.isEmpty()) {
-                        // Una lettura parziale non deve cancellare serie valide già caricate:
-                        // conserva la cache solo per metriche autorizzate la cui lettura è fallita.
-                        val fresh = health.readAll(DAYS_WINDOW)
-                        val failedButStillGranted = Metric.entries.filter { metric ->
-                            health.permissionFor(metric) in granted &&
-                                metric !in fresh.keys &&
-                                health.errors.containsKey(health.readErrorKeyFor(metric))
-                        }.toSet()
-                        wearable = fresh + wearable.filter { (metric, _) ->
-                            health.permissionFor(metric) in granted && metric in failedButStillGranted
-                        }
-
-                        val rec = health.readRecovery(RECOVERY_WINDOW)
-                        // In caso di errore di lettura, non sostituire dati validi con liste vuote.
-                        if (health.permissionFor(Metric.SLEEP) !in granted || !health.errors.containsKey("Sonno (fasi)")) {
-                            sleepNights = rec.nights
-                        }
-                        if (!health.errors.containsKey("Allenamenti")) exercises = rec.exercises
+                    if (needFull) {
+                        snapshot = sync.full(snapshot, granted)
+                        applySnapshot(snapshot)
                         refreshFitness()
-                        lastFull = System.currentTimeMillis()
-                        lastRefresh = java.time.Instant.now()
+                        saveSnapshot()
                         updateWidget()
                     }
                 }
@@ -155,6 +146,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    private fun applySnapshot(s: HealthSnapshot) {
+        wearable = s.wearable
+        sleepNights = s.nights
+        exercises = s.exercises
+        if (s.todayDate == java.time.LocalDate.now()) todayActivity = s.today
+        lastWearable = s.lastWearable
+        lastRefresh = s.lastRefresh
+    }
+
+    private suspend fun saveSnapshot() {
+        val s = snapshot.copy(today = todayActivity ?: snapshot.today, todayDate = if (todayActivity != null) java.time.LocalDate.now() else snapshot.todayDate)
+        snapshot = s
+        withContext(Dispatchers.IO) { runCatching { healthCache.save(s) } }
+    }
+
+    /** Ultimo aggiornamento eseguito in background (null se mai). */
+    val lastBackgroundSync: java.time.Instant? get() = healthCache.load().lastBackground
 
     /** Esegue un passo opzionale: gli errori non bloccano il resto, la cancellazione sì. */
     private inline fun quietly(block: () -> Unit) {
@@ -544,47 +553,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Sonno e Prontezza ----------------
 
-    var sleepNights by mutableStateOf<List<SleepNight>>(emptyList())
+    var sleepNights by mutableStateOf<List<SleepNight>>(snapshot.nights)
         private set
-    var exercises by mutableStateOf<List<ExerciseLoad>>(emptyList())
+    var exercises by mutableStateOf<List<ExerciseLoad>>(snapshot.exercises)
         private set
 
     val missingRecoveryPermissions: Boolean
         get() = hcAvailable && hasAnyHealthPermission && health.permissions.any { it !in granted && it != HealthRepo.HISTORY_PERMISSION }
 
-    data class DayScores(val date: java.time.LocalDate, val night: SleepNight?, val sleep: ScoreResult?, val readiness: ScoreResult)
+    private val scoringInputs: ScoringInputs
+        get() = ScoringInputs(wearable, sleepNights, exercises, dayLoads, profile)
 
-    fun sleepFor(date: java.time.LocalDate): Pair<SleepNight, ScoreResult>? {
-        val night = sleepNights.firstOrNull { it.date == date } ?: return null
-        val hist = sleepNights.filter { it.date.isBefore(date) && !it.date.isBefore(date.minusDays(60)) }
-        return night to SleepScore.compute(night, hist, profile.ageAt(date))
-    }
+    fun sleepFor(date: java.time.LocalDate): Pair<SleepNight, ScoreResult>? = Scoring.sleepFor(date, scoringInputs)
 
-    fun scoresFor(date: java.time.LocalDate): DayScores {
-        val s = sleepFor(date)
-        fun series(m: Metric) = wearable[m].orEmpty().filter { !it.date.isAfter(date) }.map { DailyValue(it.date, it.value) }
-        val rhr = series(Metric.RHR).ifEmpty {
-            // Se manca la FC a riposo, usa la FC media notturna come approssimazione
-            sleepNights.filter { !it.date.isAfter(date) }.mapNotNull { n -> n.avgHr?.let { DailyValue(n.date, it) } }
-        }
-        val r = Readiness.compute(
-            Readiness.Inputs(
-                date = date,
-                age = profile.ageAt(date),
-                male = profile.sex == Sex.M,
-                hrv = series(Metric.HRV),
-                rhr = rhr,
-                resp = series(Metric.RESP),
-                nights = sleepNights.filter { !it.date.isAfter(date) },
-                lastNightScore = s?.second?.score,
-                exercises = exercises.filter { !it.date.isAfter(date) },
-                cardiacLoads = dayLoads
-                    .filter { !it.date.isAfter(date) && it.coveredMinutes > 0 }
-                    .map { DailyValue(it.date, it.load) },
-            )
-        )
-        return DayScores(date, s?.first, s?.second, r)
-    }
+    fun scoresFor(date: java.time.LocalDate): DayScores = Scoring.scoresFor(date, scoringInputs)
 
     // Cache: ricalcola solo quando cambiano i dati di ingresso
     private var cacheKey: List<Any?>? = null
@@ -667,7 +649,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------- Fitness ----------------
 
-    var todayActivity by mutableStateOf<HealthRepo.TodayActivity?>(null)
+    var todayActivity by mutableStateOf<HealthRepo.TodayActivity?>(snapshot.today.takeIf { snapshot.todayDate == java.time.LocalDate.now() })
         private set
     private val workoutStore = WorkoutStore(app)
     private val storedWorkouts = workoutStore.load()

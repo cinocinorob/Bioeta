@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -74,6 +75,23 @@ fun SyncScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions: () ->
                 }
             }
 
+            item {
+                val avail = remember { vm.health.backgroundReadAvailable() }
+                val on = HealthRepo.BACKGROUND_PERMISSION in vm.granted
+                HealthCard("Aggiornamento in background", BioIcons.Refresh, Tint.hrv) {
+                    when {
+                        !avail -> Caption("Questo telefono non supporta la lettura in background di Connessione Salute: i dati si aggiornano quando apri l'app.")
+                        on -> {
+                            Body("Attivo: ogni ora circa BioEtà legge gli ultimi dati e aggiorna il widget.")
+                            Caption("Ultimo aggiornamento in background: ${agoShort(vm.lastBackgroundSync)}. Android decide l'orario esatto per risparmiare batteria.")
+                        }
+                        else -> {
+                            Body("Non attivo: i dati si aggiornano solo quando apri l'app.")
+                            OutlinedButton(onClick = onRequestPermissions) { Text("Consenti lettura in background") }
+                        }
+                    }
+                }
+            }
             item { SectionHeader("Allenamenti importati") }
             if (sessions.isEmpty()) item {
                 EmptyState(BioIcons.Bolt, "Nessun allenamento importato",

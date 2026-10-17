@@ -145,6 +145,71 @@ class HealthRepo(private val context: Context) {
         Metric.LEAN_MASS -> "Massa magra"
     }
 
+    // ------------------------------------------------------------------
+    // Cambiamenti (lettura incrementale) e lettura in background
+    // ------------------------------------------------------------------
+
+    /** Tipi seguiti per capire se sono cambiati dati vecchi (la FC è esclusa: troppi record, gestita a parte). */
+    private val trackedTypes: List<KClass<out Record>> = listOf(
+        SleepSessionRecord::class, HeartRateVariabilityRmssdRecord::class, RestingHeartRateRecord::class,
+        StepsRecord::class, ExerciseSessionRecord::class, WeightRecord::class, RespiratoryRateRecord::class,
+    )
+
+    suspend fun changesToken(): String? = runCatching {
+        val g = granted()
+        val types = trackedTypes.filter { HealthPermission.getReadPermission(it) in g }.toSet()
+        if (types.isEmpty()) null else client.getChangesToken(androidx.health.connect.client.request.ChangesTokenRequest(recordTypes = types))
+    }.getOrNull()
+
+    /** Riassume i cambiamenti dall'ultimo token: quanti e il dato più vecchio toccato. */
+    suspend fun changesSince(token: String?): it.cinocinorob.bioeta.data.ChangeSummary? {
+        if (token == null) return null
+        return try {
+            var t: String = token
+            var count = 0
+            var oldest: Instant? = null
+            var unknownTime = false
+            var pages = 0
+            do {
+                val r = client.getChanges(t)
+                if (r.changesTokenExpired) return it.cinocinorob.bioeta.data.ChangeSummary(count, oldest, true, null)
+                for (c in r.changes) {
+                    count++
+                    when (c) {
+                        is androidx.health.connect.client.changes.UpsertionChange -> {
+                            val rec = c.record
+                            val time = when (rec) {
+                                is androidx.health.connect.client.records.IntervalRecord -> rec.startTime
+                                is androidx.health.connect.client.records.InstantaneousRecord -> rec.time
+                                else -> null
+                            }
+                            if (time == null) unknownTime = true else if (oldest == null || time.isBefore(oldest)) oldest = time
+                        }
+                        // Una cancellazione non dice di quale giorno era il dato: si rilegge tutto per sicurezza
+                        else -> unknownTime = true
+                    }
+                }
+                t = r.nextChangesToken
+                pages++
+            } while (r.hasMore && pages < 50)
+            it.cinocinorob.bioeta.data.ChangeSummary(count, if (unknownTime) Instant.EPOCH else oldest, false, t)
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** La lettura in background è supportata da questo telefono (Connessione Salute recente)? */
+    @androidx.annotation.OptIn(androidx.health.connect.client.feature.ExperimentalFeatureAvailabilityApi::class)
+    fun backgroundReadAvailable(): Boolean = runCatching {
+        client.features.getFeatureStatus(androidx.health.connect.client.HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND) ==
+            androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    }.getOrDefault(false)
+
+    /** Permessi da chiedere: quelli di lettura più, se supportato, la lettura in background. */
+    fun permissionsToRequest(): Set<String> = if (backgroundReadAvailable()) permissions + BACKGROUND_PERMISSION else permissions
+
     /** true se i passi mostrati vengono dai record grezzi perché l'aggregato di Connessione Salute era vuoto. */
     @Volatile var stepsFromRaw = false
 
@@ -657,6 +722,7 @@ class HealthRepo(private val context: Context) {
         const val FITBIT = "com.fitbit.FitbitMobile"
         const val PROVIDER = "com.google.android.apps.healthdata"
         const val HISTORY_PERMISSION = "android.permission.health.READ_HEALTH_DATA_HISTORY"
+        const val BACKGROUND_PERMISSION = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
 
         fun summarize(metric: Metric, points: List<DailyPoint>, today: LocalDate = LocalDate.now()): MetricSummary {
             val recentFrom = today.minusDays(7)
