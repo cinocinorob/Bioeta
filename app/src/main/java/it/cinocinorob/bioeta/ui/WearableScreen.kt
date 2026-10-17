@@ -2,6 +2,7 @@ package it.cinocinorob.bioeta.ui
 
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.background
