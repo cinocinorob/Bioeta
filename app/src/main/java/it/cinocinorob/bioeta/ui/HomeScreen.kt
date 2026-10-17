@@ -128,7 +128,7 @@ fun HomeScreen(
                         when {
                             last == null && series.isEmpty() -> "PhenoAge: servono 9 esami del sangue"
                             last == null -> "Dati incompleti nell'ultimo prelievo"
-                            else -> "PhenoAge · prelievo ${last.panel.date.itLong()}" + (chrono?.let { " · anagrafica ${it.f(1)}" } ?: "") + (if (prev != null) " · vs prelievo precedente" else "")
+                            else -> "PhenoAge · prelievo ${last.panel.date.itLong()}" + (chrono?.let { " · anagrafica ${it.f(1)}" } ?: "")
                         },
                         it,
                         trend = if (last != null && prev != null) {
@@ -141,7 +141,7 @@ fun HomeScreen(
                 {
                     val raw = vo2?.let { FitnessAge.fitnessAgeRaw(it, male) }
                     MetricTile(
-                        "Età cardiorespiratoria", raw?.let { r -> when { r < 20 -> "<20"; r > 80 -> ">80"; else -> r.f(0) } }, "anni", Tint.vo2, BioIcons.Gauge,
+                        "Età cardio", raw?.let { r -> when { r < 20 -> "<20"; r > 80 -> ">80"; else -> r.f(0) } }, "anni", Tint.vo2, BioIcons.Gauge,
                         if (raw != null) DataStatus.ESTIMATED else DataStatus.UNAVAILABLE,
                         when {
                             vo2 == null -> "Serve il VO₂max (dall'orologio o inserito nel profilo)"
