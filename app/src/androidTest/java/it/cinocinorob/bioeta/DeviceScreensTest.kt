@@ -224,11 +224,11 @@ class DeviceScreensTest {
             waitText("Aggiornato", 90_000)
             Thread.sleep(6000) // fase completa: storico, carico, statistiche allenamenti
             screenshot("home")
-            compose.onNodeWithTag("home_list").performTouchInput { swipeUp(durationMillis = 400) }
+            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Recupero e fisiologia"))
             screenshot("home_eta_fisiologia")
-            compose.onNodeWithTag("home_list").performTouchInput { swipeUp(durationMillis = 400) }
+            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Allenamenti oggi", substring = true))
             screenshot("home_attivita")
-            compose.onNodeWithTag("home_list").performTouchInput { swipeUp(durationMillis = 400) }
+            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Questa settimana"))
             screenshot("home_fine")
 
             tab("ACTIVITY")

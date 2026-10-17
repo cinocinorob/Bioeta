@@ -231,7 +231,7 @@ private fun MainTabs(
         Tab.ACTIVITY -> "Movimento, allenamenti e carico"
         Tab.HEALTH -> "Recupero, sonno e parametri vitali"
         Tab.AGE -> "PhenoAge ed età cardiorespiratoria"
-        Tab.LABS -> "Esami del sangue e andamenti"
+        Tab.LABS -> "Esami e andamenti"
     }
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),

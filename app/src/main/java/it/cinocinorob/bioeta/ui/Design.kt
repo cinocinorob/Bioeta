@@ -100,7 +100,7 @@ object Tint {
 
 val LocalPalette = staticCompositionLocalOf { DarkPalette }
 
-enum class ThemeMode(val label: String) { DARK("Scuro"), LIGHT("Chiaro"), SYSTEM("Come il sistema") }
+enum class ThemeMode(val label: String) { DARK("Scuro"), LIGHT("Chiaro"), SYSTEM("Sistema") }
 
 /** Manrope (SIL OFL 1.1, file in res/font): font variabile, pesi selezionati via asse "wght". */
 @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
