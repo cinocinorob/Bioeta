@@ -215,20 +215,21 @@ fun ActivityScreen(
                         InlineNotice("Nessuna frequenza cardiaca oggi in Connessione Salute: il carico non è calcolabile.", NoticeKind.WARN)
                     }
                     else -> {
+                        val da = dayAct!!
                         Row(verticalAlignment = Alignment.Bottom) {
-                            BigValue(dayAct!!.load.f(0), null, size = 38)
+                            BigValue(da.load.f(0), null, size = 38)
                             Spacer(Modifier.width(8.dp))
                             if (target != null) Caption("obiettivo ${target.low.f(0)}–${target.high.f(0)}")
                             Spacer(Modifier.weight(1f))
                             if (target != null) {
-                                val st = Fitness.status(dayAct.load, target)
+                                val st = Fitness.status(da.load, target)
                                 Pill(st.label, when (st) { LoadStatus.IN_RANGE -> Tint.good; LoadStatus.BELOW -> Tint.blue; LoadStatus.ABOVE -> Tint.warn })
                             }
                         }
-                        if (target != null) TargetGauge(dayAct.load, target.low, target.high)
+                        if (target != null) TargetGauge(da.load, target.low, target.high)
                         else Caption("Obiettivo personale disponibile dopo ${Fitness.TARGET_MIN_DAYS} giorni con l'orologio indossato (ora ${Fitness.completeDays(vm.dayLoads, today)}).")
-                        if (quality == LoadQuality.PARTIAL) Caption("Parziale: frequenza cardiaca per ${dayAct.hrMinutes} minuti. Il valore è sottostimato.", Tint.warn)
-                        ZoneBar(dayAct.zoneMinutes)
+                        if (quality == LoadQuality.PARTIAL) Caption("Parziale: frequenza cardiaca per ${da.hrMinutes} minuti. Il valore è sottostimato.", Tint.warn)
+                        ZoneBar(da.zoneMinutes)
                     }
                 }
                 DayBars(loadBars(vm), Tint.load, "carico", band = target?.let { it.low to it.high })

@@ -179,8 +179,13 @@ class HealthRepo(private val context: Context) {
                         is androidx.health.connect.client.changes.UpsertionChange -> {
                             val rec = c.record
                             val time = when (rec) {
-                                is androidx.health.connect.client.records.IntervalRecord -> rec.startTime
-                                is androidx.health.connect.client.records.InstantaneousRecord -> rec.time
+                                is SleepSessionRecord -> rec.startTime
+                                is StepsRecord -> rec.startTime
+                                is ExerciseSessionRecord -> rec.startTime
+                                is HeartRateVariabilityRmssdRecord -> rec.time
+                                is RestingHeartRateRecord -> rec.time
+                                is WeightRecord -> rec.time
+                                is RespiratoryRateRecord -> rec.time
                                 else -> null
                             }
                             if (time == null) unknownTime = true else if (oldest == null || time.isBefore(oldest)) oldest = time
@@ -201,7 +206,6 @@ class HealthRepo(private val context: Context) {
     }
 
     /** La lettura in background è supportata da questo telefono (Connessione Salute recente)? */
-    @androidx.annotation.OptIn(androidx.health.connect.client.feature.ExperimentalFeatureAvailabilityApi::class)
     fun backgroundReadAvailable(): Boolean = runCatching {
         client.features.getFeatureStatus(androidx.health.connect.client.HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND) ==
             androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
