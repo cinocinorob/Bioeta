@@ -57,6 +57,8 @@ fun HealthChart(
     band: Pair<Double, Double>? = null,
     bandColor: Color = Tint.blue,
     xLabel: (Double) -> String = ::epochLabel,
+    /** Unità mostrata sopra l'asse Y. */
+    unit: String? = null,
 ) {
     val all = layers.flatMap { it.points }
     if (all.isEmpty()) return
@@ -68,7 +70,7 @@ fun HealthChart(
     Canvas(modifier.fillMaxWidth().height(height.dp)) {
         val left = 4.dp.toPx()
         val right = 40.dp.toPx()
-        val top = 10.dp.toPx()
+        val top = (if (unit != null) 18 else 10).dp.toPx()
         val bottom = 22.dp.toPx()
         var minX = all.minOf { it.first }
         var maxX = all.maxOf { it.first }
@@ -94,6 +96,13 @@ fun HealthChart(
             drawContext.canvas.nativeCanvas.drawText(yv.f(yDecimals), left + w + 6.dp.toPx(), yy + 4.dp.toPx(), paint)
         }
         drawLine(grid, Offset(left, top + h), Offset(left + w, top + h), strokeWidth = 1f)
+        if (unit != null) {
+            paint.textAlign = Paint.Align.RIGHT
+            drawContext.canvas.nativeCanvas.drawText(unit, size.width, top - 1.dp.toPx(), paint)
+        }
+        // etichetta centrale dell'asse X
+        paint.textAlign = Paint.Align.CENTER
+        drawContext.canvas.nativeCanvas.drawText(xLabel((minX + maxX) / 2), left + w / 2, size.height - 4.dp.toPx(), paint)
         paint.textAlign = Paint.Align.LEFT
         drawContext.canvas.nativeCanvas.drawText(xLabel(minX), left, size.height - 4.dp.toPx(), paint)
         paint.textAlign = Paint.Align.RIGHT

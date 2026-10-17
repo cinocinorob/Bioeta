@@ -2,6 +2,7 @@ package it.cinocinorob.bioeta.ui
 
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +43,12 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-// ======================= Palette (calda e gentile, pastello) =======================
+// ======================= Design system BioEtà =======================
+//
+// Identità: "inchiostro" scuro come tema predefinito (ispirazione: app di benessere premium),
+// superfici leggermente rialzate con bordo sottile invece delle ombre, un colore per ogni dominio
+// fisiologico usato in modo coerente in tutta l'app (anelli, grafici, icone, badge).
+// Contrasti: testo principale ≥ 12:1, testo secondario ≥ 6:1 sullo sfondo (WCAG AA ampiamente rispettato).
 
 data class Palette(
     val bg: Color,
@@ -52,85 +58,111 @@ data class Palette(
     val sep: Color,
     val field: Color,
     val dark: Boolean,
+    /** Superficie rialzata (chip, campi, celle interne). */
+    val card2: Color = field,
+    /** Bordo sottile delle card. */
+    val border: Color = sep,
+    /** Testo terziario (etichette assi, note). */
+    val text3: Color = text2,
 )
 
-private val LightPalette = Palette(
-    bg = Color(0xFFF7F3EC), card = Color(0xFFFFFFFF), text = Color(0xFF221F2E),
-    text2 = Color(0xFF8E8899), sep = Color(0xFFECE6DC), field = Color(0xFFF3EEE6), dark = false,
+val DarkPalette = Palette(
+    bg = Color(0xFF0A0E13), card = Color(0xFF121820), text = Color(0xFFF1F4F8),
+    text2 = Color(0xFF9AA7B6), sep = Color(0xFF222B36), field = Color(0xFF1A222D), dark = true,
+    card2 = Color(0xFF1A222D), border = Color(0x14FFFFFF), text3 = Color(0xFF6E7A88),
 )
-private val DarkPalette = Palette(
-    bg = Color(0xFF0A1014), card = Color(0xFF141E24), text = Color(0xFFF2F7F5),
-    text2 = Color(0xFF9AAEAA), sep = Color(0xFF26363A), field = Color(0xFF1B2A2F), dark = true,
+val LightPalette = Palette(
+    bg = Color(0xFFF5F4F1), card = Color(0xFFFFFFFF), text = Color(0xFF10151B),
+    text2 = Color(0xFF5B6572), sep = Color(0xFFE6E3DE), field = Color(0xFFF0EEEA), dark = false,
+    card2 = Color(0xFFF2F0EC), border = Color(0x12000000), text3 = Color(0xFF8A929C),
 )
 
-/** Colori per categoria: tinte pastello sature quanto basta per restare leggibili. */
+/** Colori di dominio (identici in tema chiaro e scuro: saturazione media, leggibili su entrambi). */
 object Tint {
-    val heart = Color(0xFFFF718B)
-    val hrv = Color(0xFF62D9C2)
-    val sleep = Color(0xFF8E7CFF)
-    val activity = Color(0xFF62C8F5)
+    val brand = Color(0xFF3ED69A)    // menta BioEtà
+    val heart = Color(0xFFFF6B88)    // FC, cuore
+    val hrv = Color(0xFF45C8E0)      // HRV, sistema nervoso autonomo
+    val sleep = Color(0xFF9D8BFF)    // sonno
+    val activity = Color(0xFFFFAA4C) // passi, movimento
+    val load = Color(0xFFFF7A5C)     // carico cardiaco
     val resp = Color(0xFF4FB8E8)
     val spo2 = Color(0xFF5B8DEF)
-    val body = Color(0xFFB57BEE)
+    val body = Color(0xFFC08BFF)
     val blood = Color(0xFFF2617A)
-    val bio = Color(0xFF3FBF8F)
+    val bio = Color(0xFF3ED69A)      // età biologica
     val vo2 = Color(0xFFFF8A5B)
-    val blue = Color(0xFF5B7CF0)
-    val good = Color(0xFF54D6A5)
-    val bad = Color(0xFFF2617A)
-    val warn = Color(0xFFF5A524)
+    val blue = Color(0xFF6E9BFF)     // analisi, link
+    val good = Color(0xFF3ED69A)
+    val bad = Color(0xFFFF5D73)
+    val warn = Color(0xFFFFB547)
     val bp = Color(0xFFE85D9A)
 }
 
-val LocalPalette = staticCompositionLocalOf { LightPalette }
+val LocalPalette = staticCompositionLocalOf { DarkPalette }
 
-/** Schema di riserva (quando i colori dinamici non sono disponibili): verde salvia, tonale Material 3. */
-private val FallbackLight = lightColorScheme(
-    primary = Color(0xFF2E6A55), onPrimary = Color.White, primaryContainer = Color(0xFFB2F0D6), onPrimaryContainer = Color(0xFF002117),
-    secondary = Color(0xFF4C6358), onSecondary = Color.White, secondaryContainer = Color(0xFFCEE9DA), onSecondaryContainer = Color(0xFF092016),
-    tertiary = Color(0xFF3E6374), tertiaryContainer = Color(0xFFC2E8FC),
-    background = Color(0xFFF6FBF6), onBackground = Color(0xFF171D1A), surface = Color(0xFFF6FBF6), onSurface = Color(0xFF171D1A),
-    surfaceVariant = Color(0xFFDBE5DE), onSurfaceVariant = Color(0xFF404944),
-    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF0F5F0), surfaceContainer = Color(0xFFEAEFEA),
-    surfaceContainerHigh = Color(0xFFE4EAE5), surfaceContainerHighest = Color(0xFFDFE4DF),
-    outline = Color(0xFF707973), outlineVariant = Color(0xFFBFC9C2), error = Color(0xFFBA1A1A),
-)
-private val FallbackDark = darkColorScheme(
-    primary = Color(0xFF96D4BA), onPrimary = Color(0xFF003828), primaryContainer = Color(0xFF12513E), onPrimaryContainer = Color(0xFFB2F0D6),
-    secondary = Color(0xFFB3CCBF), secondaryContainer = Color(0xFF354B41), onSecondaryContainer = Color(0xFFCEE9DA),
-    tertiary = Color(0xFFA6CCE0), tertiaryContainer = Color(0xFF254B5B),
-    background = Color(0xFF0F1512), onBackground = Color(0xFFDEE4DF), surface = Color(0xFF0F1512), onSurface = Color(0xFFDEE4DF),
-    surfaceVariant = Color(0xFF404944), onSurfaceVariant = Color(0xFFBFC9C2),
-    surfaceContainerLowest = Color(0xFF0A0F0D), surfaceContainerLow = Color(0xFF171D1A), surfaceContainer = Color(0xFF1B211E),
-    surfaceContainerHigh = Color(0xFF252B28), surfaceContainerHighest = Color(0xFF303633),
-    outline = Color(0xFF89938D), outlineVariant = Color(0xFF404944), error = Color(0xFFFFB4AB),
+enum class ThemeMode(val label: String) { DARK("Scuro"), LIGHT("Chiaro"), SYSTEM("Come il sistema") }
+
+/** Manrope (SIL OFL 1.1, file in res/font): font variabile, pesi selezionati via asse "wght". */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+private fun manrope(w: Int) = androidx.compose.ui.text.font.Font(
+    it.cinocinorob.bioeta.R.font.manrope, weight = FontWeight(w),
+    variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(w)),
 )
 
-val LocalDynamicColor = androidx.compose.runtime.compositionLocalOf { true }
+val Manrope = androidx.compose.ui.text.font.FontFamily(
+    manrope(400), manrope(500), manrope(600), manrope(700), manrope(800),
+)
+
+/** Cifre a larghezza fissa: i numeri non "ballano" durante le animazioni. */
+const val TABULAR = "tnum"
+
+private fun bioTypography(): Typography {
+    val base = Typography()
+    fun TextStyle.m(w: FontWeight? = null, ls: Double? = null) =
+        copy(fontFamily = Manrope, fontWeight = w ?: fontWeight, letterSpacing = ls?.sp ?: letterSpacing)
+    return Typography(
+        displayLarge = base.displayLarge.m(FontWeight.ExtraBold, -1.0), displayMedium = base.displayMedium.m(FontWeight.ExtraBold, -0.8),
+        displaySmall = base.displaySmall.m(FontWeight.ExtraBold, -0.6), headlineLarge = base.headlineLarge.m(FontWeight.ExtraBold, -0.5),
+        headlineMedium = base.headlineMedium.m(FontWeight.ExtraBold, -0.4), headlineSmall = base.headlineSmall.m(FontWeight.Bold, -0.2),
+        titleLarge = base.titleLarge.m(FontWeight.Bold, -0.2), titleMedium = base.titleMedium.m(FontWeight.Bold), titleSmall = base.titleSmall.m(FontWeight.SemiBold),
+        bodyLarge = base.bodyLarge.m(FontWeight.Medium), bodyMedium = base.bodyMedium.m(FontWeight.Medium), bodySmall = base.bodySmall.m(FontWeight.Medium),
+        labelLarge = base.labelLarge.m(FontWeight.SemiBold), labelMedium = base.labelMedium.m(FontWeight.SemiBold), labelSmall = base.labelSmall.m(FontWeight.SemiBold),
+    )
+}
+
+private fun schemeFor(p: Palette) = if (p.dark) darkColorScheme(
+    primary = Tint.brand, onPrimary = Color(0xFF00281A), primaryContainer = Color(0xFF0F3A2A), onPrimaryContainer = Color(0xFFB4F5D9),
+    secondary = Tint.sleep, onSecondary = Color(0xFF1B1446), secondaryContainer = Color(0xFF2A2350), onSecondaryContainer = Color(0xFFE2DCFF),
+    tertiary = Tint.hrv, tertiaryContainer = Color(0xFF0E3A44),
+    background = p.bg, onBackground = p.text, surface = p.bg, onSurface = p.text,
+    surfaceVariant = p.card2, onSurfaceVariant = p.text2,
+    surfaceContainerLowest = p.bg, surfaceContainerLow = p.card, surfaceContainer = p.card, surfaceContainerHigh = p.card2, surfaceContainerHighest = Color(0xFF232C38),
+    outline = Color(0xFF3A4654), outlineVariant = p.sep, error = Tint.bad, onError = Color.White,
+    inverseSurface = Color(0xFFE8ECF1), inverseOnSurface = Color(0xFF10151B),
+) else lightColorScheme(
+    primary = Color(0xFF0E8F62), onPrimary = Color.White, primaryContainer = Color(0xFFC9F3E0), onPrimaryContainer = Color(0xFF00281A),
+    secondary = Color(0xFF6A55E0), onSecondary = Color.White, secondaryContainer = Color(0xFFE6E0FF), onSecondaryContainer = Color(0xFF1B1446),
+    tertiary = Color(0xFF167E93), tertiaryContainer = Color(0xFFCDEFF6),
+    background = p.bg, onBackground = p.text, surface = p.bg, onSurface = p.text,
+    surfaceVariant = p.card2, onSurfaceVariant = p.text2,
+    surfaceContainerLowest = Color.White, surfaceContainerLow = p.card, surfaceContainer = p.card, surfaceContainerHigh = p.card2, surfaceContainerHighest = Color(0xFFE8E5E0),
+    outline = Color(0xFFB9C0C8), outlineVariant = p.sep, error = Color(0xFFD0364F), onError = Color.White,
+)
 
 @Composable
-fun BioTheme(dynamic: Boolean = true, content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val scheme = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31) {
-        runCatching { if (dark) androidx.compose.material3.dynamicDarkColorScheme(ctx) else androidx.compose.material3.dynamicLightColorScheme(ctx) }
-            .getOrDefault(if (dark) FallbackDark else FallbackLight)
-    } else if (dark) FallbackDark else FallbackLight
-    // La palette dell'app deriva dallo schema Material: superfici tonali, niente ombre "iOS"
-    val p = Palette(
-        bg = scheme.surface,
-        card = scheme.surfaceContainerLow,
-        text = scheme.onSurface,
-        text2 = scheme.onSurfaceVariant,
-        sep = scheme.outlineVariant,
-        field = scheme.surfaceContainerHighest,
-        dark = dark,
-    )
+fun BioTheme(mode: ThemeMode = ThemeMode.DARK, content: @Composable () -> Unit) {
+    val dark = when (mode) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> isSystemInDarkTheme() }
+    val p = if (dark) DarkPalette else LightPalette
     CompositionLocalProvider(LocalPalette provides p) {
-        MaterialTheme(colorScheme = scheme, typography = Typography(), shapes = androidx.compose.material3.Shapes(
-            extraSmall = RoundedCornerShape(8.dp), small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp),
-            large = RoundedCornerShape(24.dp), extraLarge = RoundedCornerShape(28.dp),
-        ), content = content)
+        MaterialTheme(
+            colorScheme = schemeFor(p), typography = bioTypography(),
+            shapes = androidx.compose.material3.Shapes(
+                extraSmall = RoundedCornerShape(8.dp), small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(16.dp),
+                large = RoundedCornerShape(24.dp), extraLarge = RoundedCornerShape(28.dp),
+            ),
+        ) {
+            CompositionLocalProvider(androidx.compose.material3.LocalTextStyle provides TextStyle(fontFamily = Manrope)) { content() }
+        }
     }
 }
 
@@ -173,7 +205,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Card bianca arrotondata con intestazione colorata (icona + categoria), come in Salute. */
+/** Card del design system: superficie rialzata, bordo sottile, intestazione con icona nel colore di dominio. */
 @Composable
 fun HealthCard(
     title: String? = null,
@@ -188,30 +220,29 @@ fun HealthCard(
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(p.card)
-            // velo colorato in alto: ogni scheda prende il colore della sua categoria
-            .background(Brush.verticalGradient(listOf(tint.copy(alpha = if (p.dark) 0.14f else 0.09f), Color.Transparent), endY = 420f))
+            .border(1.dp, p.border, RoundedCornerShape(24.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (title != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
-                    Box(Modifier.size(32.dp).clip(CircleShape).background(tint.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
-                        Icon(icon, null, tint = tint, modifier = Modifier.size(17.dp))
+                    Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                        Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
                     }
                     Spacer(Modifier.width(10.dp))
                 }
                 Text(
-                    title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
-                    modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    title, color = p.text, style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                if (trailing != null) Text(trailing, color = p.text2, fontSize = 13.sp)
+                if (trailing != null) Text(trailing, color = p.text2, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                 if (onClick != null) {
-                    Spacer(Modifier.width(4.dp))
-                    Icon(BioIcons.Chevron, null, tint = p.text2.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Icon(BioIcons.Chevron, null, tint = p.text3, modifier = Modifier.size(14.dp))
                 }
             }
         }
@@ -225,8 +256,9 @@ fun BigValue(value: String, unit: String? = null, size: Int = 32, color: Color? 
     val p = LocalPalette.current
     Row(verticalAlignment = Alignment.Bottom) {
         Text(
-            value, fontSize = size.sp, fontWeight = FontWeight.Bold, color = color ?: p.text,
-            style = TextStyle(letterSpacing = (-0.5).sp), lineHeight = (size + 2).sp,
+            value, fontSize = size.sp, fontWeight = FontWeight.ExtraBold, color = color ?: p.text,
+            style = TextStyle(fontFamily = Manrope, letterSpacing = (-0.6).sp, fontFeatureSettings = TABULAR), lineHeight = (size + 2).sp,
+            maxLines = 1,
         )
         if (unit != null) {
             Spacer(Modifier.width(4.dp))
@@ -238,12 +270,12 @@ fun BigValue(value: String, unit: String? = null, size: Int = 32, color: Color? 
 
 @Composable
 fun Caption(text: String, color: Color? = null) {
-    Text(text, fontSize = 13.sp, lineHeight = 17.sp, color = color ?: LocalPalette.current.text2)
+    Text(text, style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp), color = color ?: LocalPalette.current.text2)
 }
 
 @Composable
 fun Body(text: String, color: Color? = null, weight: FontWeight = FontWeight.Normal) {
-    Text(text, fontSize = 15.sp, lineHeight = 20.sp, color = color ?: LocalPalette.current.text, fontWeight = weight)
+    Text(text, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 21.sp), color = color ?: LocalPalette.current.text, fontWeight = weight)
 }
 
 /** Capsula colorata (es. "−7,2 anni"). */
@@ -253,7 +285,7 @@ fun Pill(text: String, color: Color) {
         Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.15f))
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Text(text, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(text, color = color, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 
@@ -262,7 +294,7 @@ fun Pill(text: String, color: Color) {
 fun InsetGroup(content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPalette.current
     Column(
-        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(26.dp)).background(p.card),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).border(1.dp, p.border, RoundedCornerShape(24.dp)),
         content = content,
     )
 }
@@ -300,10 +332,10 @@ fun GroupRow(
 @Composable
 fun IconBadge(icon: ImageVector, tint: Color, size: Int = 30) {
     Box(
-        Modifier.size(size.dp).clip(RoundedCornerShape(8.dp)).background(tint),
+        Modifier.size(size.dp).clip(RoundedCornerShape(10.dp)).background(tint.copy(alpha = 0.16f)),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, tint = Color.White, modifier = Modifier.size((size * 0.6).dp))
+        Icon(icon, null, tint = tint, modifier = Modifier.size((size * 0.56).dp))
     }
 }
 

@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
         val openPrivacy = action == "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" ||
             action == "android.intent.action.VIEW_PERMISSION_USAGE"
         setContent {
-            BioTheme {
+            BioTheme(mode = vm.themeMode) {
                 App(
                     vm = vm,
                     startOnPrivacy = openPrivacy,
