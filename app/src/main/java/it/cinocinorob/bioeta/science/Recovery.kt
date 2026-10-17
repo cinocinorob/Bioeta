@@ -7,6 +7,7 @@ import java.time.ZoneId
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
+import kotlin.math.sqrt
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -95,6 +96,10 @@ data class ScoreResult(
     val contributors: List<Contributor>,
     val flags: List<String> = emptyList(),
     val calibrating: Boolean = false,
+    /** Baseline costruita con meno di 14 giorni: punteggio valido ma meno preciso. */
+    val provisional: Boolean = false,
+    /** Giorni di storico usati per la baseline (HRV o FC a riposo, il maggiore). */
+    val baselineDays: Int = 0,
 ) {
     val band: String
         get() {
@@ -335,33 +340,52 @@ object Readiness {
         val cardiacLoads: List<DailyValue> = emptyList(),
     )
 
-    private data class Z(val today: Double, val z: Double, val base: Double)
+    private data class Z(val today: Double, val z: Double, val base: Double, val n: Int)
 
-    /** z rispetto alla baseline dei giorni D-61…D-1 (≥ 14 valori). Combina oggi e media 7 gg (Plews 2013). */
-    private fun zToday(series: List<DailyValue>, date: LocalDate, log: Boolean): Z? {
+    /**
+     * Variabilità giorno-per-giorno "tipica" usata come prior quando lo storico personale è breve.
+     * Valori di progetto, conservativi: ln(RMSSD) ≈ 0,15 (CV ~15%); FC a riposo ≈ 2,5 bpm
+     * (la FC a riposo individuale è molto stabile nel breve periodo: Quer 2020, PMID 32023264).
+     */
+    private const val PRIOR_SD_LNRMSSD = 0.15
+    private const val PRIOR_SD_RHR = 2.5
+    private const val PRIOR_WEIGHT = 5.0
+
+    /**
+     * z rispetto alla baseline dei giorni D-61…D-1. Combina oggi e media 7 gg (Plews 2013).
+     * Con ≥ 14 giorni la DS è solo personale. Con 3–13 giorni la DS è una media ponderata tra quella
+     * personale e un prior (stima bayesiana "shrinkage"): così il punteggio è disponibile dal 3° giorno
+     * di storico invece che dal 14°, ed è marcato come provvisorio.
+     */
+    private fun zToday(series: List<DailyValue>, date: LocalDate, log: Boolean, priorSd: Double): Z? {
         fun t(v: Double) = if (log) ln(max(v, 1e-6)) else v
         val today = series.filter { !it.date.isAfter(date) && !it.date.isBefore(date.minusDays(1)) }.maxByOrNull { it.date } ?: return null
         val base = series.filter { it.date.isBefore(today.date) && !it.date.isBefore(today.date.minusDays(61)) }.map { t(it.value) }
-        if (base.size < 14) return null
-        val m = base.average(); val s = sd(base) ?: return null
-        if (s <= 1e-9) return Z(today.value, 0.0, if (log) exp(m) else m)
+        if (base.size < 3) return null
+        val m = base.average()
+        val sPers = sd(base) ?: priorSd
+        val s = if (base.size >= 14) sPers else {
+            val df = (base.size - 1).toDouble()
+            sqrt((df * sPers * sPers + PRIOR_WEIGHT * priorSd * priorSd) / (df + PRIOR_WEIGHT))
+        }
+        if (s <= 1e-9) return Z(today.value, 0.0, if (log) exp(m) else m, base.size)
         val last7 = series.filter { !it.date.isAfter(today.date) && it.date.isAfter(today.date.minusDays(7)) }.map { t(it.value) }
         val zDay = (t(today.value) - m) / s
         val z7 = if (last7.size >= 3) (last7.average() - m) / s else zDay
-        return Z(today.value, 0.5 * zDay + 0.5 * z7, if (log) exp(m) else m)
+        return Z(today.value, 0.5 * zDay + 0.5 * z7, if (log) exp(m) else m, base.size)
     }
 
     fun compute(i: Inputs): ScoreResult {
         val cs = mutableListOf<Contributor>()
         val flags = mutableListOf<String>()
 
-        val hz = zToday(i.hrv, i.date, log = true)
+        val hz = zToday(i.hrv, i.date, log = true, priorSd = PRIOR_SD_LNRMSSD)
         cs += Contributor("hrv", "Variabilità cardiaca", hz?.let { zGood(it.z).roundToInt() }, W_HRV,
-            hz?.let { "HRV ${f(it.today, 0)} ms (tua baseline ${f(it.base, 0)} ms, ${f(it.z, 1)} DS)" } ?: "Baseline HRV in costruzione (servono 14 giorni)")
+            hz?.let { "HRV ${f(it.today, 0)} ms (tua baseline ${f(it.base, 0)} ms, ${f(it.z, 1)} DS)" } ?: "Servono almeno 3 giorni di HRV")
 
-        val rz = zToday(i.rhr, i.date, log = false)
+        val rz = zToday(i.rhr, i.date, log = false, priorSd = PRIOR_SD_RHR)
         cs += Contributor("rhr", "FC a riposo", rz?.let { zGood(-it.z).roundToInt() }, W_RHR,
-            rz?.let { "${f(it.today, 0)} bpm (tua baseline ${f(it.base, 0)} bpm)" } ?: "Baseline FC a riposo in costruzione (servono 14 giorni)")
+            rz?.let { "${f(it.today, 0)} bpm (tua baseline ${f(it.base, 0)} bpm)" } ?: "Servono almeno 3 giorni di FC a riposo")
 
         cs += Contributor("sleep", "Sonno della notte", i.lastNightScore, W_SLEEP,
             i.lastNightScore?.let { "Punteggio sonno $it" } ?: "Nessuna notte registrata")
@@ -374,7 +398,7 @@ object Readiness {
 
         val respToday = i.resp.filter { !it.date.isAfter(i.date) && !it.date.isBefore(i.date.minusDays(1)) }.maxByOrNull { it.date }
         val respBase = respToday?.let { t -> i.resp.filter { it.date.isBefore(t.date) && !it.date.isBefore(t.date.minusDays(61)) }.map { it.value } }
-        val respDelta = if (respToday != null && respBase != null && respBase.size >= 14) respToday.value - respBase.average() else null
+        val respDelta = if (respToday != null && respBase != null && respBase.size >= 5) respToday.value - respBase.average() else null
         cs += Contributor("resp", "Frequenza respiratoria", respDelta?.let { piecewise(it, 0.5 to 100.0, 1.0 to 80.0, 2.0 to 40.0, 3.0 to 0.0).roundToInt() }, W_RESP,
             respDelta?.let { "${f(respToday!!.value, 1)} atti/min (${if (it >= 0) "+" else ""}${f(it, 1)} rispetto alla tua media)" } ?: "Baseline in costruzione")
 
@@ -415,6 +439,7 @@ object Readiness {
         }
         val calibrating = hz == null && rz == null
         if (calibrating) score = null
-        return ScoreResult(score, cs, flags, calibrating)
+        val n = max(hz?.n ?: 0, rz?.n ?: 0)
+        return ScoreResult(score, cs, flags, calibrating, provisional = !calibrating && n < 14, baselineDays = n)
     }
 }

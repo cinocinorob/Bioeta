@@ -68,11 +68,11 @@ class BioWidget : GlanceAppWidget() {
             Text("BioEtà · oggi", style = TextStyle(color = c.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium))
             Spacer(GlanceModifier.height(8.dp))
             Row(GlanceModifier.fillMaxWidth()) {
-                Tile("Recupero", s.readiness?.toString() ?: "—", Color(0xFF2FB98A), GlanceModifier.defaultWeight())
+                Tile("Recupero", s.readiness?.toString() ?: "—", Color(0xFF3ED69A), GlanceModifier.defaultWeight())
                 Spacer(GlanceModifier.width(8.dp))
-                Tile("Sonno", s.sleep?.toString() ?: "—", Color(0xFF8E7CFF), GlanceModifier.defaultWeight())
+                Tile("Sonno", s.sleep?.toString() ?: "—", Color(0xFF9D8BFF), GlanceModifier.defaultWeight())
                 Spacer(GlanceModifier.width(8.dp))
-                Tile("Carico", s.load?.let { "%.0f".format(it) } ?: "—", Color(0xFFFF8A5B), GlanceModifier.defaultWeight())
+                Tile("Carico", s.load?.let { "%.0f".format(it) } ?: "—", Color(0xFFFF7A5C), GlanceModifier.defaultWeight())
             }
             Spacer(GlanceModifier.height(10.dp))
             val steps = s.steps ?: 0
@@ -85,7 +85,7 @@ class BioWidget : GlanceAppWidget() {
             LinearProgressIndicator(
                 progress = (steps.toFloat() / s.stepGoal).coerceIn(0f, 1f),
                 modifier = GlanceModifier.fillMaxWidth().height(8.dp).cornerRadius(4.dp),
-                color = ColorProvider(Color(0xFFFFA14A)),
+                color = ColorProvider(Color(0xFFFFAA4C)),
                 backgroundColor = c.surfaceVariant,
             )
         }

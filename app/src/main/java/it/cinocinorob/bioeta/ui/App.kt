@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -53,14 +54,15 @@ import it.cinocinorob.bioeta.AppViewModel
 import java.time.LocalTime
 import kotlin.coroutines.cancellation.CancellationException
 
-enum class Tab(val label: String) { TODAY("Oggi"), ACTIVITY("Attività"), WEAR("Recupero"), HEALTH("Salute"), ASSIST("Claude") }
+/** Navigazione principale: 5 aree raggiungibili con il pollice. Profilo dall'avatar in alto, Claude dalle azioni. */
+enum class Tab(val label: String) { HOME("Home"), ACTIVITY("Attività"), HEALTH("Salute"), AGE("Età"), LABS("Analisi") }
 
 private fun tabIcon(t: Tab) = when (t) {
-    Tab.TODAY -> BioIcons.Sparkle
+    Tab.HOME -> BioIcons.Home
     Tab.ACTIVITY -> BioIcons.Bolt
-    Tab.WEAR -> BioIcons.Moon
-    Tab.HEALTH -> BioIcons.Drop
-    Tab.ASSIST -> BioIcons.Chat
+    Tab.HEALTH -> BioIcons.Heart
+    Tab.AGE -> BioIcons.Sparkle
+    Tab.LABS -> BioIcons.Drop
 }
 
 /** Schermate secondarie, gestite come una pila: "indietro" chiude sempre la più recente. */
@@ -72,6 +74,9 @@ private const val R_PROFILE = "profile"
 private const val R_DIAG = "diag"
 private const val R_EDIT = "panel:"
 private const val R_ANALYTE = "analyte:"
+private const val R_CLAUDE = "claude"
+private const val R_SYNC = "sync"
+private const val R_METRIC = "metric:"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,14 +89,14 @@ fun App(
     onImportReport: () -> Unit,
     onPickBackupFolder: () -> Unit,
 ) {
-    var tab by rememberSaveable { mutableStateOf(Tab.TODAY) }
+    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var healthSection by rememberSaveable { mutableStateOf(0) }
     var stackStr by rememberSaveable { mutableStateOf(if (startOnPrivacy) R_INFO else "") }
     val stack: List<String> = if (stackStr.isEmpty()) emptyList() else stackStr.split("|")
     val push: (String) -> Unit = { r -> stackStr = (stack + r).joinToString("|") }
     val pop: () -> Unit = { stackStr = stack.dropLast(1).joinToString("|") }
     var pendingQuestion by rememberSaveable { mutableStateOf<String?>(null) }
-    val askClaude: (String) -> Unit = { q -> stackStr = ""; pendingQuestion = q.ifBlank { null }; tab = Tab.ASSIST }
+    val askClaude: (String) -> Unit = { q -> pendingQuestion = q.ifBlank { null }; stackStr = (stack.filter { it != R_CLAUDE } + R_CLAUDE).joinToString("|") }
     val snackbar = remember { SnackbarHostState() }
     val draft = vm.importDraft
 
@@ -114,9 +119,7 @@ fun App(
         }
     }
     // Dalle schede secondarie "indietro" torna a Oggi (convenzione Android), poi esce dall'app
-    BackHandler(enabled = !subOpen && tab != Tab.TODAY) {
-        if (tab == Tab.HEALTH && healthSection == 1) healthSection = 0 else tab = Tab.TODAY
-    }
+    BackHandler(enabled = !subOpen && tab != Tab.HOME) { tab = Tab.HOME }
 
     Box(
         Modifier.fillMaxSize().graphicsLayer {
@@ -134,8 +137,13 @@ fun App(
             top == R_BP -> BloodPressureScreen(vm, onBack = pop, onAsk = askClaude)
             top == R_JOURNAL -> JournalScreen(vm, onBack = pop)
             top == R_DIAG -> DiagnosticsScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions)
+            top == R_SYNC -> SyncScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions, onOpenDiagnostics = { push(R_DIAG) })
+            top == R_CLAUDE -> SubScaffold("Chiedi a Claude", pop) { m ->
+                AssistantScreen(vm, m, pendingQuestion, onConsumeInitial = { pendingQuestion = null })
+            }
+            top != null && top.startsWith(R_METRIC) -> MetricDetailScreen(vm, top.removePrefix(R_METRIC), onBack = pop)
             top == R_PROFILE -> ProfileRoute(vm, onBack = pop, onExport, onImport, onPickBackupFolder,
-                onOpenInfo = { push(R_INFO) }, onOpenDiagnostics = { push(R_DIAG) })
+                onOpenInfo = { push(R_INFO) }, onOpenDiagnostics = { push(R_SYNC) })
             top != null && top.startsWith(R_ANALYTE) -> AnalyteScreen(
                 key = top.removePrefix(R_ANALYTE), panels = vm.panels, profile = vm.profile, onBack = pop,
             )
@@ -151,7 +159,7 @@ fun App(
             }
             draft != null -> PanelEditor(
                 initial = draft.panel, isNew = true, importNotes = draft.notes, highlighted = draft.foundKeys, profile = vm.profile,
-                onSave = { vm.savePanel(it); vm.importDraft = null; tab = Tab.HEALTH; healthSection = 1; vm.message = "Referto salvato." },
+                onSave = { vm.savePanel(it); vm.importDraft = null; tab = Tab.LABS; vm.message = "Referto salvato." },
                 onDelete = { vm.importDraft = null },
                 onBack = { vm.importDraft = null },
             )
@@ -208,15 +216,22 @@ private fun MainTabs(
     val pal = LocalPalette.current
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val title = when (tab) {
-        Tab.TODAY -> {
+        Tab.HOME -> {
             val h = LocalTime.now().hour
             (when (h) { in 5..12 -> "Buongiorno"; in 13..17 -> "Buon pomeriggio"; else -> "Buonasera" }) +
                 (vm.profile.name.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")
         }
         Tab.ACTIVITY -> "Attività"
-        Tab.WEAR -> "Recupero"
         Tab.HEALTH -> "Salute"
-        Tab.ASSIST -> "Claude"
+        Tab.AGE -> "Età biologica"
+        Tab.LABS -> "Analisi"
+    }
+    val subtitle = when (tab) {
+        Tab.HOME -> java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.ITALIAN)).replaceFirstChar { it.uppercase() }
+        Tab.ACTIVITY -> "Movimento, allenamenti e carico"
+        Tab.HEALTH -> "Recupero, sonno e parametri vitali"
+        Tab.AGE -> "PhenoAge ed età cardiorespiratoria"
+        Tab.LABS -> "Esami e andamenti"
     }
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
@@ -224,13 +239,24 @@ private fun MainTabs(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             LargeTopAppBar(
-                title = { Text(title, maxLines = 1) },
+                title = {
+                    Column {
+                        Text(title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(subtitle, maxLines = 1, style = MaterialTheme.typography.labelLarge, color = pal.text2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                },
+                navigationIcon = {
+                    Box(Modifier.padding(start = 12.dp, end = 4.dp).size(34.dp).clip(RoundedCornerShape(10.dp)).background(androidx.compose.ui.graphics.Color(0xFF0A0E13)), contentAlignment = Alignment.Center) {
+                        BioLogo(size = 30)
+                    }
+                },
                 actions = {
-                    IconButton(onClick = { vm.refreshHealth(force = true) }) { Icon(BioIcons.Refresh, "Aggiorna") }
+                    if (tab == Tab.LABS) IconButton(onClick = { askClaude("") }) { Icon(BioIcons.Chat, "Chiedi a Claude") }
+                    IconButton(onClick = { vm.refreshHealth(force = true) }) { Icon(BioIcons.Refresh, "Aggiorna i dati") }
                     Box(
-                        Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape)
+                        Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape).testTag("profile_button")
                             .background(MaterialTheme.colorScheme.primaryContainer)
-                            .clickable { push(R_PROFILE) },
+                            .clickable(onClickLabel = "Profilo e impostazioni") { push(R_PROFILE) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(vm.profile.name.firstOrNull()?.uppercase() ?: "•", color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -238,16 +264,22 @@ private fun MainTabs(
                     }
                 },
                 scrollBehavior = scroll,
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = pal.bg, scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = pal.bg, scrolledContainerColor = pal.bg),
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(containerColor = pal.card, tonalElevation = 0.dp) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
+                        modifier = Modifier.testTag("tab_${t.name}"),
                         selected = tab == t, onClick = { onTab(t) },
-                        icon = { Icon(tabIcon(t), t.label) },
+                        icon = { Icon(tabIcon(t), null) },
                         label = { Text(t.label, maxLines = 1) },
+                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                            selectedIconColor = Tint.brand, selectedTextColor = pal.text,
+                            indicatorColor = Tint.brand.copy(alpha = 0.16f),
+                            unselectedIconColor = pal.text2, unselectedTextColor = pal.text2,
+                        ),
                     )
                 }
             }
@@ -255,37 +287,41 @@ private fun MainTabs(
     ) { pad ->
         val m = Modifier.padding(pad)
         CompositionLocalProvider(LocalHideHeader provides true) {
-            when (tab) {
-                Tab.TODAY -> TodayScreen(
-                    vm, m,
-                    onGoRecovery = { onTab(Tab.WEAR) },
-                    onGoActivity = { onTab(Tab.ACTIVITY) },
-                    onGoHealth = { onTab(Tab.HEALTH); onHealthSection(0) },
-                    onGoBp = { push(R_BP) },
-                    onOpenProfile = { push(R_PROFILE) },
-                    onOpenJournal = { push(R_JOURNAL) },
-                    onAsk = askClaude,
-                    onRequestPermissions = onRequestPermissions,
-                    onOpenDiagnostics = { push(R_DIAG) },
-                )
-                Tab.ACTIVITY -> ActivityScreen(vm, m, onRequestPermissions)
-                Tab.WEAR -> WearableScreen(vm, m, onRequestPermissions, onOpenJournal = { push(R_JOURNAL) })
-                Tab.HEALTH -> Column(m) {
-                    SegmentPill(listOf("Panoramica", "Analisi del sangue"), healthSection, onSelect = onHealthSection,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp))
-                    if (healthSection == 0) AgeScreen(
-                        vm, Modifier,
+            androidx.compose.animation.Crossfade(targetState = tab, label = "tab") { current ->
+                when (current) {
+                    Tab.HOME -> HomeScreen(
+                        vm, m,
+                        onGoActivity = { onTab(Tab.ACTIVITY) },
+                        onGoHealth = { onTab(Tab.HEALTH) },
+                        onGoAge = { onTab(Tab.AGE) },
+                        onGoLabs = { onTab(Tab.LABS) },
+                        onOpenMetric = { push(R_METRIC + it) },
+                        onOpenSync = { push(R_SYNC) },
+                        onOpenProfile = { push(R_PROFILE) },
+                        onOpenJournal = { push(R_JOURNAL) },
+                        onGoBp = { push(R_BP) },
+                        onAsk = askClaude,
+                        onRequestPermissions = onRequestPermissions,
+                    )
+                    Tab.ACTIVITY -> ActivityScreen(vm, m, onRequestPermissions, onOpenSync = { push(R_SYNC) }, onOpenMetric = { push(R_METRIC + it) })
+                    Tab.HEALTH -> WearableScreen(
+                        vm, m, onRequestPermissions,
+                        onOpenJournal = { push(R_JOURNAL) }, onOpenBp = { push(R_BP) }, onOpenMetric = { push(R_METRIC + it) },
+                    )
+                    Tab.AGE -> AgeScreen(
+                        vm, m,
                         onOpenInfo = { push(R_INFO) },
-                        onGoLabs = { onHealthSection(1) },
-                        onGoWear = { onTab(Tab.WEAR) },
+                        onGoLabs = { onTab(Tab.LABS) },
+                        onGoWear = { onTab(Tab.HEALTH) },
                         onGoProfile = { push(R_PROFILE) },
                         onImportReport = onImportReport,
                         onGoInsights = { push(R_INSIGHTS) },
-                        onGoRecovery = { onTab(Tab.WEAR) },
+                        onGoRecovery = { onTab(Tab.HEALTH) },
                         onGoBp = { push(R_BP) },
                         onAsk = askClaude,
-                    ) else LabsScreen(
-                        vm, Modifier,
+                    )
+                    Tab.LABS -> LabsScreen(
+                        vm, m,
                         onEdit = { push(R_EDIT + it) },
                         onNew = { push(R_EDIT + "new") },
                         onImportReport = onImportReport,
@@ -293,7 +329,6 @@ private fun MainTabs(
                         onGoBp = { push(R_BP) },
                     )
                 }
-                Tab.ASSIST -> AssistantScreen(vm, m, pendingQuestion, onConsumeInitial = onConsumeQuestion)
             }
         }
     }

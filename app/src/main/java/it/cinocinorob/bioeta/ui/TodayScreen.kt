@@ -50,9 +50,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object Pillar {
-    val recovery = listOf(Color(0xFF5FD3A0), Color(0xFF2FB68A))
-    val sleep = listOf(Color(0xFFA996FF), Color(0xFF7D6BF2))
-    val load = listOf(Color(0xFFFFB27A), Color(0xFFFF7E67))
+    val recovery = listOf(Color(0xFF7BEBC0), Tint.brand)
+    val sleep = listOf(Color(0xFFC0B4FF), Tint.sleep)
+    val load = listOf(Color(0xFFFFC07A), Tint.load)
 }
 
 /**
@@ -100,164 +100,6 @@ private fun PillarLegend(label: String, value: String, colors: List<Color>, onCl
     ) {
         Text(value, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors[1])
-    }
-}
-
-@Composable
-fun TodayScreen(
-    vm: AppViewModel,
-    modifier: Modifier,
-    onGoRecovery: () -> Unit,
-    onGoActivity: () -> Unit,
-    onGoHealth: () -> Unit,
-    onGoBp: () -> Unit,
-    onOpenProfile: () -> Unit,
-    onOpenJournal: () -> Unit,
-    onAsk: (String) -> Unit,
-    onRequestPermissions: () -> Unit,
-    onOpenDiagnostics: () -> Unit = {},
-) {
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    val p = LocalPalette.current
-    val t = vm.today
-    val profile = vm.profile
-    val target = vm.targetLoad
-    val load = vm.todayLoad
-    val act = vm.todayActivity
-    val mood = moodFor(t.readiness.score, t.readiness.calibrating || !vm.hasAnyHealthPermission)
-    val (title, msg) = gentleMessage(mood, t.readiness.flags.isNotEmpty())
-    val loadFraction = load?.let { (it.load / maxOf(target.high, 1.0)).toFloat() }
-
-    LazyColumn(
-        modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item {
-            Text(LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)).replaceFirstChar { it.uppercase() },
-                style = androidx.compose.material3.MaterialTheme.typography.titleMedium, color = p.text2)
-        }
-
-        if (!vm.hasAnyHealthPermission && vm.hcAvailable) item {
-            HealthCard("Collega l'orologio", BioIcons.Heart, Tint.heart, onClick = onRequestPermissions) {
-                Caption("Concedi l'accesso a Connessione Salute per vedere passi, carico cardiaco, sonno e recupero.")
-            }
-        } else if (vm.missingRecoveryPermissions) item {
-            HealthCard("Nuovi dati disponibili", BioIcons.Bolt, Tint.activity, onClick = onRequestPermissions) {
-                Caption("Concedi frequenza cardiaca, allenamenti, calorie e distanza per completare la scheda giornaliera.")
-            }
-        }
-
-        val lw = vm.lastWearable
-        val stale = vm.hasAnyHealthPermission && !vm.loading && lw != null &&
-            java.time.Duration.between(lw, java.time.Instant.now()).toHours() >= 14
-        if (stale) item {
-            HealthCard("L'orologio non sincronizza da ${agoText(lw!!)}", BioIcons.Info, Tint.warn, onClick = { openWatchApp(ctx) }) {
-                Caption("Il sonno di stanotte e i dati recenti non sono ancora in Connessione Salute: li scrive l'app Fitbit/Google Health quando sincronizza. Tocca per aprirla e trascina in basso per sincronizzare, poi torna qui. Se succede spesso: Impostazioni → App → Fitbit → Batteria → «Senza restrizioni».")
-            }
-        }
-        if (!stale && vm.hasAnyHealthPermission && !vm.loading && !vm.fitnessLoading && (act == null || act.steps == 0L) && t.night == null) item {
-            HealthCard("Non vedo dati dall'orologio", BioIcons.Info, Tint.warn, onClick = onOpenDiagnostics) {
-                Caption("Né passi di oggi né sonno di stanotte risultano in Connessione Salute. Tocca per la diagnostica: mostra, per ogni tipo di dato, se c'è il permesso, quanti dati ci sono e quale app li scrive.")
-            }
-        }
-
-        // ---------- Quadrante ----------
-        item {
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)).background(p.card)
-                    .background(Brush.verticalGradient(listOf(moodColors(mood)[0].copy(alpha = if (p.dark) 0.22f else 0.20f), Pillar.sleep[0].copy(alpha = 0.06f), Color.Transparent)))
-                    .padding(vertical = 18.dp, horizontal = 14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                TriDial(t.readiness.score, t.sleep?.score, loadFraction, mood, bpm = vm.restHrRef)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PillarLegend("Recupero", t.readiness.score?.toString() ?: "—", Pillar.recovery, onGoRecovery, Modifier.weight(1f))
-                    PillarLegend("Sonno", t.sleep?.score?.toString() ?: "—", Pillar.sleep, onGoRecovery, Modifier.weight(1f))
-                    PillarLegend("Carico", load?.load?.f(0) ?: "—", Pillar.load, onGoActivity, Modifier.weight(1f))
-                }
-                Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
-                    Text(title, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
-                    Text(msg, fontSize = 14.sp, lineHeight = 19.sp, color = p.text2)
-                }
-            }
-        }
-        (t.readiness.flags).forEach { fl ->
-            item {
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Tint.warn.copy(alpha = 0.14f)).padding(14.dp)) {
-                    Icon(BioIcons.Info, null, tint = Tint.warn, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(fl, fontSize = 13.sp, lineHeight = 17.sp, color = p.text)
-                }
-            }
-        }
-
-        // ---------- Carico cardiaco ----------
-        item {
-            HealthCard("Carico cardiaco", BioIcons.Pulse, Pillar.load[1], onClick = onGoActivity) {
-                if (load == null) {
-                    Caption(if (vm.fitnessLoading) "Calcolo dalla frequenza cardiaca…" else "Nessun dato di frequenza cardiaca per oggi.")
-                } else {
-                    val st = Fitness.status(load.load, target)
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        BigValue(load.load.f(0), null, size = 38)
-                        Spacer(Modifier.width(8.dp))
-                        Caption("obiettivo ${target.low.f(0)}–${target.high.f(0)}")
-                        Spacer(Modifier.weight(1f))
-                        Pill(st.label, when (st) { LoadStatus.IN_RANGE -> Tint.good; LoadStatus.BELOW -> Tint.blue; LoadStatus.ABOVE -> Tint.warn })
-                    }
-                    TargetGauge(load.load, target.low, target.high)
-                    Caption("Obiettivo di oggi: ${target.basis}.")
-                }
-            }
-        }
-
-        // ---------- La tua giornata ----------
-        item {
-            HealthCard("La tua giornata", BioIcons.Bolt, Tint.activity, onClick = onGoActivity) {
-                val goal = Fitness.stepGoal(profile.ageAt(LocalDate.now()))
-                val steps = act?.steps ?: 0L
-                Row(verticalAlignment = Alignment.Bottom) {
-                    BigValue(String.format(Locale.ITALY, "%,d", steps), "passi", size = 34)
-                    Spacer(Modifier.weight(1f))
-                    Caption("obiettivo ${String.format(Locale.ITALY, "%,d", goal)}")
-                }
-                ProgressBar(steps / goal.toFloat(), listOf(Color(0xFFFFC27A), Color(0xFFFF9F5A)))
-                act?.let { HourlyBars(it.hourlySteps, Tint.activity) }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatChip("Minuti attivi", "${load?.activeMinutes ?: 0}", "oggi", Modifier.weight(1f))
-                    StatChip("Settimana", "${Fitness.weekActiveMinutes(vm.dayLoads, LocalDate.now())}", "/150 min", Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatChip("Calorie attive", act?.activeKcal?.f(0) ?: "—", "kcal", Modifier.weight(1f))
-                    StatChip("Distanza", act?.distanceKm?.f(1) ?: "—", "km", Modifier.weight(1f))
-                }
-            }
-        }
-
-        // ---------- Stasera / Parametri vitali / Settimana ----------
-        if (vm.hasAnyHealthPermission) {
-            if (vm.vitals.outliers >= 2) item { VitalsCard(vm) }
-            item { TonightCard(vm) }
-        }
-
-        // ---------- Diario ----------
-        item { JournalQuickCard(vm, onOpenJournal) }
-
-        item { WeekCard(vm) }
-
-        // ---------- Cronologia della giornata ----------
-        item { TimelineCard(vm) }
-
-        // ---------- Scorciatoie ----------
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ShortcutTile("Pressione", vm.bpSummary?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)}" } ?: "Registra", Tint.bp, BioIcons.Heart, onGoBp, Modifier.weight(1f))
-                ShortcutTile("Età biologica", vm.phenoSeries.lastOrNull()?.result?.phenoAge?.f(1) ?: "—", Tint.bio, BioIcons.Sparkle, onGoHealth, Modifier.weight(1f))
-                ShortcutTile("Chiedi a Claude", "Consigli", Tint.sleep, BioIcons.Chat, { onAsk("") }, Modifier.weight(1f))
-            }
-        }
     }
 }
 
@@ -317,11 +159,11 @@ fun HourlyBars(hourly: List<Long>, color: Color) {
 @Composable
 fun StatChip(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
-    Column(modifier.clip(RoundedCornerShape(18.dp)).background(p.field).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        Text(label, fontSize = 12.sp, color = p.text2, fontWeight = FontWeight.Bold)
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(p.card2).padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = p.text2, maxLines = 1)
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
-            Text(" $unit", fontSize = 12.sp, color = p.text2, modifier = Modifier.padding(bottom = 3.dp))
+            Text(value, style = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
+            if (unit.isNotBlank()) Text(" $unit", style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = p.text2, modifier = Modifier.padding(bottom = 3.dp), maxLines = 1)
         }
     }
 }
@@ -352,9 +194,9 @@ fun TimelineCard(vm: AppViewModel) {
         vm.today.night?.let { n ->
             add(Ev(n.end.atZone(zone).toLocalTime(), "Risveglio", "${(n.totalSleepMin / 60).f(1)} h di sonno", Pillar.sleep[1]))
         }
-        vm.workouts.filter { it.start.atZone(zone).toLocalDate() == today }.forEach { w ->
-            add(Ev(w.start.atZone(zone).toLocalTime(), exerciseName(w.type, w.title), "${w.minutes.f(0)} min" +
-                (w.samples.takeIf { it.isNotEmpty() }?.let { s -> " · FC media ${s.map { it.bpm }.average().f(0)}" } ?: ""), Pillar.load[1]))
+        vm.displaySessions.filter { it.start.atZone(zone).toLocalDate() == today }.forEach { w ->
+            add(Ev(w.start.atZone(zone).toLocalTime(), exerciseName(w.hcType, w.title), "${w.minutes.f(0)} min" +
+                (vm.workoutStats[w.id]?.avgHr?.let { " · FC media ${it.f(0)}" } ?: ""), Pillar.load[1]))
         }
         vm.bpReadings.filter { it.time.toLocalDate() == today }.forEach { r ->
             add(Ev(r.time.toLocalTime(), "Pressione", "${r.sys}/${r.dia} mmHg", Tint.bp))

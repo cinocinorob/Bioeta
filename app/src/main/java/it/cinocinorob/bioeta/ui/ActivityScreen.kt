@@ -4,6 +4,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import it.cinocinorob.bioeta.science.LoadStatus
+import it.cinocinorob.bioeta.science.LoadQuality
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,11 +59,11 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 fun zoneColor(z: Zone): Color = when (z) {
-    Zone.VERY_LIGHT -> Color(0xFFD9D4CC)
-    Zone.LIGHT -> Color(0xFF9FD8C0)
-    Zone.MODERATE -> Color(0xFFFFCB6B)
-    Zone.VIGOROUS -> Color(0xFFFF9466)
-    Zone.MAXIMAL -> Color(0xFFF2617A)
+    Zone.VERY_LIGHT -> Color(0xFF6E7A88)
+    Zone.LIGHT -> Color(0xFF45C8E0)
+    Zone.MODERATE -> Color(0xFF3ED69A)
+    Zone.VIGOROUS -> Color(0xFFFFAA4C)
+    Zone.MAXIMAL -> Color(0xFFFF5D73)
 }
 
 /** Tre anelli concentrici: passi, minuti attivi della settimana, carico di oggi. */
@@ -67,9 +73,9 @@ fun ActivityRings(steps: Float, minutes: Float, load: Float) {
         animatedValue(steps.coerceIn(0f, 1.5f), 900), animatedValue(minutes.coerceIn(0f, 1.5f), 1050), animatedValue(load.coerceIn(0f, 1.5f), 1200),
     )
     val colors = listOf(
-        listOf(Color(0xFFFFC27A), Color(0xFFFF9F5A)),
-        listOf(Color(0xFF6ED8B0), Color(0xFF2FB68A)),
-        listOf(Color(0xFFFFA07A), Color(0xFFFF6F61)),
+        listOf(Color(0xFFFFC98A), Tint.activity),
+        listOf(Color(0xFF8FEBC6), Tint.good),
+        listOf(Color(0xFFFFA48C), Tint.load),
     )
     Canvas(Modifier.size(170.dp)) {
         val st = 17.dp.toPx(); val gap = 4.dp.toPx()
@@ -89,8 +95,8 @@ private fun RingLegend(color: Color, label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(color))
         Column(Modifier.padding(start = 8.dp)) {
-            Text(value, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
-            Text(label, fontSize = 11.sp, color = p.text2, fontWeight = FontWeight.Bold)
+            Text(value, style = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, fontFeatureSettings = TABULAR), color = p.text)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = p.text2)
         }
     }
 }
@@ -122,86 +128,122 @@ fun ZoneBar(zones: Map<Zone, Int>, showLegend: Boolean = true) {
 }
 
 @Composable
-fun ActivityScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: () -> Unit) {
+fun ActivityScreen(
+    vm: AppViewModel,
+    modifier: Modifier,
+    onRequestPermissions: () -> Unit,
+    onOpenSync: () -> Unit = {},
+    onOpenMetric: (String) -> Unit = {},
+) {
     val p = LocalPalette.current
     val today = LocalDate.now()
     val age = vm.profile.ageAt(today)
     val goal = Fitness.stepGoal(age)
     val act = vm.todayActivity
-    val load = vm.todayLoad
+    val dayAct = vm.todayDayActivity
     val target = vm.targetLoad
     val week = Fitness.weekActiveMinutes(vm.dayLoads, today)
+    val quality = dayAct?.quality ?: LoadQuality.UNAVAILABLE
 
     LazyColumn(
         modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { LargeHeader("Attività", "Movimento e allenamento") }
-        if (vm.fitnessLoading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.activity) }
+        if (vm.fitnessLoading || vm.syncing) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.activity) }
         if (age == null) item {
-            HealthCard("Serve la data di nascita", BioIcons.Person, Tint.body) { Caption("Il carico cardiaco usa la frequenza massima stimata dall'età: inseriscila nel Profilo.") }
+            InlineNotice("Senza data di nascita la FC massima è stimata con 40 anni: inseriscila nel Profilo per zone e carico corretti.", NoticeKind.WARN)
         }
         if (vm.missingRecoveryPermissions) item {
-            HealthCard("Concedi i nuovi permessi", BioIcons.Bolt, Tint.activity, onClick = onRequestPermissions) {
-                Caption("Frequenza cardiaca, allenamenti, calorie e distanza.")
+            InlineNotice("Concedi frequenza cardiaca, allenamenti, calorie e distanza per completare la scheda.", NoticeKind.WARN, "Concedi", onRequestPermissions)
+        }
+
+        // ---------- Sincronizzazione allenamenti ----------
+        item {
+            val st = vm.syncStatus
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).clickable(onClick = onOpenSync).padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(BioIcons.Refresh, null, tint = Tint.brand, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("${st.sessionsInWindow} allenamenti importati · ${st.state.label.lowercase()}", style = MaterialTheme.typography.titleSmall, color = p.text)
+                    Text("Ultima sincronizzazione ${agoShort(st.lastSync)}" + (st.origins.takeIf { it.isNotEmpty() }?.let { " · " + it.joinToString(", ") } ?: ""),
+                        style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
+                }
+                TextButton(onClick = { vm.syncNow() }, enabled = !vm.syncing && !vm.loading) { Text("Sincronizza", color = Tint.brand) }
             }
         }
 
         // ---------- Anelli ----------
         item {
             Row(
-                Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(30.dp)).background(p.card).padding(18.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(p.card).border(1.dp, p.border, RoundedCornerShape(26.dp)).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ActivityRings(
                     steps = (act?.steps ?: 0L) / goal.toFloat(),
                     minutes = week / 150f,
-                    load = ((load?.load ?: 0.0) / maxOf(target.high, 1.0)).toFloat(),
+                    load = if (quality == LoadQuality.UNAVAILABLE) 0f else ((dayAct?.load ?: 0.0) / maxOf(target.high, 1.0)).toFloat(),
                 )
                 Spacer(Modifier.width(18.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    RingLegend(Color(0xFFFF9F5A), "passi / ${String.format(Locale.ITALY, "%,d", goal)}", String.format(Locale.ITALY, "%,d", act?.steps ?: 0L))
-                    RingLegend(Color(0xFF2FB68A), "min attivi sett. / 150", "$week")
-                    RingLegend(Color(0xFFFF6F61), "carico / ${target.high.f(0)}", load?.load?.f(0) ?: "—")
+                    RingLegend(Tint.activity, "passi / ${String.format(Locale.ITALY, "%,d", goal)}", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—")
+                    RingLegend(Tint.good, "min attivi sett. / 150", "$week")
+                    RingLegend(Tint.load, "carico / ${target.high.f(0)}", if (quality == LoadQuality.UNAVAILABLE) "—" else dayAct!!.load.f(0))
                 }
             }
         }
 
         // ---------- Carico ----------
         item {
-            HealthCard("Carico cardiaco · 4 settimane", BioIcons.Pulse, Pillar.load[1]) {
-                val days = vm.dayLoads
-                val coveredToday = load?.coveredMinutes ?: 0
-                if (days.isEmpty() || coveredToday < 60) {
-                    Caption("Carico non disponibile: BioEtà non ha ancora abbastanza campioni di frequenza cardiaca per oggi. Controlla in Connessione Salute che la frequenza cardiaca sia autorizzata e sincronizzata.")
-                } else {
-                    LoadBars(days.filter { it.coveredMinutes >= 60 }.map { it.date to it.load }, target.low, target.high)
-                    val chronic = days.filter { it.date.isBefore(today) && it.coveredMinutes >= 600 }.map { it.load }
-                    if (chronic.size >= 7) Caption("Carico medio giornaliero nei giorni con dati sufficienti: ${chronic.average().f(0)} · obiettivo di oggi ${target.low.f(0)}–${target.high.f(0)} (${target.basis})")
-                    if (coveredToday >= 600) load?.let { ZoneBar(it.zoneMinutes) }
-                    else Caption("Copertura parziale: ${coveredToday} minuti di frequenza cardiaca disponibili. Il carico può essere sottostimato.")
+            HealthCard("Carico cardiaco", BioIcons.Pulse, Tint.load, trailing = quality.label, onClick = { onOpenMetric(DETAIL_LOAD) }) {
+                when (quality) {
+                    LoadQuality.UNAVAILABLE -> {
+                        Text("—", style = MaterialTheme.typography.displaySmall, color = p.text3)
+                        InlineNotice("Nessuna frequenza cardiaca oggi in Connessione Salute: il carico non è calcolabile. Servono il permesso «Frequenza cardiaca» e la sincronizzazione dell'orologio.", NoticeKind.WARN)
+                    }
+                    else -> {
+                        val st = Fitness.status(dayAct!!.load, target)
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            BigValue(dayAct.load.f(0), null, size = 38)
+                            Spacer(Modifier.width(8.dp))
+                            Caption("obiettivo ${target.low.f(0)}–${target.high.f(0)}")
+                            Spacer(Modifier.weight(1f))
+                            Pill(st.label, when (st) { LoadStatus.IN_RANGE -> Tint.good; LoadStatus.BELOW -> Tint.blue; LoadStatus.ABOVE -> Tint.warn })
+                        }
+                        TargetGauge(dayAct.load, target.low, target.high)
+                        if (quality == LoadQuality.PARTIAL) Caption("Parziale: frequenza cardiaca per ${dayAct.hrMinutes} minuti (meno di 10 ore). Il valore è sottostimato.", Tint.warn)
+                        ZoneBar(dayAct.zoneMinutes)
+                    }
                 }
-                Caption("Carico = TRIMP di Banister calcolato minuto per minuto dalla frequenza cardiaca, sopra il 30% della riserva cardiaca. Le zone seguono le intensità ACSM.")
+                val days = vm.dayActivities.filter { it.quality != LoadQuality.UNAVAILABLE }
+                if (days.size >= 2) LoadBars(days.map { it.date to it.load }, target.low, target.high)
+                Caption("TRIMP di Banister minuto per minuto dalla frequenza cardiaca (sopra il 30% della riserva cardiaca). Non include stime da tipo di attività, calorie o lavoro muscolare. Obiettivo: ${target.basis}.")
             }
         }
 
         // ---------- Minuti attivi ----------
         item {
-            HealthCard("Minuti attivi", BioIcons.Bolt, Tint.good) {
+            HealthCard("Minuti attivi", BioIcons.Bolt, Tint.good, onClick = { onOpenMetric(DETAIL_ACTIVE) }) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     BigValue("$week", "/ 150 min questa settimana", size = 32)
                 }
-                ProgressBar(week / 150f, listOf(Color(0xFF8FE3C2), Color(0xFF2FB68A)))
+                ProgressBar(week / 150f, listOf(Color(0xFF8FEBC6), Tint.good))
                 WeekActiveBars(vm)
-                if ((act?.recordedExerciseMinutes ?: 0) > 0) Caption("Allenamenti registrati oggi in Connessione Salute: ${act?.recordedExerciseMinutes} min. Il totale settimanale sopra è calcolato dai campioni di frequenza cardiaca e può essere più basso se un'attività non ha dati FC.")
-                Caption("OMS 2020: 150–300 minuti a settimana di attività moderata o 75–150 vigorosa (1 minuto vigoroso conta come 2), più esercizi di forza almeno 2 giorni a settimana.")
+                if (dayAct != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatChip("Oggi da FC", "${dayAct.moderateMeasured + 2 * dayAct.vigorousMeasured}", "min", Modifier.weight(1f))
+                    StatChip("Oggi stimati", "${dayAct.estimatedShare}", "min", Modifier.weight(1f))
+                }
+                Caption("OMS 2020: 150–300 minuti a settimana di attività moderata (1 minuto vigoroso vale 2). Misurati: minuti con FC ≥ 40% della riserva cardiaca. Stimati: minuti di allenamenti senza FC, intensità dal tipo di attività (Compendio 2024); yoga, stretching e attività non classificate non sono conteggiati. Ogni minuto conta una sola volta anche se due app registrano lo stesso allenamento.")
             }
         }
 
         // ---------- Passi ----------
         item {
-            HealthCard("Passi", BioIcons.Bolt, Tint.activity) {
+            HealthCard("Passi", BioIcons.Bolt, Tint.activity, onClick = { onOpenMetric("STEPS") }) {
                 val pts = vm.wearable[Metric.STEPS].orEmpty().filter { it.date.isAfter(today.minusDays(7)) }
                 val all = pts.map { it.date to it.value } + listOfNotNull(act?.let { today to it.steps.toDouble() })
                 StepWeek(all.distinctBy { it.first }.sortedBy { it.first }, goal)
@@ -213,32 +255,28 @@ fun ActivityScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
 
         // ---------- Allenamenti ----------
         item { LoadTrendCard(vm) }
-        item { SectionLabel("Allenamenti recenti") }
-        if (vm.workouts.isEmpty()) item {
-            Caption("Nessun allenamento negli ultimi 14 giorni. Avvia un esercizio dall'orologio per vedere qui durata, frequenza cardiaca, zone e carico.")
+        item { SectionHeader("Allenamenti recenti", "Tutti", onOpenSync) }
+        if (vm.displaySessions.isEmpty()) item {
+            EmptyState(BioIcons.Bolt, "Nessun allenamento importato",
+                "Avvia un esercizio dall'orologio: quando l'app dell'orologio lo scrive in Connessione Salute compare qui con durata, frequenza cardiaca, zone e carico.", Tint.vo2, "Sincronizza ora") { vm.syncNow() }
         }
-        items(vm.workouts.take(12), key = { it.id }) { w -> WorkoutCard(w, vm) }
+        items(vm.displaySessions.filter { it.start.isAfter(java.time.Instant.now().minus(java.time.Duration.ofDays(14))) }.take(12), key = { it.id }) { w -> WorkoutCard(w, vm) }
 
         item {
             HealthCard("Come sono calcolati", BioIcons.Info, Tint.blue) {
-                Caption("FCmax = 208 − 0,7 × età (Tanaka 2001, PMID 11153730). Intensità come % della riserva cardiaca: moderata 40–59%, vigorosa 60–89% (ACSM, PMID 21694556). Carico: TRIMP di Banister (Morton 1990, PMID 2246166). Minuti attivi e obiettivo settimanale: OMS 2020 (PMID 33239350). L'obiettivo di carico giornaliero parte dalla tua media di 4 settimane ed è modulato dalla prontezza: è una scelta progettuale, non un algoritmo validato.")
+                Caption("FCmax = 208 − 0,7 × età (Tanaka 2001, PMID 11153730). Intensità come % della riserva cardiaca: moderata 40–59%, vigorosa ≥ 60% (ACSM, PMID 21694556). FC minuto per minuto con interpolazione solo dei buchi ≤ 5 minuti. Carico: TRIMP di Banister (Morton 1990, PMID 2246166). Minuti attivi: OMS 2020 (PMID 33239350); stime da tipo di attività: Compendio 2024 (PMID 38242596). L'obiettivo di carico giornaliero parte dalla tua media di 4 settimane ed è modulato dal recupero: è una scelta progettuale, non un algoritmo validato.")
             }
         }
     }
 }
 
 @Composable
-private fun WorkoutCard(w: HealthRepo.Workout, vm: AppViewModel) {
+private fun WorkoutCard(w: it.cinocinorob.bioeta.science.Session, vm: AppViewModel) {
     val p = LocalPalette.current
-    val age = vm.profile.ageAt(LocalDate.now()) ?: 45.0
     val zone = ZoneId.systemDefault()
-    val rest = vm.restHrRef
-    val avg = w.samples.takeIf { it.isNotEmpty() }?.map { it.bpm }?.average()
-    val mx = w.samples.maxOfOrNull { it.bpm }
-    val male = vm.profile.sex == Sex.M
-    val trimp = avg?.let { a -> w.minutes * Fitness.trimpMinute(Fitness.hrr(a, rest, Fitness.hrMax(age)), male) }
+    val st = vm.workoutStats[w.id]
     Column(
-        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(26.dp)).background(p.card).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(p.card).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -246,17 +284,18 @@ private fun WorkoutCard(w: HealthRepo.Workout, vm: AppViewModel) {
                 Icon(BioIcons.Bolt, null, tint = Color.White, modifier = Modifier.size(22.dp))
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(exerciseName(w.type, w.title), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
-                Text(w.start.atZone(zone).format(DateTimeFormatter.ofPattern("EEEE d MMM, HH:mm", Locale.ITALIAN)), fontSize = 12.sp, color = p.text2)
+                Text(exerciseName(w.hcType, w.title), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+                Text(w.start.atZone(zone).format(DateTimeFormatter.ofPattern("EEEE d MMM, HH:mm", Locale.ITALIAN)) + " · " + vm.health.originLabel(w.origin), fontSize = 12.sp, color = p.text2)
             }
-            trimp?.let { Pill("carico ${it.f(0)}", Pillar.load[1]) }
+            st?.load?.let { Pill("carico ${it.f(0)}", Pillar.load[1]) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Durata", w.minutes.f(0), "min", Modifier.weight(1f))
-            StatChip("FC media", avg?.f(0) ?: "—", "bpm", Modifier.weight(1f))
-            StatChip("FC max", mx?.f(0) ?: "—", "bpm", Modifier.weight(1f))
+            StatChip("FC media", st?.avgHr?.f(0) ?: "—", "bpm", Modifier.weight(1f))
+            StatChip("FC max", st?.maxHr?.f(0) ?: "—", "bpm", Modifier.weight(1f))
         }
-        if (w.samples.isNotEmpty()) ZoneBar(Fitness.zoneMinutes(w.samples, rest, age))
+        if (st != null && st.hrCoverage > 0) ZoneBar(st.zoneMinutes)
+        else Caption("Nessuna frequenza cardiaca per questo allenamento: minuti attivi stimati dal tipo di attività, carico non calcolabile.")
     }
 }
 

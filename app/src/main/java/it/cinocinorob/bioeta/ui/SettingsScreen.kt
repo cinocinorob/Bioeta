@@ -74,6 +74,12 @@ fun SettingsScreen(
     ) {
         item { LargeHeader("Profilo") }
         item {
+            HealthCard("Aspetto", BioIcons.Sparkle, Tint.brand) {
+                SegmentPill(ThemeMode.entries.map { it.label }, ThemeMode.entries.indexOf(vm.themeMode), onSelect = { vm.selectTheme(ThemeMode.entries[it]) })
+                Caption("Il tema scuro è quello predefinito di BioEtà. Le dimensioni del testo seguono le impostazioni di sistema.")
+            }
+        }
+        item {
             HealthCard("Dati personali", BioIcons.Person, Tint.body) {
                 OutlinedTextField(
                     value = nameText, onValueChange = { nameText = it.take(30) },
@@ -165,8 +171,8 @@ fun SettingsScreen(
         }
         if (vm.apiKey.isNotBlank()) item { ModelPicker(vm) }
         item {
-            HealthCard("Diagnostica Connessione Salute", BioIcons.Info, Tint.blue, onClick = onOpenDiagnostics) {
-                Caption("Verifica permessi, dati presenti e app che li scrivono.")
+            HealthCard("Fonti e sincronizzazione", BioIcons.Refresh, Tint.brand, onClick = onOpenDiagnostics) {
+                Caption("Ultima sincronizzazione, allenamenti importati, permessi, app che scrivono i dati e diagnostica.")
             }
         }
         if (vm.hcAvailable) item {

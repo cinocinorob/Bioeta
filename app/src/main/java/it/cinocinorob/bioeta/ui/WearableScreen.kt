@@ -1,5 +1,13 @@
 package it.cinocinorob.bioeta.ui
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -56,14 +64,21 @@ fun metricIcon(m: Metric): ImageVector = when (m) {
     Metric.LEAN_MASS -> BioIcons.Person
 }
 
-private fun fmtValue(m: Metric, v: Double): String = when (m) {
+fun fmtValue(m: Metric, v: Double): String = when (m) {
     Metric.SLEEP -> { val h = v.toInt(); val mm = ((v - h) * 60).toInt(); "${h}h ${mm.toString().padStart(2, '0')}m" }
     Metric.STEPS -> String.format(java.util.Locale.ITALY, "%,d", v.toLong())
     else -> v.f(m.decimals)
 }
 
 @Composable
-fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: () -> Unit, onOpenJournal: () -> Unit = {}) {
+fun WearableScreen(
+    vm: AppViewModel,
+    modifier: Modifier,
+    onRequestPermissions: () -> Unit,
+    onOpenJournal: () -> Unit = {},
+    onOpenBp: () -> Unit = {},
+    onOpenMetric: (String) -> Unit = {},
+) {
     val ctx = LocalContext.current
     val summaries = Metric.entries.mapNotNull { m ->
         vm.wearable[m]?.takeIf { it.isNotEmpty() }?.let { HealthRepo.summarize(m, it) }
@@ -75,7 +90,13 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { LargeHeader("Recupero", "Sonno e prontezza") }
+        item { LargeHeader("Salute", "Recupero, sonno e parametri vitali") }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HealthShortcut("Pressione", vm.bpSummary?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)} mmHg" } ?: "Registra", Tint.bp, BioIcons.Heart, onOpenBp, Modifier.weight(1f))
+                HealthShortcut("Diario", "Umore e abitudini", Tint.sleep, BioIcons.Pencil, onOpenJournal, Modifier.weight(1f))
+            }
+        }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { WellnessQuestCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { VitalsCard(vm) }
@@ -124,7 +145,7 @@ fun WearableScreen(vm: AppViewModel, modifier: Modifier, onRequestPermissions: (
             }
         }
 
-        items(summaries, key = { it.metric.name }) { s -> MetricCard(s) }
+        items(summaries, key = { it.metric.name }) { s -> MetricCard(s) { onOpenMetric(s.metric.name) } }
 
         if (vm.hasAnyHealthPermission && missing.isNotEmpty()) item {
             Caption("Nessun dato per: ${missing.joinToString(", ") { it.label }}. Dipende da cosa l'orologio scrive in Connessione Salute e dai permessi concessi.")
@@ -186,10 +207,10 @@ private fun WellnessQuestCard(vm: AppViewModel) {
 }
 
 @Composable
-private fun MetricCard(s: MetricSummary) {
+private fun MetricCard(s: MetricSummary, onClick: () -> Unit) {
     val m = s.metric
     val tint = metricTint(m)
-    HealthCard(m.label, metricIcon(m), tint, trailing = s.points.last().date.itLong()) {
+    HealthCard(m.label, metricIcon(m), tint, trailing = s.points.last().date.itLong(), onClick = onClick) {
         val r = s.recent
         val b = s.baseline
         val sd = s.baselineSd
@@ -251,5 +272,23 @@ private fun rolling7(points: List<DailyPoint>): List<Pair<Double, Double>> {
         val day = p.date.toEpochDay()
         val window = (day - 6..day).mapNotNull { byDay[it]?.value }
         if (window.size >= 4) day.toDouble() to window.average() else null
+    }
+}
+
+@Composable
+private fun HealthShortcut(title: String, value: String, tint: Color, icon: ImageVector, onClick: () -> Unit, modifier: Modifier) {
+    val p = LocalPalette.current
+    Row(
+        modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(p.card)
+            .border(1.dp, p.border, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconBadge(icon, tint, 34)
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
+        }
     }
 }

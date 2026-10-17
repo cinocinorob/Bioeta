@@ -1,5 +1,9 @@
 package it.cinocinorob.bioeta
 
+import it.cinocinorob.bioeta.data.SyncState
+import it.cinocinorob.bioeta.data.SyncStatus
+import it.cinocinorob.bioeta.data.WorkoutStats
+import it.cinocinorob.bioeta.data.WorkoutStore
 import it.cinocinorob.bioeta.science.*
 import androidx.glance.appwidget.updateAll
 import it.cinocinorob.bioeta.widget.BioWidget
@@ -83,6 +87,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var lastFull = 0L
 
+    /** Momento dell'ultima lettura riuscita da Connessione Salute (mostrato nella dashboard). */
+    var lastRefresh by mutableStateOf<java.time.Instant?>(null)
+        private set
+
     /**
      * Lettura in due fasi:
      * 1) veloce (≈1 s): passi e attività di oggi, ultime 3 notti, ultimo dato dell'orologio → la schermata
@@ -108,6 +116,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         sleepNights = (sleepNights.filter { it.date !in dates } + quick.nights).sortedBy { it.date }
                     }
                     lastWearable = runCatching { health.lastWearableData() }.getOrNull()
+                    // Allenamenti e minuti attivi/carico di oggi già nella fase veloce
+                    quietly { syncSessions() }
+                    quietly { refreshToday() }
+                    lastRefresh = java.time.Instant.now()
                     updateWidget()
                     if (force || System.currentTimeMillis() - lastFull > 10 * 60_000L || wearable.isEmpty()) {
                         // Una lettura parziale non deve cancellare serie valide già caricate:
@@ -130,6 +142,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         if (!health.errors.containsKey("Allenamenti")) exercises = rec.exercises
                         refreshFitness()
                         lastFull = System.currentTimeMillis()
+                        lastRefresh = java.time.Instant.now()
                         updateWidget()
                     }
                 }
@@ -141,6 +154,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 loading = false
             }
         }
+    }
+
+    /** Esegue un passo opzionale: gli errori non bloccano il resto, la cancellazione sì. */
+    private inline fun quietly(block: () -> Unit) {
+        try { block() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
     }
 
     /** Aggiorna il widget della schermata Home con i valori correnti. */
@@ -427,6 +445,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- Modalità gratuita: domanda inviata all'app Claude dell'utente ----
+    /** Tema grafico (predefinito: scuro). */
+    var themeMode by mutableStateOf(runCatching { it.cinocinorob.bioeta.ui.ThemeMode.valueOf(settings.getString("theme", "DARK") ?: "DARK") }.getOrDefault(it.cinocinorob.bioeta.ui.ThemeMode.DARK))
+        private set
+
+    fun selectTheme(m: it.cinocinorob.bioeta.ui.ThemeMode) {
+        themeMode = m
+        settings.edit().putString("theme", m.name).apply()
+    }
+
     var assistantMode by mutableStateOf(settings.getString("assistant_mode", "free") ?: "free")
         private set
     var pastedReport by mutableStateOf<CitationCheck.Report?>(null)
@@ -642,10 +669,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     var todayActivity by mutableStateOf<HealthRepo.TodayActivity?>(null)
         private set
-    var dayLoads by mutableStateOf<List<DayLoad>>(emptyList())
+    private val workoutStore = WorkoutStore(app)
+    private val storedWorkouts = workoutStore.load()
+
+    /** Allenamenti importati (archivio locale idempotente, vedi WorkoutStore). */
+    var sessions by mutableStateOf(storedWorkouts.first)
         private set
-    var workouts by mutableStateOf<List<HealthRepo.Workout>>(emptyList())
+    var syncStatus by mutableStateOf(storedWorkouts.second)
         private set
+    var syncing by mutableStateOf(false)
+        private set
+    /** Statistiche cardiache per allenamento (id → stats), calcolate dalla FC. */
+    var workoutStats by mutableStateOf<Map<String, WorkoutStats>>(emptyMap())
+        private set
+
+    /** Allenamenti senza doppioni tra app diverse, dal più recente. */
+    val displaySessions: List<Session> get() = ActivityEngine.dedupe(sessions)
+
+    /** Ultimi 28 giorni di attività (minuti attivi misurati/stimati, carico cardiaco), dal più vecchio. */
+    var dayActivities by mutableStateOf(workoutStore.loadDays()?.takeIf { it.version == ACTIVITY_ALGO_VERSION }?.days ?: emptyList())
+        private set
+    val dayLoads: List<DayLoad> get() = dayActivities.map { it.toDayLoad() }
+    val todayDayActivity: DayActivity? get() = dayActivities.lastOrNull { it.date == java.time.LocalDate.now() }
+
     var fitnessLoading by mutableStateOf(false)
         private set
 
@@ -659,40 +705,126 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return if (night.size >= 5) night.average() else 60.0
         }
 
-    private suspend fun refreshFitness() {
-        // L'attività di oggi e gli allenamenti non dipendono dal profilo: si leggono sempre
-        todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
-        val freshWorkouts = runCatching { health.workouts(14) }.getOrNull()
-        if (freshWorkouts != null && !health.errors.containsKey("Allenamenti")) workouts = freshWorkouts
-        // Il carico cardiaco usa FCmax stimata dall'età: senza data di nascita si usa 40 anni (segnalato nella UI)
+    /**
+     * Sincronizzazione degli allenamenti (idempotente): legge 90 giorni (30 senza permesso storico)
+     * e sostituisce in archivio il contenuto della stessa finestra.
+     */
+    suspend fun syncSessions() {
+        syncing = true
+        try {
+            val r = health.readSessions(90)
+            if (!r.permitted) {
+                syncStatus = syncStatus.copy(state = SyncState.NO_PERMISSION, lastSync = java.time.Instant.now(), errors = listOf("Permesso «Allenamenti» non concesso in Connessione Salute."))
+            } else if (r.error != null) {
+                // In caso di errore l'archivio NON viene toccato: niente perdita di allenamenti già importati
+                syncStatus = syncStatus.copy(state = SyncState.ERROR, lastSync = java.time.Instant.now(), errors = listOf(r.error))
+            } else {
+                sessions = WorkoutStore.merge(sessions, r.sessions, r.from, r.to)
+                val inWindow = sessions.filter { !it.start.isBefore(r.from) }
+                val deduped = ActivityEngine.dedupe(inWindow)
+                syncStatus = SyncStatus(
+                    state = SyncState.OK, lastSync = java.time.Instant.now(), windowDays = r.days,
+                    sessionsInWindow = deduped.size, duplicatesRemoved = inWindow.size - deduped.size,
+                    origins = inWindow.map { health.originLabel(it.origin) }.distinct(),
+                )
+            }
+            withContext(Dispatchers.IO) { workoutStore.save(sessions, syncStatus) }
+        } finally {
+            syncing = false
+        }
+    }
+
+    /** Sincronizzazione manuale completa (allenamenti + tutti i dati). */
+    fun syncNow() = refreshHealth(force = true)
+
+    private fun zoneId() = java.time.ZoneId.systemDefault()
+
+    /** FC minuto per minuto di un giorno locale (con 10 min di margine per interpolare a cavallo della mezzanotte). */
+    private suspend fun hrMinutesFor(d: java.time.LocalDate): Pair<Map<Long, Double>, Boolean> {
+        val zone = zoneId()
+        val from = d.atStartOfDay(zone).toInstant().minusSeconds(600)
+        val to = d.plusDays(1).atStartOfDay(zone).toInstant().plusSeconds(600)
+        val t0 = java.time.Instant.now()
+        val samples = health.heartRate(from, to)
+        val failed = health.errors["Frequenza cardiaca"]?.at?.isBefore(t0) == false
+        return withContext(Dispatchers.Default) { ActivityEngine.minuteSeries(samples) } to failed
+    }
+
+    private fun computeDay(d: java.time.LocalDate, hr: Map<Long, Double>): DayActivity {
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
-        val male = profile.sex == Sex.M
+        return ActivityEngine.day(d, zoneId(), hr, displaySessions, restHrRef, age, profile.sex == Sex.M)
+    }
+
+    /** Solo oggi: per mostrare subito minuti attivi e carico di oggi nella fase veloce. */
+    private suspend fun refreshToday() {
+        val today = java.time.LocalDate.now(zoneId())
+        val (hr, _) = hrMinutesFor(today)
+        val day = withContext(Dispatchers.Default) { computeDay(today, hr) }
+        dayActivities = (dayActivities.filter { it.date != today } + day).sortedBy { it.date }
+    }
+
+    private suspend fun refreshFitness() {
+        todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
+        val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         fitnessLoading = true
         try {
             val rest = restHrRef
-            val (cachedRest, cached) = withContext(Dispatchers.IO) { store.loadLoads() }
-            val reuse = if (kotlin.math.abs(cachedRest - rest) < 2.0) cached.associateBy { it.date } else emptyMap()
-            val zone = java.time.ZoneId.systemDefault()
-            val today = java.time.LocalDate.now(zone)
-            val out = mutableListOf<DayLoad>()
+            val cache = withContext(Dispatchers.IO) { workoutStore.loadDays() }
+            val reuse = if (cache != null && cache.version == ACTIVITY_ALGO_VERSION && kotlin.math.abs(cache.rest - rest) < 2.0 && kotlin.math.abs(cache.age - age) < 1.0)
+                cache.days.associateBy { it.date } else emptyMap()
+            val today = java.time.LocalDate.now(zoneId())
+            val out = mutableListOf<DayActivity>()
             val failed = mutableSetOf<java.time.LocalDate>()
+            val sessionDays = displaySessions.flatMap { s ->
+                val a = s.start.atZone(zoneId()).toLocalDate(); val b = s.end.atZone(zoneId()).toLocalDate()
+                generateSequence(a) { it.plusDays(1) }.takeWhile { !it.isAfter(b) }.toList()
+            }.toSet()
             for (k in 27 downTo 0) {
                 val d = today.minusDays(k.toLong())
                 val c = reuse[d]
-                // Riuso la cache solo per giorni completi: se l'orologio ha sincronizzato in ritardo,
-                // un giorno salvato vuoto o parziale viene ricalcolato.
-                if (c != null && k >= 2 && c.coveredMinutes >= 600) { out += c; continue }
-                val t0 = java.time.Instant.now()
-                val samples = health.heartRate(d.atStartOfDay(zone).toInstant(), d.plusDays(1).atStartOfDay(zone).toInstant())
-                if (health.errors["Frequenza cardiaca"]?.at?.isBefore(t0) == false) failed += d
-                out += withContext(Dispatchers.Default) { Fitness.dayLoad(d, samples, rest, age, male) }
+                // Cache solo per giorni conclusi e completi; i giorni con allenamenti si ricalcolano sempre
+                // (un allenamento sincronizzato in ritardo deve comparire nei minuti attivi).
+                if (c != null && k >= 2 && c.hrMinutes >= ActivityEngine.COMPLETE_COVERAGE_MIN && d !in sessionDays) { out += c; continue }
+                val (hr, err) = hrMinutesFor(d)
+                if (err) failed += d
+                out += withContext(Dispatchers.Default) { computeDay(d, hr) }
             }
-            dayLoads = out
-            // I giorni con lettura fallita non vanno in cache: verranno riletti al prossimo avvio
-            withContext(Dispatchers.IO) { store.saveLoads(rest, out.filter { it.date !in failed }) }
+            dayActivities = out
+            withContext(Dispatchers.IO) { workoutStore.saveDays(rest, age, out.filter { it.date !in failed }) }
+            refreshWorkoutStats()
         } finally {
             fitnessLoading = false
         }
+    }
+
+    /** FC media/massima, copertura, zone e carico per gli allenamenti degli ultimi 14 giorni. */
+    private suspend fun refreshWorkoutStats() {
+        val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
+        val male = profile.sex == Sex.M
+        val rest = restHrRef
+        val maxHr = Fitness.hrMax(age)
+        val since = java.time.Instant.now().minus(java.time.Duration.ofDays(14))
+        val out = HashMap<String, WorkoutStats>()
+        for (s in displaySessions.filter { it.start.isAfter(since) }) {
+            val samples = health.heartRate(s.start.minusSeconds(300), s.end.plusSeconds(300))
+            val series = withContext(Dispatchers.Default) { ActivityEngine.minuteSeries(samples) }
+            val a = Math.floorDiv(s.start.epochSecond, 60L); val b = Math.floorDiv(s.end.epochSecond + 59, 60L)
+            val inSession = series.filterKeys { it in a until b }
+            val zones = Zone.entries.associateWith { 0 }.toMutableMap()
+            var load = 0.0
+            inSession.values.forEach { bpm ->
+                val f = Fitness.hrr(bpm, rest, maxHr)
+                val z = Fitness.zoneOf(f); zones[z] = zones.getValue(z) + 1
+                if (f >= Zone.LIGHT.lo) load += Fitness.trimpMinute(f, male)
+            }
+            out[s.id] = WorkoutStats(
+                avgHr = inSession.values.takeIf { it.isNotEmpty() }?.average(),
+                maxHr = samples.filter { it.time >= s.start && it.time <= s.end }.maxOfOrNull { it.bpm },
+                hrCoverage = if (b > a) inSession.size.toDouble() / (b - a) else 0.0,
+                load = if (inSession.isEmpty()) null else load, zoneMinutes = zones,
+            )
+        }
+        workoutStats = out
     }
 
     val todayLoad: DayLoad? get() = dayLoads.lastOrNull { it.date == java.time.LocalDate.now() }

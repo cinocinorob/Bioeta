@@ -203,7 +203,7 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 ScoreRing(today.readiness.score, "PRONTEZZA", RecoveryColors.ready)
-                Text(if (today.readiness.calibrating) "In calibrazione" else today.readiness.band, fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
+                Text(when { today.readiness.calibrating -> "In calibrazione"; today.readiness.provisional -> today.readiness.band + " · provvisorio"; else -> today.readiness.band }, fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
             }
         }
         (today.readiness.flags + (today.sleep?.flags ?: emptyList())).forEach { fl ->
@@ -216,7 +216,8 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
 
         // Prontezza
         HealthCard("Prontezza", BioIcons.Bolt, Color(0xFF30C85E)) {
-            if (today.readiness.calibrating) Caption("Servono circa 14 giorni di HRV o FC a riposo per costruire la tua baseline personale. Nel frattempo i singoli contributori sono già visibili.")
+            if (today.readiness.calibrating) Caption("Servono almeno 3 giorni di HRV o FC a riposo in Connessione Salute. BioEtà usa già tutto lo storico disponibile: se vedi questo messaggio, l'app dell'orologio ha scritto pochi giorni.")
+            else if (today.readiness.provisional) Caption("Punteggio provvisorio: baseline su ${today.readiness.baselineDays} giorni. Finché lo storico è sotto i 14 giorni la tua variabilità abituale è stimata unendo i tuoi dati a un valore tipico, quindi il punteggio è più prudente.")
             today.readiness.contributors.forEach { ContributorRow(it) }
             Text("Ultimi 14 giorni", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = p.text2, modifier = Modifier.padding(top = 6.dp))
             ScoreBars(history.map { it.date to it.readiness.score }, RecoveryColors.ready)

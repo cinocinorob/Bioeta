@@ -7,7 +7,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Valori attesi calcolati con un'implementazione indipendente (Python) delle stesse equazioni.
+ * Valori attesi calcolati con un'implementazione indipendente (Python) delle equazioni pubblicate:
+ * PhenoAge = 141.50225 + ln(−0.00553 · ln(1 − M)) / 0.090165,
+ * M = 1 − exp(−exp(xb) · (exp(120·γ) − 1) / γ), γ = 0.0076927 (Levine 2018; Liu 2018 e correzione 2019).
  */
 class ScienceTest {
 
@@ -16,7 +18,7 @@ class ScienceTest {
         val r = PhenoAge.compute(
             PhenoAge.Input(45.0, 45.0, 80.0, 5.0, 0.1, 30.0, 89.0, 12.8, 65.0, 6.0)
         )
-        assertEquals(38.0004, r.phenoAge, 0.01)
+        assertEquals(36.2958, r.phenoAge, 0.01)
         assertEquals(0.013633, r.mortality10y, 1e-4)
     }
 
@@ -25,7 +27,7 @@ class ScienceTest {
         val r = PhenoAge.compute(
             PhenoAge.Input(45.0, 40.0, 100.0, 6.5, 0.5, 22.0, 94.0, 14.5, 90.0, 8.5)
         )
-        assertEquals(57.444, r.phenoAge, 0.01)
+        assertEquals(56.0596, r.phenoAge, 0.01)
     }
 
     @Test
@@ -33,7 +35,7 @@ class ScienceTest {
         val r = PhenoAge.compute(
             PhenoAge.Input(70.0, 42.0, 88.0, 5.5, 0.2, 28.0, 91.0, 13.5, 75.0, 6.5)
         )
-        assertEquals(67.527, r.phenoAge, 0.01)
+        assertEquals(66.3085, r.phenoAge, 0.01)
     }
 
     @Test
@@ -63,5 +65,14 @@ class ScienceTest {
     @Test
     fun olsSlope_basic() {
         assertEquals(2.0, Stats.olsSlope(listOf(0.0, 1.0, 2.0), listOf(1.0, 3.0, 5.0))!!, 1e-12)
+    }
+
+    /** PhenoAge è lineare nel predittore xb: Δanni = Δxb / 0.090165 (proprietà esatta del modello). */
+    @Test
+    fun phenoAge_isLinearInXb() {
+        val a = PhenoAge.Input(45.0, 45.0, 80.0, 5.0, 0.1, 30.0, 89.0, 12.8, 65.0, 6.0)
+        val b = a.copy(age = 46.0)
+        val d = PhenoAge.compute(b).phenoAge - PhenoAge.compute(a).phenoAge
+        assertEquals(0.0804 / 0.090165, d, 1e-6)
     }
 }

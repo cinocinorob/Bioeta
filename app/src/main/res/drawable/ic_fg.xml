@@ -1,9 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Logo BioEtà: anello dell'età aperto in alto, punto "adesso", battito che lo attraversa. Area utile 21–87. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#0D171B" android:pathData="M0,0h108v108h-108z" />
-    <path android:fillColor="#54D6A5" android:pathData="M54,15 C36,29 24,43 26,58 C28,75 44,83 58,75 C73,67 82,48 83,25 C72,37 61,43 48,47 C42,49 37,54 35,61 C31,43 43,27 54,15 Z" />
-    <path android:fillColor="#72A8FF" android:pathData="M36,77 C48,63 60,54 76,46 C69,64 56,78 38,85 Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M34,57 L44,57 L49,48 L55,66 L61,54 L73,54 L73,58 L59,58 L55,62 L49,56 L46,61 L34,61 Z" />
+    <path
+        android:pathData="M70.71,34.08 A26,26 0 1,1 49.49,28.4"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear"
+                android:startX="30" android:startY="80" android:endX="80" android:endY="30">
+                <item android:offset="0" android:color="#FF9D8BFF" />
+                <item android:offset="0.55" android:color="#FF3ED69A" />
+                <item android:offset="1" android:color="#FF45C8E0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FF3ED69A"
+        android:pathData="M60.73,28.89 m-3.6,0 a3.6,3.6 0 1,0 7.2,0 a3.6,3.6 0 1,0 -7.2,0" />
+    <path
+        android:pathData="M34,56 L44,56 L48.5,46 L54.5,66 L59.5,52 L62.5,56 L74,56"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
 </vector>

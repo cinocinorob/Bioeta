@@ -98,4 +98,16 @@ class RecoveryTest {
         assertNull(r.score)
         assertTrue(r.calibrating)
     }
+
+    @Test
+    fun readinessProvisionalWithShortHistory() {
+        // 5 giorni di storico: punteggio disponibile ma marcato come provvisorio (baseline < 14 giorni)
+        val d = LocalDate.of(2026, 10, 10)
+        val hrv = (1..5).map { DailyValue(d.minusDays(it.toLong()), 45.0 + it) } + DailyValue(d, 47.0)
+        val rhr = (1..5).map { DailyValue(d.minusDays(it.toLong()), 56.0 + (it % 2)) } + DailyValue(d, 56.0)
+        val r = Readiness.compute(Readiness.Inputs(d, 45.0, true, hrv, rhr, emptyList(), emptyList(), 80, emptyList()))
+        assertNotNull(r.score)
+        assertTrue(r.provisional)
+        assertEquals(5, r.baselineDays)
+    }
 }
