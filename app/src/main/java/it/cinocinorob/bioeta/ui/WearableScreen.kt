@@ -49,6 +49,7 @@ fun metricTint(m: Metric): Color = when (m) {
     Metric.WEIGHT -> Tint.body
     Metric.BODY_FAT -> Tint.body
     Metric.LEAN_MASS -> Tint.body
+    Metric.SKIN_TEMP -> Tint.warn
 }
 
 fun metricIcon(m: Metric): ImageVector = when (m) {
@@ -62,6 +63,7 @@ fun metricIcon(m: Metric): ImageVector = when (m) {
     Metric.WEIGHT -> BioIcons.Person
     Metric.BODY_FAT -> BioIcons.Person
     Metric.LEAN_MASS -> BioIcons.Person
+    Metric.SKIN_TEMP -> BioIcons.Pulse
 }
 
 fun fmtValue(m: Metric, v: Double): String = when (m) {
@@ -83,7 +85,7 @@ fun WearableScreen(
     val summaries = Metric.entries.mapNotNull { m ->
         vm.wearable[m]?.takeIf { it.isNotEmpty() }?.let { HealthRepo.summarize(m, it) }
     }
-    val missing = Metric.entries.filter { vm.wearable[it].isNullOrEmpty() }
+    val missing = Metric.entries.filter { vm.wearable[it].isNullOrEmpty() && it != Metric.SKIN_TEMP }
 
     LazyColumn(
         modifier.fillMaxSize(),
@@ -99,7 +101,7 @@ fun WearableScreen(
         }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { WellnessQuestCard(vm) }
-        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { VitalsCard(vm) }
+        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RadarCard(vm, startExpanded = true) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
         item { TagEffectsCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori e composizione corporea") }

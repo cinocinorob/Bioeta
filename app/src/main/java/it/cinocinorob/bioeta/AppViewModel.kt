@@ -27,6 +27,11 @@ import it.cinocinorob.bioeta.data.ScoringInputs
 import it.cinocinorob.bioeta.data.HealthCache
 import it.cinocinorob.bioeta.data.HealthSnapshot
 import it.cinocinorob.bioeta.data.HealthSync
+import it.cinocinorob.bioeta.data.DayInputs
+import it.cinocinorob.bioeta.data.Ledger
+import it.cinocinorob.bioeta.data.LedgerEntry
+import it.cinocinorob.bioeta.data.LedgerStore
+import it.cinocinorob.bioeta.data.ScoreChange
 import it.cinocinorob.bioeta.assistant.CitationCheck
 import it.cinocinorob.bioeta.assistant.Claude
 import it.cinocinorob.bioeta.assistant.Prompt
@@ -127,12 +132,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // Allenamenti e minuti attivi/carico di oggi già nella fase veloce
                     quietly { syncSessions() }
                     quietly { refreshToday() }
+                    quietly { updateLedger() }
                     saveSnapshot()
                     updateWidget()
                     if (needFull) {
                         snapshot = sync.full(snapshot, granted)
                         applySnapshot(snapshot)
                         refreshFitness()
+                        quietly { updateLedger() }
                         saveSnapshot()
                         updateWidget()
                     }
@@ -602,19 +609,116 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val bedtimeGuide: BedtimeGuide?
         get() = Bedtime.guide(sleepNights, java.time.LocalDate.now(), profile.ageAt(java.time.LocalDate.now()))
 
+    // ---------------- Radar malessere e parametri vitali notturni ----------------
+
+    private var radarKey: List<Any?>? = null
+    private var radarCache: RadarResult? = null
+
+    /** Segni precoci di malessere dalla notte (vedi science/Radar.kt per metodo e limiti). */
+    val radar: RadarResult
+        get() {
+            val today = java.time.LocalDate.now()
+            val key = listOf(wearable, sleepNights, dayLoads, journal, today)
+            radarCache?.let { if (key == radarKey) return it }
+            fun s(m: Metric) = wearable[m].orEmpty().map { DailyValue(it.date, it.value) }
+            val series = linkedMapOf(
+                Signals.RHR to s(Metric.RHR),
+                Signals.SLEEP_HR to sleepNights.mapNotNull { n -> n.avgHr?.let { DailyValue(n.date, it) } },
+                Signals.HRV to s(Metric.HRV),
+                Signals.RESP to s(Metric.RESP),
+                Signals.SPO2 to s(Metric.SPO2),
+                Signals.TEMP to s(Metric.SKIN_TEMP),
+            ).filterValues { it.isNotEmpty() }
+            val r = IllnessRadar.assess(
+                series, today,
+                loads = dayLoads.filter { it.coveredMinutes > 0 }.map { DailyValue(it.date, it.load) },
+                eveningTags = journalFor(today.minusDays(1)).tags,
+            )
+            radarKey = key; radarCache = r
+            return r
+        }
+
+    /** Parametri vitali della notte rispetto al proprio intervallo abituale (stessa valutazione del radar). */
     val vitals: VitalsReport
         get() {
-            fun s(m: Metric) = wearable[m].orEmpty().map { DailyValue(it.date, it.value) }
-            return Vitals.report(
-                linkedMapOf(
-                    "FC a riposo" to Triple(s(Metric.RHR), "bpm", 0),
-                    "HRV" to Triple(s(Metric.HRV), "ms", 0),
-                    "Respirazione" to Triple(s(Metric.RESP), "atti/min", 1),
-                    "SpO₂" to Triple(s(Metric.SPO2), "%", 1),
-                    "FC nel sonno" to Triple(sleepNights.mapNotNull { n -> n.avgHr?.let { DailyValue(n.date, it) } }, "bpm", 0),
-                ),
-                java.time.LocalDate.now(),
-            )
+            val r = radar
+            val list = r.signals.map { e ->
+                val st = when {
+                    e.value == null -> VitalState.NO_DATA
+                    e.z == null -> VitalState.IN_RANGE
+                    e.z >= 2.0 -> VitalState.HIGH
+                    e.z <= -2.0 -> VitalState.LOW
+                    else -> VitalState.IN_RANGE
+                }
+                Vital(e.spec.label, e.spec.unit, e.value, e.low, e.high, st, e.spec.decimals)
+            }
+            val n = r.signals.count { it.outOfRange }
+            return VitalsReport(list, n, if (r.level == RadarLevel.CALIBRATING) r.detail else r.detail)
+        }
+
+    // ---------------- Registro dei punteggi: ogni cambiamento di un giorno passato ha un motivo ----------------
+
+    private val ledgerStore = LedgerStore(app)
+    var scoreChanges by mutableStateOf(ledgerStore.load().changes)
+        private set
+
+    private fun dayInputs(d: java.time.LocalDate): DayInputs {
+        fun w(m: Metric) = wearable[m].orEmpty().lastOrNull { it.date == d }?.value
+        val z = zoneId()
+        return DayInputs(
+            sleepMin = sleepNights.firstOrNull { it.date == d }?.totalSleepMin?.let { kotlin.math.round(it).toInt() },
+            hrv = w(Metric.HRV)?.let { kotlin.math.round(it).toInt() },
+            rhr = w(Metric.RHR)?.let { kotlin.math.round(it).toInt() },
+            resp10 = w(Metric.RESP)?.let { kotlin.math.round(it * 10).toInt() },
+            workouts = displaySessions.count { it.start.atZone(z).toLocalDate() == d },
+            load = dayLoads.firstOrNull { it.date == d && it.coveredMinutes > 0 }?.load?.let { kotlin.math.round(it).toInt() },
+        )
+    }
+
+    private suspend fun updateLedger() {
+        val today = java.time.LocalDate.now()
+        val now = java.time.Instant.now()
+        val fresh = scoreHistory60.filter { it.date.isAfter(today.minusDays(30)) }.map { d ->
+            LedgerEntry(d.date, d.sleep?.score, d.readiness.score, dayInputs(d.date), final = d.date.isBefore(today))
+        }
+        val st = withContext(Dispatchers.IO) { ledgerStore.load() }
+        val found = Ledger.diff(st.entries, fresh, today, now)
+        val changes = (found + st.changes).filter { it.at.isAfter(now.minus(java.time.Duration.ofDays(14))) }.take(40)
+        withContext(Dispatchers.IO) { ledgerStore.save(LedgerStore.State(fresh.associateBy { it.date }, changes)) }
+        scoreChanges = changes
+    }
+
+    /** Cambiamenti segnalati nelle ultime 24 ore (mostrati in Home). */
+    val recentChanges: List<ScoreChange>
+        get() = scoreChanges.filter { it.at.isAfter(java.time.Instant.now().minus(java.time.Duration.ofHours(24))) }
+
+    // ---------------- Fatica percepita (session-RPE) ----------------
+
+    var rpe by mutableStateOf<Map<String, Int>>(emptyMap())
+        private set
+
+    fun setRpe(id: String, value: Int) {
+        rpe = rpe + (id to value)
+        val snap = rpe
+        viewModelScope.launch(Dispatchers.IO) { workoutStore.saveRpe(snap) }
+    }
+
+    /** Allenamento concluso nelle ultime 36 ore (≥ 10 min) ancora da votare. */
+    val pendingRpe: Session?
+        get() {
+            val now = java.time.Instant.now()
+            return displaySessions.firstOrNull { s ->
+                s.end.isBefore(now) && s.end.isAfter(now.minus(java.time.Duration.ofHours(36))) && s.minutes >= 10 && s.id !in rpe
+            }
+        }
+
+    val rpeSummary: SessionRpe.Summary?
+        get() {
+            val z = zoneId()
+            val rated = displaySessions.mapNotNull { s ->
+                rpe[s.id]?.takeIf { it >= 0 }?.let { SessionRpe.Rated(s.start.atZone(z).toLocalDate(), it, s.minutes) }
+            }
+            return if (rated.isEmpty()) null else SessionRpe.summary(rated, java.time.LocalDate.now(z))
         }
 
     val loadTrend: LoadTrend get() = LoadTrendCalc.compute(dayLoads, java.time.LocalDate.now())
@@ -662,6 +766,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var todayActivity by mutableStateOf<HealthRepo.TodayActivity?>(snapshot.today.takeIf { snapshot.todayDate == java.time.LocalDate.now() })
         private set
     private val workoutStore = WorkoutStore(app)
+    init { rpe = workoutStore.loadRpe() }
     private val storedWorkouts = workoutStore.load()
 
     /** Allenamenti importati (archivio locale idempotente, vedi WorkoutStore). */

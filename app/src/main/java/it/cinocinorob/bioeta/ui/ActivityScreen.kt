@@ -269,6 +269,7 @@ fun ActivityScreen(
 
         // ---------- Allenamenti ----------
         item { LoadTrendCard(vm) }
+        item { RpeLoadCard(vm) }
         item { SectionHeader("Allenamenti recenti", "Tutti", onOpenSync) }
         if (vm.displaySessions.isEmpty()) item {
             EmptyState(BioIcons.Bolt, "Nessun allenamento importato",

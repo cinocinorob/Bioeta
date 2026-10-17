@@ -13,6 +13,9 @@ un'implementazione indipendente in Python delle equazioni pubblicate).
 | 2026-10-17 | Attività | 2 | Nuovo motore minuti attivi/carico (`ActivityEngine`): FC per minuto con interpolazione dei buchi ≤ 5 min, minuti stimati dagli allenamenti senza FC, unione degli intervalli, divisione alla mezzanotte, qualità del carico | I minuti attivi non sono più sottostimati quando l'orologio scrive la FC a intervalli di 2–5 minuti; gli allenamenti senza FC contano (in modo prudente) nei minuti attivi ma non nel carico. |
 | 2026-10-17 | Recupero | 2 | Baseline disponibile dal 3° giorno di storico: deviazione standard stimata con prior (shrinkage) finché i giorni sono meno di 14; punteggio marcato "provvisorio" | Prima servivano 14 giorni di HRV o FC a riposo. |
 | 2026-10-18 | Lettura dati | — | Finestre di lettura da Connessione Salute allineate alla mezzanotte locale; il primo giorno (o la prima notte) di ogni finestra, potenzialmente incompleto, viene scartato; FC a riposo di riferimento per carico/minuti attivi stabilizzata (cambia solo se la media si sposta di ≥ 2 bpm) | Prima la lettura veloce partiva da «adesso − N giorni» e sovrascriveva il giorno più vecchio con dati troncati, diversi a seconda dell'ora di apertura: allenamenti, notti e punteggi dei giorni recenti cambiavano tra un'apertura e l'altra. |
+| 2026-10-18 | Parametri vitali / Radar malessere | 1 | Nuovo: intervallo personale robusto (mediana ± 2·MAD×1,4826, notti da −30 a −3, minimo 7) con DS minime per segnale; livelli Nessun segno / Segni lievi / Segni marcati | Sostituisce la vecchia scheda Parametri vitali (media ± 2 DS dei 30 giorni, ultima notte inclusa nella finestra). |
+| 2026-10-18 | Carico percepito | 1 | Nuovo: session‑RPE (voto 0–10 × minuti), media di 4 settimane, monotonia e tensione (Foster 1998, 2001) | Gli allenamenti senza FC hanno finalmente un carico misurato (soggettivo). |
+| 2026-10-18 | Registro punteggi | 1 | Ogni variazione ≥ 2 punti di un punteggio già visto di un giorno passato viene registrata con il motivo (dati d'ingresso confrontati) | Nessun valore cambia più «in silenzio». |
 
 ## 1. Età biologica — PhenoAge (versione 2)
 
@@ -93,3 +96,34 @@ Unica fonte attiva: **Connessione Salute** (sola lettura). Fitbit/Google Health,
 Health, Oura ecc. sono visibili solo se l'app corrispondente scrive in Connessione Salute; l'app mostra per ogni
 tipo di dato quale pacchetto lo ha scritto. Nessuna API cloud diretta è integrata (richiederebbe OAuth e invio
 dei dati via Internet).
+
+
+## Radar malessere e parametri vitali notturni (versione 1)
+
+Riferimenti: Alavi A et al., *Nat Med* 2022;28:175-184, doi:10.1038/s41591-021-01593-2 (PMID 34845389);
+Mishra T et al., *Nat Biomed Eng* 2020;4:1208-1220, doi:10.1038/s41551-020-00640-6 (PMID 33208926).
+
+- Segnali: FC a riposo, FC media nel sonno, HRV (RMSSD, scala logaritmica), respirazione, SpO₂, scarto della
+  temperatura cutanea (solo se l'orologio la scrive in Connessione Salute).
+- Baseline per ogni segnale: notti da −30 a −3 giorni (minimo 7). Centro = mediana; scala = MAD × 1,4826 con
+  minimo per segnale: FC 1,5 bpm (così +3 bpm = 2 DS, il margine di NightSignal), ln‑HRV 0,10, respirazione
+  0,4 atti/min, SpO₂ 0,7 punti, temperatura 0,15 °C.
+- Un segnale «preoccupa» se |z| ≥ 2 nella direzione tipica del malessere (FC, respirazione, temperatura in alto;
+  HRV e SpO₂ in basso). FC a riposo e FC nel sonno contano come un solo segnale.
+- Segni lievi: 2 segnali, oppure FC alta anche la notte precedente. Segni marcati: ≥ 3 segnali, oppure FC alta
+  per due notti + un altro segnale.
+- Contesto mostrato insieme all'avviso: carico cardiaco di ieri ≥ 1,5 × mediana dei 28 giorni; «Alcol» o
+  «Stress» nel diario di ieri.
+- Prestazioni: non validate da BioEtà. Nello studio di Alavi (sistema basato sulla FC notturna) avvisi nell'80%
+  degli infetti, mediana 3 giorni prima dei sintomi; avvisi anche con altre infezioni, stress, alcol, viaggi.
+
+## Carico percepito — session‑RPE (versione 1)
+
+Riferimenti: Foster C et al., *J Strength Cond Res* 2001;15:109-115 (PMID 11708692); Foster C, *Med Sci Sports
+Exerc* 1998;30:1164-1168, doi:10.1097/00005768-199807000-00023 (PMID 9662690); Haddad M et al., *Front Neurosci*
+2017;11:612, doi:10.3389/fnins.2017.00612 (PMID 29163016).
+
+- Carico = voto CR‑10 (0–10) × durata in minuti (UA).
+- Settimana = somma degli ultimi 7 giorni; media di 4 settimane = somma dei 28 giorni / 4 (dopo 14 giorni di voti).
+- Monotonia = media / DS (campionaria) del carico giornaliero dei 7 giorni, giorni senza allenamento = 0;
+  tensione = carico settimanale × monotonia.

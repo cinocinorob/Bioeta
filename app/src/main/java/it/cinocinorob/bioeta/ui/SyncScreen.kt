@@ -1,6 +1,10 @@
 package it.cinocinorob.bioeta.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import it.cinocinorob.bioeta.science.SessionRpe
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,14 +103,20 @@ fun SyncScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions: () ->
             }
             items(sessions.take(60), key = { it.id }) { s ->
                 val stats = vm.workoutStats[s.id]
+                var rate by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+                if (rate) RpeDialog(s, vm.rpe[s.id], { vm.setRpe(s.id, it) }, { rate = false })
                 Row(
-                    Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp)).background(p.card).padding(14.dp),
+                    Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp)).background(p.card)
+                        .clickable { rate = true }.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(exerciseName(s.hcType, s.title), style = MaterialTheme.typography.titleSmall, color = p.text)
                         Text("${s.start.atZone(zone).format(fmt)} · ${s.minutes.f(0)} min", style = MaterialTheme.typography.bodySmall, color = p.text2)
                         Text(vm.health.originLabel(s.origin), style = MaterialTheme.typography.bodySmall, color = p.text3)
+                        val r = vm.rpe[s.id]
+                        Text(if (r != null && r >= 0) "Fatica $r/10 · carico percepito ${SessionRpe.load(r, s.minutes).f(0)}" else "Tocca per votare la fatica",
+                            style = MaterialTheme.typography.bodySmall, color = if (r != null && r >= 0) Tint.vo2 else Tint.blue)
                     }
                     when {
                         stats == null -> Text("FC in calcolo", style = MaterialTheme.typography.labelSmall, color = p.text3)

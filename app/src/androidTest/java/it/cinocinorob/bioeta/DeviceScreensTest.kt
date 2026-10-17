@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
@@ -224,6 +225,22 @@ class DeviceScreensTest {
             waitText("Aggiornato", 90_000)
             Thread.sleep(6000) // fase completa: storico, carico, statistiche allenamenti
             screenshot("home")
+            // Radar malessere: si apre al tocco con i parametri della notte e il loro intervallo
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
+            compose.onNodeWithTag("radar_card").performClick()
+            Thread.sleep(600)
+            screenshot("home_radar")
+            compose.onNodeWithTag("radar_card").performClick()
+            Thread.sleep(400)
+            // Fatica percepita: richiesta per gli allenamenti di oggi, voto 6 e poi 4
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("rpe_prompt"))
+            screenshot("home_rpe")
+            compose.onNodeWithTag("rpe_6").performClick()
+            Thread.sleep(500)
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("rpe_prompt"))
+            compose.onNodeWithTag("rpe_4").performClick()
+            Thread.sleep(500)
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("I tuoi numeri"))
             screenshot("home_eta_fisiologia")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Allenamenti oggi", substring = true))
@@ -235,6 +252,9 @@ class DeviceScreensTest {
             screenshot("attivita")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("attivita_carico")
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("rpe_card"))
+            waitText("allenamenti votati", 10_000)
+            screenshot("attivita_carico_percepito")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("attivita_allenamenti")

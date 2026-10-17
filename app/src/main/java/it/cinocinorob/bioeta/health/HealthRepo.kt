@@ -15,6 +15,7 @@ import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RespiratoryRateRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
+import androidx.health.connect.client.records.SkinTemperatureRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
@@ -60,6 +61,7 @@ enum class Metric(
     WEIGHT("Peso", "kg", null, 1),
     BODY_FAT("Grasso corporeo", "%", null, 1),
     LEAN_MASS("Massa magra", "kg", null, 1),
+    SKIN_TEMP("Temperatura cutanea (scarto notturno)", "°C", null, 2),
 }
 
 data class DailyPoint(val date: LocalDate, val value: Double)
@@ -130,6 +132,7 @@ class HealthRepo(private val context: Context) {
         Metric.WEIGHT -> HealthPermission.getReadPermission(WeightRecord::class)
         Metric.BODY_FAT -> HealthPermission.getReadPermission(BodyFatRecord::class)
         Metric.LEAN_MASS -> HealthPermission.getReadPermission(LeanBodyMassRecord::class)
+        Metric.SKIN_TEMP -> SKIN_TEMP_PERMISSION
     }
 
     /** Chiave diagnostica usata da readAll per distinguere un errore da una serie vuota. */
@@ -144,6 +147,7 @@ class HealthRepo(private val context: Context) {
         Metric.WEIGHT -> "Peso"
         Metric.BODY_FAT -> "Grasso corporeo"
         Metric.LEAN_MASS -> "Massa magra"
+        Metric.SKIN_TEMP -> "Temperatura cutanea"
     }
 
     // ------------------------------------------------------------------
@@ -212,8 +216,19 @@ class HealthRepo(private val context: Context) {
             androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
     }.getOrDefault(false)
 
-    /** Permessi da chiedere: quelli di lettura più, se supportato, la lettura in background. */
-    fun permissionsToRequest(): Set<String> = if (backgroundReadAvailable()) permissions + BACKGROUND_PERMISSION else permissions
+    /** true se Connessione Salute su questo telefono gestisce la temperatura cutanea. */
+    fun skinTempAvailable(): Boolean = runCatching {
+        client.features.getFeatureStatus(androidx.health.connect.client.HealthConnectFeatures.FEATURE_SKIN_TEMPERATURE) ==
+            androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    }.getOrDefault(false)
+
+    /** Permessi da chiedere: quelli di lettura più, se supportati, lettura in background e temperatura cutanea. */
+    fun permissionsToRequest(): Set<String> {
+        var out = permissions
+        if (backgroundReadAvailable()) out = out + BACKGROUND_PERMISSION
+        if (skinTempAvailable()) out = out + SKIN_TEMP_PERMISSION
+        return out
+    }
 
     /** true se i passi mostrati vengono dai record grezzi perché l'aggregato di Connessione Salute era vuoto. */
     @Volatile var stepsFromRaw = false
@@ -262,6 +277,14 @@ class HealthRepo(private val context: Context) {
             out[Metric.RESP] = dailyMean(readRecords(RespiratoryRateRecord::class, start, end)
                 .map { it.time to it.rate }, zone)
         }
+        if (SKIN_TEMP_PERMISSION in granted && skinTempAvailable()) track("Temperatura cutanea") {
+            // Scarto medio della notte rispetto alla baseline del dispositivo; attribuito al giorno del risveglio
+            out[Metric.SKIN_TEMP] = readRecords(SkinTemperatureRecord::class, start, end)
+                .filter { it.deltas.isNotEmpty() }
+                .groupBy { it.endTime.atZone(zone).toLocalDate() }
+                .map { (d, l) -> DailyPoint(d, l.flatMap { r -> r.deltas.map { it.delta.inCelsius } }.average()) }
+                .sortedBy { it.date }
+        }
         if (has(SleepSessionRecord::class)) track("Sonno (riepilogo)") {
             val sessions = readRecords(SleepSessionRecord::class, start, end)
             val byDay = sessions.groupBy { it.endTime.atZone(zone).toLocalDate() }
@@ -300,7 +323,7 @@ class HealthRepo(private val context: Context) {
         val firstPoint = ReadWindow.firstCompleteDay(start, zone, overnight = false)
         val firstNight = ReadWindow.firstCompleteDay(start, zone, overnight = true)
         return out.mapValues { (m, pts) ->
-            val first = if (m == Metric.SLEEP) firstNight else firstPoint
+            val first = if (m == Metric.SLEEP || m == Metric.SKIN_TEMP) firstNight else firstPoint
             pts.filter { !it.date.isBefore(first) }
         }
     }
@@ -736,6 +759,7 @@ class HealthRepo(private val context: Context) {
         const val PROVIDER = "com.google.android.apps.healthdata"
         const val HISTORY_PERMISSION = "android.permission.health.READ_HEALTH_DATA_HISTORY"
         const val BACKGROUND_PERMISSION = "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND"
+        const val SKIN_TEMP_PERMISSION = "android.permission.health.READ_SKIN_TEMPERATURE"
 
         fun summarize(metric: Metric, points: List<DailyPoint>, today: LocalDate = LocalDate.now()): MetricSummary {
             val recentFrom = today.minusDays(7)
