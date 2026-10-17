@@ -42,6 +42,8 @@ import it.cinocinorob.bioeta.data.SyncState
 import it.cinocinorob.bioeta.health.HealthRepo
 import it.cinocinorob.bioeta.health.Metric
 import it.cinocinorob.bioeta.science.Fitness
+import it.cinocinorob.bioeta.science.Bedtime
+import it.cinocinorob.bioeta.science.Personal
 import it.cinocinorob.bioeta.science.FitnessAge
 import it.cinocinorob.bioeta.science.LoadQuality
 import java.time.LocalDate
@@ -154,8 +156,8 @@ fun HomeScreen(
             )
         }
 
-        // ---------------- Fisiologia ----------------
-        item { SectionHeader("Recupero e fisiologia", "Salute", onGoHealth) }
+        // ---------------- I tuoi numeri (recupero, sonno e carico sono già nel quadrante) ----------------
+        item { SectionHeader("I tuoi numeri", "Salute", onGoHealth) }
         item {
             PairRow(
                 { m -> BaselineTile(vm, Metric.RHR, "FC a riposo", BioIcons.Heart, Tint.heart, m) { onOpenMetric("RHR") } },
@@ -163,73 +165,38 @@ fun HomeScreen(
             )
         }
         item {
+            val goal = Fitness.stepGoal(chrono)
+            val steps7 = vm.wearable[Metric.STEPS].orEmpty().filter { it.date.isAfter(today.minusDays(8)) }.map { it.value }
             PairRow(
                 { m ->
                     val n = t.night
                     MetricTile(
                         "Sonno", n?.let { fmtHours(it.totalSleepMin / 60) }, null, Tint.sleep, BioIcons.Moon,
                         if (n != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
-                        if (n != null) "Stanotte · punteggio ${t.sleep?.score ?: "—"}/100" else "Nessuna notte registrata in Connessione Salute",
+                        if (n != null) "Stanotte" else "Nessuna notte registrata",
                         m, spark = vm.sleepNights.takeLast(14).map { it.totalSleepMin / 60 }, onClick = { onOpenMetric("SLEEP") },
                     )
                 },
                 { m ->
-                    val r = t.readiness
                     MetricTile(
-                        "Recupero", r.score?.toString(), "/100", Tint.brand, BioIcons.Bolt,
-                        when { r.score == null -> DataStatus.UNAVAILABLE; r.provisional -> DataStatus.PARTIAL; else -> DataStatus.ESTIMATED },
-                        when {
-                            r.score == null -> "Servono almeno 3 giorni di HRV o FC a riposo"
-                            r.provisional -> "Indice BioEtà · baseline di ${r.baselineDays} giorni (provvisoria)"
-                            else -> "Indice BioEtà vs baseline personale di 60 giorni"
-                        },
-                        m, spark = vm.recoveryHistory.mapNotNull { it.readiness.score?.toDouble() }, onClick = onGoHealth,
+                        "Passi oggi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) }, null, Tint.activity, BioIcons.Bolt,
+                        if (act != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
+                        if (act != null) "Obiettivo ${String.format(Locale.ITALY, "%,d", goal)}" else "Nessun dato oggi",
+                        m, spark = steps7, onClick = { onOpenMetric("STEPS") },
                     )
                 },
             )
         }
-
-        // ---------------- Attività ----------------
-        item { SectionHeader("Attività", "Dettagli", onGoActivity) }
         item {
-            val goal = Fitness.stepGoal(chrono)
-            val steps7 = vm.wearable[Metric.STEPS].orEmpty().filter { it.date.isAfter(today.minusDays(8)) }.map { it.value }
             PairRow(
-                { m ->
-                    MetricTile(
-                        "Passi oggi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) }, null, Tint.activity, BioIcons.Bolt,
-                        if (act != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
-                        if (act != null) "Obiettivo ${String.format(Locale.ITALY, "%,d", goal)} · giornata in corso" else "Nessun dato sui passi oggi",
-                        m, spark = steps7, onClick = { onOpenMetric("STEPS") },
-                    )
-                },
                 { m ->
                     val week = Fitness.weekActiveMinutes(vm.dayLoads, today)
                     val est = dayAct?.estimatedShare ?: 0
                     MetricTile(
                         "Minuti attivi", dayAct?.activeMinutes?.toString(), "min", Tint.good, BioIcons.Bolt,
                         when { dayAct == null -> DataStatus.UNAVAILABLE; est > 0 -> DataStatus.ESTIMATED; else -> DataStatus.MEASURED },
-                        if (dayAct == null) "Servono FC o allenamenti da Connessione Salute"
-                        else "Oggi · settimana $week/150 (OMS)" + if (est > 0) " · $est stimati" else "",
+                        if (dayAct == null) "Servono FC o allenamenti" else "Settimana $week/150",
                         m, onClick = { onOpenMetric(DETAIL_ACTIVE) },
-                    )
-                },
-            )
-        }
-        item {
-            val q = dayAct?.quality ?: LoadQuality.UNAVAILABLE
-            PairRow(
-                { m ->
-                    MetricTile(
-                        "Carico cardiaco", if (q == LoadQuality.UNAVAILABLE) null else dayAct!!.load.f(0), null, Tint.load, BioIcons.Pulse,
-                        when (q) { LoadQuality.COMPLETE -> DataStatus.MEASURED; LoadQuality.PARTIAL -> DataStatus.PARTIAL; LoadQuality.UNAVAILABLE -> DataStatus.UNAVAILABLE },
-                        when (q) {
-                            LoadQuality.UNAVAILABLE -> "Nessuna frequenza cardiaca oggi"
-                            LoadQuality.PARTIAL -> "FC per ${dayAct!!.hrMinutes / 60} h ${dayAct.hrMinutes % 60} min: sottostimato · obiettivo ${target.low.f(0)}–${target.high.f(0)}"
-                            LoadQuality.COMPLETE -> "Obiettivo ${target.low.f(0)}–${target.high.f(0)} · TRIMP"
-                        },
-                        m, spark = vm.dayActivities.filter { it.quality != LoadQuality.UNAVAILABLE }.takeLast(14).map { it.load },
-                        onClick = { onOpenMetric(DETAIL_LOAD) },
                     )
                 },
                 { m ->
@@ -237,20 +204,27 @@ fun HomeScreen(
                     MetricTile(
                         "Allenamenti oggi", if (vm.syncStatus.state == SyncState.NEVER && todays.isEmpty()) null else "${todays.size}", null, Tint.vo2, BioIcons.Gauge,
                         when (vm.syncStatus.state) { SyncState.OK -> DataStatus.MEASURED; SyncState.NEVER, SyncState.NO_PERMISSION -> DataStatus.UNAVAILABLE; else -> DataStatus.PARTIAL },
-                        if (todays.isEmpty()) "Sincronizzati ${agoShort(vm.syncStatus.lastSync)}"
-                        else todays.joinToString(", ") { exerciseName(it.hcType, it.title) },
+                        if (todays.isEmpty()) "Sincronizzati ${agoShort(vm.syncStatus.lastSync)}" else todays.joinToString(", ") { exerciseName(it.hcType, it.title) },
                         m, onClick = onGoActivity,
                     )
                 },
             )
         }
 
-        // ---------------- Sezioni del giorno ----------------
-        if (vm.hasAnyHealthPermission) {
-            if (vm.vitals.outliers >= 2) item { VitalsCard(vm) }
-            item { TonightCard(vm) }
+        // ---------------- Sezioni del giorno, in forma compatta ----------------
+        if (vm.hasAnyHealthPermission && vm.vitals.outliers >= 2) item { VitalsCard(vm) }
+        vm.bedtimeGuide?.let { g ->
+            item {
+                CompactRow(BioIcons.Moon, Tint.sleep, "Stasera a letto entro ${Bedtime.fmt(g.bedtime)}",
+                    "Ultimo caffè entro le ${Bedtime.fmt(g.caffeineCutoff)} · sveglia abituale ${Bedtime.fmt(g.wake)}", onGoHealth)
+            }
         }
-        item { JournalQuickCard(vm, onOpenJournal) }
+        item {
+            val e = vm.journalFor(today)
+            HealthCard("Come ti senti oggi?", BioIcons.Pencil, Tint.sleep, onClick = onOpenJournal) {
+                ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) }
+            }
+        }
         item { WeekCard(vm) }
 
         item {
@@ -261,9 +235,7 @@ fun HomeScreen(
             }
         }
 
-        item {
-            Caption("BioEtà fornisce stime statistiche a scopo informativo, non diagnosi. Per decisioni sulla salute rivolgiti al medico.")
-        }
+        item { Caption("Stime statistiche a scopo informativo, non diagnosi.") }
     }
 }
 
@@ -335,7 +307,8 @@ private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGo
     val t = vm.today
     val dayAct = vm.todayDayActivity
     val target = vm.targetLoad
-    val loadFraction = dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.let { (it.load / maxOf(target.high, 1.0)).toFloat() }
+    val scale = target?.high ?: (vm.dayActivities.maxOfOrNull { it.load } ?: 100.0)
+    val loadFraction = dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.let { (it.load / maxOf(scale, 1.0)).toFloat() }
     val (title, msg) = gentleMessage(mood, t.readiness.flags.isNotEmpty())
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card)
@@ -351,9 +324,16 @@ private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGo
             HeroLegend("Sonno", t.sleep?.score?.toString() ?: "—", Pillar.sleep[1], onGoHealth, Modifier.weight(1f))
             HeroLegend("Carico", loadFraction?.let { dayAct!!.load.f(0) } ?: "—", Pillar.load[1], onGoActivity, Modifier.weight(1f))
         }
-        Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleLarge, color = p.text)
             Text(msg, style = MaterialTheme.typography.bodyMedium, color = p.text2)
+            // Lettura personale: dove si colloca oggi rispetto alla tua storia (i punteggi assoluti saturano)
+            val parts = listOfNotNull(
+                vm.readinessPercentile?.let { "Recupero: ${Personal.describe(it, "giornate")} (meglio del $it%)" },
+                vm.sleepPercentile?.let { "Sonno: ${Personal.describe(it, "notti")} (meglio del $it%)" },
+            )
+            parts.forEach { Text(it, style = MaterialTheme.typography.labelLarge, color = p.text) }
+            if (parts.isEmpty() && t.readiness.score != null) Text("Il confronto con le tue giornate compare dopo 14 giorni di dati.", style = MaterialTheme.typography.labelMedium, color = p.text3)
         }
     }
 }
@@ -382,5 +362,24 @@ private fun QuickAction(title: String, value: String, tint: Color, icon: android
         }
         Text(value, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
         Text(title, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 1)
+    }
+}
+
+/** Riga compatta cliccabile: icona, titolo e sottotitolo. */
+@Composable
+private fun CompactRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, title: String, subtitle: String, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).border(1.dp, p.border, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconBadge(icon, tint, 32)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = p.text)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = p.text2)
+        }
+        Icon(BioIcons.Chevron, null, tint = p.text3, modifier = Modifier.size(14.dp))
     }
 }

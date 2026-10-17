@@ -441,7 +441,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val fit = buildString {
             val tl = todayLoad
             if (dayLoads.isNotEmpty()) {
-                append("\nAttività (dalla frequenza cardiaca): carico cardiaco di oggi ${tl?.load?.toInt() ?: "n.d."} (obiettivo ${targetLoad.low.toInt()}–${targetLoad.high.toInt()}); ")
+                append("\nAttività (dalla frequenza cardiaca): carico cardiaco di oggi ${tl?.load?.toInt() ?: "n.d."} (obiettivo ${targetLoad?.let { "${it.low.toInt()}–${it.high.toInt()}" } ?: "non ancora calcolabile"}); ")
                 append("minuti attivi questa settimana ${Fitness.weekActiveMinutes(dayLoads, java.time.LocalDate.now())}/150 (OMS); ")
                 append("carico medio 28 giorni ${dayLoads.map { it.load }.average().toInt()}\n")
             }
@@ -572,16 +572,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var cacheKey: List<Any?>? = null
     private var cacheHistory: List<DayScores> = emptyList()
 
-    /** Ultimi 14 giorni, dal più vecchio. */
-    val recoveryHistory: List<DayScores>
+    /** Ultimi 60 giorni di punteggi, dal più vecchio (per il confronto con la propria storia). */
+    val scoreHistory60: List<DayScores>
         get() {
             val key = listOf(sleepNights, exercises, wearable, dayLoads, profile, java.time.LocalDate.now())
             if (key != cacheKey) {
-                cacheHistory = (13 downTo 0).map { scoresFor(java.time.LocalDate.now().minusDays(it.toLong())) }
+                cacheHistory = Scoring.history(java.time.LocalDate.now(), 60, scoringInputs)
                 cacheKey = key
             }
             return cacheHistory
         }
+
+    /** Ultimi 14 giorni, dal più vecchio. */
+    val recoveryHistory: List<DayScores> get() = scoreHistory60.takeLast(14)
+
+    /** Rango del sonno di stanotte tra le notti dei 60 giorni precedenti (null con meno di 14 notti). */
+    val sleepPercentile: Int?
+        get() = today.sleep?.score?.let { s -> Personal.percentile(s, scoreHistory60.dropLast(1).mapNotNull { it.sleep?.score }) }
+
+    val readinessPercentile: Int?
+        get() = today.readiness.score?.let { s -> Personal.percentile(s, scoreHistory60.dropLast(1).mapNotNull { it.readiness.score }) }
 
     val today: DayScores get() = recoveryHistory.last()
 
@@ -811,7 +821,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val todayLoad: DayLoad? get() = dayLoads.lastOrNull { it.date == java.time.LocalDate.now() }
 
-    val targetLoad: TargetLoad
+    val targetLoad: TargetLoad?
         get() = Fitness.target(dayLoads, java.time.LocalDate.now(), today.readiness.score, profile.sex == Sex.M)
 
     // ---------------- Diario ----------------

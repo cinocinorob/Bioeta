@@ -4,6 +4,12 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import it.cinocinorob.bioeta.science.LoadStatus
 import it.cinocinorob.bioeta.science.LoadQuality
 import androidx.compose.material3.TextButton
@@ -186,48 +192,55 @@ fun ActivityScreen(
                 ActivityRings(
                     steps = (act?.steps ?: 0L) / goal.toFloat(),
                     minutes = week / 150f,
-                    load = if (quality == LoadQuality.UNAVAILABLE) 0f else ((dayAct?.load ?: 0.0) / maxOf(target.high, 1.0)).toFloat(),
+                    load = if (quality == LoadQuality.UNAVAILABLE) 0f else ((dayAct?.load ?: 0.0) / maxOf(target?.high ?: loadScale(vm), 1.0)).toFloat(),
                 )
                 Spacer(Modifier.width(18.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     RingLegend(Tint.activity, "passi / ${String.format(Locale.ITALY, "%,d", goal)}", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—")
                     RingLegend(Tint.good, "min attivi sett. / 150", "$week")
-                    RingLegend(Tint.load, "carico / ${target.high.f(0)}", if (quality == LoadQuality.UNAVAILABLE) "—" else dayAct!!.load.f(0))
+                    RingLegend(Tint.load, target?.let { "carico / ${it.high.f(0)}" } ?: "carico oggi", if (quality == LoadQuality.UNAVAILABLE) "—" else dayAct!!.load.f(0))
                 }
             }
         }
 
         // ---------- Carico ----------
         item {
-            HealthCard("Carico cardiaco", BioIcons.Pulse, Tint.load, trailing = quality.label, onClick = { onOpenMetric(DETAIL_LOAD) }) {
+            HealthCard(
+                "Carico cardiaco", BioIcons.Pulse, Tint.load, trailing = quality.label, onClick = { onOpenMetric(DETAIL_LOAD) },
+                info = "Carico = TRIMP di Banister (Morton 1990, PMID 2246166) calcolato minuto per minuto dalla frequenza cardiaca, sommando i minuti sopra il 30% della riserva cardiaca (FCmax = 208 − 0,7 × età, Tanaka 2001). Misura lo stress cardiovascolare, non il lavoro muscolare né le calorie. Con meno di 10 ore di frequenza cardiaca nella giornata il valore è parziale (sottostimato).\n\nObiettivo: parte dalla tua media delle ultime 4 settimane ed è modulato dal recupero. Viene proposto solo dopo ${Fitness.TARGET_MIN_DAYS} giorni con l'orologio indossato: con meno dati la media di riferimento è inattendibile. È una scelta progettuale, non un algoritmo validato.",
+            ) {
                 when (quality) {
                     LoadQuality.UNAVAILABLE -> {
                         Text("—", style = MaterialTheme.typography.displaySmall, color = p.text3)
-                        InlineNotice("Nessuna frequenza cardiaca oggi in Connessione Salute: il carico non è calcolabile. Servono il permesso «Frequenza cardiaca» e la sincronizzazione dell'orologio.", NoticeKind.WARN)
+                        InlineNotice("Nessuna frequenza cardiaca oggi in Connessione Salute: il carico non è calcolabile.", NoticeKind.WARN)
                     }
                     else -> {
-                        val st = Fitness.status(dayAct!!.load, target)
                         Row(verticalAlignment = Alignment.Bottom) {
-                            BigValue(dayAct.load.f(0), null, size = 38)
+                            BigValue(dayAct!!.load.f(0), null, size = 38)
                             Spacer(Modifier.width(8.dp))
-                            Caption("obiettivo ${target.low.f(0)}–${target.high.f(0)}")
+                            if (target != null) Caption("obiettivo ${target.low.f(0)}–${target.high.f(0)}")
                             Spacer(Modifier.weight(1f))
-                            Pill(st.label, when (st) { LoadStatus.IN_RANGE -> Tint.good; LoadStatus.BELOW -> Tint.blue; LoadStatus.ABOVE -> Tint.warn })
+                            if (target != null) {
+                                val st = Fitness.status(dayAct.load, target)
+                                Pill(st.label, when (st) { LoadStatus.IN_RANGE -> Tint.good; LoadStatus.BELOW -> Tint.blue; LoadStatus.ABOVE -> Tint.warn })
+                            }
                         }
-                        TargetGauge(dayAct.load, target.low, target.high)
-                        if (quality == LoadQuality.PARTIAL) Caption("Parziale: frequenza cardiaca per ${dayAct.hrMinutes} minuti (meno di 10 ore). Il valore è sottostimato.", Tint.warn)
+                        if (target != null) TargetGauge(dayAct.load, target.low, target.high)
+                        else Caption("Obiettivo personale disponibile dopo ${Fitness.TARGET_MIN_DAYS} giorni con l'orologio indossato (ora ${Fitness.completeDays(vm.dayLoads, today)}).")
+                        if (quality == LoadQuality.PARTIAL) Caption("Parziale: frequenza cardiaca per ${dayAct.hrMinutes} minuti. Il valore è sottostimato.", Tint.warn)
                         ZoneBar(dayAct.zoneMinutes)
                     }
                 }
-                val days = vm.dayActivities.filter { it.quality != LoadQuality.UNAVAILABLE }
-                if (days.size >= 2) LoadBars(days.map { it.date to it.load }, target.low, target.high)
-                Caption("TRIMP di Banister minuto per minuto dalla frequenza cardiaca (sopra il 30% della riserva cardiaca). Non include stime da tipo di attività, calorie o lavoro muscolare. Obiettivo: ${target.basis}.")
+                DayBars(loadBars(vm), Tint.load, "carico", band = target?.let { it.low to it.high })
             }
         }
 
         // ---------- Minuti attivi ----------
         item {
-            HealthCard("Minuti attivi", BioIcons.Bolt, Tint.good, onClick = { onOpenMetric(DETAIL_ACTIVE) }) {
+            HealthCard(
+                "Minuti attivi", BioIcons.Bolt, Tint.good, onClick = { onOpenMetric(DETAIL_ACTIVE) },
+                info = "OMS 2020 (PMID 33239350): 150–300 minuti a settimana di attività moderata; un minuto vigoroso vale 2.\n\nMisurati: minuti con frequenza cardiaca ≥ 40% della riserva cardiaca (moderati) o ≥ 60% (vigorosi), secondo ACSM (PMID 21694556). I buchi di FC fino a 5 minuti vengono interpolati.\n\nStimati: minuti di allenamenti registrati senza frequenza cardiaca; intensità attribuita dal tipo di attività secondo il Compendio delle attività fisiche 2024 (PMID 38242596), in modo prudente. Yoga, stretching e attività non classificate non sono conteggiati. Ogni minuto conta una sola volta anche se due app registrano lo stesso allenamento.",
+            ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     BigValue("$week", "/ 150 min questa settimana", size = 32)
                 }
@@ -237,18 +250,18 @@ fun ActivityScreen(
                     StatChip("Oggi da FC", "${dayAct.moderateMeasured + 2 * dayAct.vigorousMeasured}", "min", Modifier.weight(1f))
                     StatChip("Oggi stimati", "${dayAct.estimatedShare}", "min", Modifier.weight(1f))
                 }
-                Caption("OMS 2020: 150–300 minuti a settimana di attività moderata (1 minuto vigoroso vale 2). Misurati: minuti con FC ≥ 40% della riserva cardiaca. Stimati: minuti di allenamenti senza FC, intensità dal tipo di attività (Compendio 2024); yoga, stretching e attività non classificate non sono conteggiati. Ogni minuto conta una sola volta anche se due app registrano lo stesso allenamento.")
             }
         }
 
         // ---------- Passi ----------
         item {
-            HealthCard("Passi", BioIcons.Bolt, Tint.activity, onClick = { onOpenMetric("STEPS") }) {
+            HealthCard("Passi", BioIcons.Bolt, Tint.activity, onClick = { onOpenMetric("STEPS") },
+                info = "Passi da Connessione Salute. Se l'aggregato di Connessione Salute è vuoto, BioEtà somma i record grezzi prendendo, per ogni ora, il valore più alto tra le app (mai la somma). Nelle meta-analisi di coorte (Paluch 2022) il rischio di mortalità scende fino a circa 8–10 mila passi al giorno sotto i 60 anni e 6–8 mila sopra.") {
                 val pts = vm.wearable[Metric.STEPS].orEmpty().filter { it.date.isAfter(today.minusDays(7)) }
                 val all = pts.map { it.date to it.value } + listOfNotNull(act?.let { today to it.steps.toDouble() })
                 StepWeek(all.distinctBy { it.first }.sortedBy { it.first }, goal)
                 val avg = vm.wearable[Metric.STEPS].orEmpty().filter { it.date.isAfter(today.minusDays(30)) }.map { it.value }
-                if (avg.isNotEmpty()) Caption("Media 30 giorni: ${String.format(Locale.ITALY, "%,d", avg.average().toLong())} passi. Il beneficio sulla mortalità cresce fino a 8–10 mila passi sotto i 60 anni e 6–8 mila sopra (meta-analisi di 15 coorti).")
+                if (avg.isNotEmpty()) Caption("Media 30 giorni: ${String.format(Locale.ITALY, "%,d", avg.average().toLong())} passi")
                 act?.let { HourlyBars(it.hourlySteps, Tint.activity) }
             }
         }
@@ -262,13 +275,11 @@ fun ActivityScreen(
         }
         items(vm.displaySessions.filter { it.start.isAfter(java.time.Instant.now().minus(java.time.Duration.ofDays(14))) }.take(12), key = { it.id }) { w -> WorkoutCard(w, vm) }
 
-        item {
-            HealthCard("Come sono calcolati", BioIcons.Info, Tint.blue) {
-                Caption("FCmax = 208 − 0,7 × età (Tanaka 2001, PMID 11153730). Intensità come % della riserva cardiaca: moderata 40–59%, vigorosa ≥ 60% (ACSM, PMID 21694556). FC minuto per minuto con interpolazione solo dei buchi ≤ 5 minuti. Carico: TRIMP di Banister (Morton 1990, PMID 2246166). Minuti attivi: OMS 2020 (PMID 33239350); stime da tipo di attività: Compendio 2024 (PMID 38242596). L'obiettivo di carico giornaliero parte dalla tua media di 4 settimane ed è modulato dal recupero: è una scelta progettuale, non un algoritmo validato.")
-            }
-        }
     }
 }
+
+/** Scala del carico quando non c'è ancora un obiettivo: massimo delle ultime 4 settimane. */
+private fun loadScale(vm: AppViewModel): Double = vm.dayActivities.maxOfOrNull { it.load } ?: 100.0
 
 @Composable
 private fun WorkoutCard(w: it.cinocinorob.bioeta.science.Session, vm: AppViewModel) {
@@ -299,30 +310,104 @@ private fun WorkoutCard(w: it.cinocinorob.bioeta.science.Session, vm: AppViewMod
     }
 }
 
+/** Barra di un giorno: valore (null = dato assente) e se è parziale (es. poca FC). */
+data class DayBar(val date: LocalDate, val value: Double?, val partial: Boolean = false)
+
+/**
+ * Barre giornaliere su una griglia FISSA di giorni (es. 28): i giorni senza dato restano visibili come
+ * puntini, così un solo giorno con dati non diventa una barra gigante. Asse Y con valori, banda
+ * dell'obiettivo opzionale, tocco per leggere il valore del giorno.
+ */
 @Composable
-fun LoadBars(values: List<Pair<LocalDate, Double>>, low: Double, high: Double) {
+fun DayBars(
+    bars: List<DayBar>,
+    color: Color,
+    unit: String,
+    band: Pair<Double, Double>? = null,
+    height: Int = 130,
+    decimals: Int = 0,
+) {
     val p = LocalPalette.current
-    val mx = maxOf(values.maxOfOrNull { it.second } ?: 0.0, high, 10.0).toFloat()
+    if (bars.isEmpty()) return
+    val mxRaw = maxOf(bars.mapNotNull { it.value }.maxOrNull() ?: 0.0, band?.second ?: 0.0, 1.0)
+    // Scala "pulita" per le etichette dell'asse
+    val step = niceStep(mxRaw / 3)
+    val mx = (kotlin.math.ceil(mxRaw / step) * step).toFloat()
+    var sel by androidx.compose.runtime.remember(bars) { androidx.compose.runtime.mutableStateOf<Int?>(null) }
+    val f = DateTimeFormatter.ofPattern("d MMM", Locale.ITALIAN)
     Column {
-        Canvas(Modifier.fillMaxWidth().height(110.dp)) {
-            val n = values.size.coerceAtLeast(1)
-            val slot = size.width / n; val bw = slot * 0.6f
-            val yLow = size.height * (1 - low.toFloat() / mx); val yHigh = size.height * (1 - high.toFloat() / mx)
-            drawRoundRect(Tint.good.copy(alpha = 0.16f), Offset(0f, yHigh), Size(size.width, (yLow - yHigh).coerceAtLeast(2f)), CornerRadius(6.dp.toPx()))
-            values.forEachIndexed { i, (_, v) ->
-                val h = (v.toFloat() / mx * size.height).coerceAtLeast(2.dp.toPx())
-                val last = i == values.lastIndex
-                drawRoundRect(
-                    if (last) Brush.verticalGradient(Pillar.load) else Brush.verticalGradient(Pillar.load.map { it.copy(alpha = 0.45f) }),
-                    Offset(i * slot + (slot - bw) / 2, size.height - h), Size(bw, h), CornerRadius(bw / 2),
-                )
+        val s = sel
+        Text(
+            if (s != null) bars[s].let { b -> "${b.date.format(f)} · " + (b.value?.let { "${it.f(decimals)} $unit" + if (b.partial) " (parziale)" else "" } ?: "nessun dato") }
+            else "Tocca una barra per il valore",
+            style = MaterialTheme.typography.labelMedium, color = if (s != null) p.text else p.text3,
+        )
+        Spacer(Modifier.height(6.dp))
+        Canvas(
+            Modifier.fillMaxWidth().height(height.dp).pointerInput(bars) {
+                detectTapGestures { o ->
+                    val axis = 34.dp.toPx(); val w = size.width - axis
+                    val i = ((o.x / w) * bars.size).toInt().coerceIn(0, bars.lastIndex)
+                    sel = if (sel == i) null else i
+                }
+            },
+        ) {
+            val axis = 34.dp.toPx()
+            val w = size.width - axis
+            val h = size.height
+            val slot = w / bars.size
+            val bw = minOf(slot * 0.62f, 14.dp.toPx())
+            val labelPaint = android.graphics.Paint().apply { this.color = p.text3.toArgb(); textSize = 10.dp.toPx(); isAntiAlias = true }
+            // griglia e asse Y
+            var v = 0.0
+            while (v <= mx + 1e-9) {
+                val y = h - (v / mx * h).toFloat()
+                drawLine(p.sep, Offset(0f, y), Offset(w, y), strokeWidth = 1f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())))
+                drawContext.canvas.nativeCanvas.drawText(v.f(0), w + 6.dp.toPx(), (y + 4.dp.toPx()).coerceIn(10.dp.toPx(), h), labelPaint)
+                v += step
+            }
+            band?.let { (lo, hi) ->
+                val y1 = h - (hi / mx * h).toFloat(); val y2 = h - (lo / mx * h).toFloat()
+                drawRect(Tint.good.copy(alpha = 0.14f), Offset(0f, y1), Size(w, (y2 - y1).coerceAtLeast(2f)))
+            }
+            bars.forEachIndexed { i, b ->
+                val cx = i * slot + slot / 2
+                val value = b.value
+                if (value == null) {
+                    drawCircle(p.text3.copy(alpha = 0.5f), 1.6.dp.toPx(), Offset(cx, h - 2.dp.toPx()))
+                } else {
+                    val bh = (value / mx * h).toFloat().coerceAtLeast(3.dp.toPx())
+                    val a = when { sel == i -> 1f; b.partial -> 0.38f; i == bars.lastIndex -> 1f; else -> 0.7f }
+                    drawRoundRect(color.copy(alpha = a), Offset(cx - bw / 2, h - bh), Size(bw, bh), CornerRadius(minOf(bw / 2, bh / 2)))
+                }
             }
         }
-        Row(Modifier.fillMaxWidth()) {
-            val f = DateTimeFormatter.ofPattern("d MMM", Locale.ITALIAN)
-            Text(values.firstOrNull()?.first?.format(f) ?: "", fontSize = 10.sp, color = p.text2, modifier = Modifier.weight(1f))
-            Text("oggi", fontSize = 10.sp, color = p.text2)
+        Row(Modifier.fillMaxWidth().padding(end = 34.dp)) {
+            Text(bars.first().date.format(f), fontSize = 10.sp, color = p.text3, modifier = Modifier.weight(1f))
+            Text(bars[bars.size / 2].date.format(f), fontSize = 10.sp, color = p.text3, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            Text("oggi", fontSize = 10.sp, color = p.text3, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
+    }
+}
+
+/** Passo "rotondo" per le etichette degli assi (1, 2, 5 × 10^n). */
+fun niceStep(raw: Double): Double {
+    if (raw <= 0) return 1.0
+    val exp = kotlin.math.floor(kotlin.math.log10(raw))
+    val base = Math.pow(10.0, exp)
+    val m = raw / base
+    return base * when { m <= 1 -> 1.0; m <= 2 -> 2.0; m <= 5 -> 5.0; else -> 10.0 }
+}
+
+/** Ultimi [days] giorni di carico cardiaco come barre (giorni senza FC = assenti, con poca FC = parziali). */
+fun loadBars(vm: AppViewModel, days: Int = 28): List<DayBar> {
+    val today = LocalDate.now()
+    val by = vm.dayActivities.associateBy { it.date }
+    return (days - 1 downTo 0).map { k ->
+        val d = today.minusDays(k.toLong())
+        val a = by[d]
+        DayBar(d, a?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.load, a?.quality == LoadQuality.PARTIAL)
     }
 }
 

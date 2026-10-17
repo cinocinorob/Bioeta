@@ -93,7 +93,7 @@ fun openInClaude(context: Context, text: String) {
 private val FREE_SUGGESTIONS = listOf(
     "Commenta il mio ultimo referto e cosa posso migliorare",
     "Come interpreto la mia pressione e cosa la abbassa secondo le prove?",
-    "Cosa dicono sonno e prontezza delle ultime settimane?",
+    "Cosa dicono sonno e recupero delle ultime settimane?",
     "Quali marcatori pesano di più sulla mia età biologica?",
 )
 

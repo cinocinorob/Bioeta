@@ -74,7 +74,8 @@ fun MetricDetailScreen(vm: AppViewModel, key: String, onBack: () -> Unit) {
                             }
                             HealthChart(
                                 listOf(ChartLayer(pts.map { it.date.toEpochDay().toDouble() to it.value }, tint, if (pts.size > 45) LayerKind.LINE else LayerKind.AREA, emphasizeLast = true)),
-                                yDecimals = if (metric == Metric.STEPS) 0 else minOf(metric.decimals, 1), height = 210, unit = if (metric == Metric.SLEEP) "ore" else metric.unit,
+                                yDecimals = if (metric == Metric.STEPS) 0 else minOf(metric.decimals, 1), height = 220, unit = if (metric == Metric.SLEEP) "ore" else metric.unit,
+                                valueLabel = { v -> fmtValue(metric, v) },
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 StatChip("Minimo", fmtValue(metric, vals.min()), if (metric == Metric.SLEEP) "" else metric.unit, Modifier.weight(1f))
@@ -102,7 +103,7 @@ fun MetricDetailScreen(vm: AppViewModel, key: String, onBack: () -> Unit) {
                                 Row(verticalAlignment = Alignment.Bottom) {
                                     BigValue(ok.map { it.load }.average().f(0), "al giorno", size = 34)
                                 }
-                                LoadBars(ok.map { it.date to it.load }, vm.targetLoad.low, vm.targetLoad.high)
+                                DayBars(loadBars(vm, minOf(days, 28)), Tint.load, "carico", band = vm.targetLoad?.let { it.low to it.high }, height = 180)
                                 val partial = acts.count { it.quality == LoadQuality.PARTIAL }
                                 val missing = acts.count { it.quality == LoadQuality.UNAVAILABLE }
                                 Caption("Giorni completi ${acts.count { it.quality == LoadQuality.COMPLETE }}, parziali $partial (meno di 10 h di FC), senza FC $missing (esclusi dal grafico).")

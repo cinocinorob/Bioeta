@@ -152,8 +152,8 @@ fun WearableScreen(
         }
 
         item {
-            HealthCard("Come leggere questi dati", BioIcons.Info, Tint.blue) {
-                Caption("Questi indicatori non vengono convertiti in \"anni\": non esiste un modello pubblico e validato che lo faccia. Il confronto con la propria baseline è più informativo delle norme di popolazione, perché HRV e FC a riposo variano molto tra persone. Peso, grasso corporeo e massa magra sono letti da Connessione Salute se una fonte li sincronizza; le stime da bioimpedenza oscillano e vanno interpretate come tendenze, non misure esatte. Deviazioni di una settimana possono riflettere sonno, carico, stress o infezioni; contano di più le tendenze di mesi. La banda colorata nel grafico è la baseline ± 1 DS.")
+            HealthCard("Come leggere questi dati", BioIcons.Info, Tint.blue, info = "Questi indicatori non vengono convertiti in \"anni\": non esiste un modello pubblico e validato che lo faccia. Il confronto con la propria baseline è più informativo delle norme di popolazione, perché HRV e FC a riposo variano molto tra persone. Peso, grasso corporeo e massa magra sono letti da Connessione Salute se una fonte li sincronizza; le stime da bioimpedenza oscillano e vanno interpretate come tendenze, non misure esatte. Deviazioni di una settimana possono riflettere sonno, carico, stress o infezioni; contano di più le tendenze di mesi. La banda colorata nel grafico è la baseline ± 1 DS.") {
+                Caption("Ultimi 7 giorni confrontati con la tua baseline personale. Tocca ⓘ per i dettagli.")
             }
         }
     }
