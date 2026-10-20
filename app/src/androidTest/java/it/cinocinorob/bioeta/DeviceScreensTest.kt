@@ -196,6 +196,11 @@ class DeviceScreensTest {
                 "lymph_pct" to LabValue(33.0), "mcv" to LabValue(89.0), "rdw" to LabValue(rdw), "alp" to LabValue(61.0), "wbc" to LabValue(5.6),
             ),
         )
+        // Diario: umore di 26 degli ultimi 30 giorni (dati sintetici), per il grafico dell'andamento
+        store.saveJournal((1..29).filter { it % 7 != 3 }.map { k ->
+            val d = LocalDate.now().minusDays(k.toLong())
+            it.cinocinorob.bioeta.science.JournalEntry(d, mood = (3 + kotlin.math.round(1.2 * kotlin.math.sin(k / 4.0))).toInt().coerceIn(1, 5))
+        }.sortedBy { it.date })
         store.savePanels(listOf(panel(LocalDate.now().minusMonths(9), 1.4, 94.0, 13.2), panel(LocalDate.now().minusDays(20), 0.7, 88.0, 12.8)))
     }
 
@@ -293,6 +298,9 @@ class DeviceScreensTest {
             screenshot("salute")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("salute_recupero")
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("mood_card"))
+            waitText("Cosa va insieme al tuo umore", 10_000)
+            screenshot("salute_umore")
 
             tab("AGE")
             screenshot("eta_biologica")

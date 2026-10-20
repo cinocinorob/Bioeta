@@ -27,6 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Brush
@@ -117,7 +120,7 @@ fun HomeScreen(
         if (vm.hasAnyHealthPermission && radarAlert) item { RadarCard(vm) }
 
         // ---------------- Quadrante di oggi ----------------
-        item { HeroToday(vm, mood, onGoHealth, onGoActivity) }
+        item { HeroToday(vm, mood, onGoHealth, onGoActivity, onOpenJournal) }
         if (vm.hasAnyHealthPermission && !radarAlert) item { RadarCard(vm) }
         item { RpePrompt(vm) }
 
@@ -227,8 +230,9 @@ fun HomeScreen(
         }
         item {
             val e = vm.journalFor(today)
-            HealthCard("Come ti senti oggi?", BioIcons.Pencil, Tint.sleep, onClick = onOpenJournal) {
+            HealthCard("Come ti senti oggi?", BioIcons.Pencil, Tint.mood, onClick = onOpenJournal) {
                 ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) }
+                MoodStrip(vm)
             }
         }
         item { WeekCard(vm) }
@@ -302,57 +306,76 @@ private fun DataFreshnessRow(vm: AppViewModel, onOpenSync: () -> Unit) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.labelLarge, color = p.text2, maxLines = 1, modifier = Modifier.weight(1f))
-        Text("Fonti", style = MaterialTheme.typography.labelLarge, color = Tint.brand)
+        Text("Fonti", style = MaterialTheme.typography.labelLarge, color = p.brand)
     }
 }
 
 /** Quadrante: recupero, sonno e carico attorno al cuore che batte alla frequenza a riposo. */
 @Composable
-private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGoActivity: () -> Unit) {
+private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGoActivity: () -> Unit, onOpenJournal: () -> Unit) {
     val p = LocalPalette.current
     val t = vm.today
     val dayAct = vm.todayDayActivity
-    val target = vm.targetLoad
-    val scale = target?.high ?: (vm.dayActivities.maxOfOrNull { it.load } ?: 100.0)
-    val loadFraction = dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.let { (it.load / maxOf(scale, 1.0)).toFloat() }
     val (title, msg) = gentleMessage(mood, t.readiness.flags.isNotEmpty())
+    val score = t.readiness.score
+    val ringColor = p.brand
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card)
-            .background(Brush.verticalGradient(listOf(moodColors(mood)[0].copy(alpha = if (p.dark) 0.16f else 0.14f), Color.Transparent)))
-            .border(1.dp, p.border, RoundedCornerShape(28.dp))
-            .padding(vertical = 18.dp, horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            // Anelli di accrescimento attorno al marchio: l'unico elemento decorativo dell'app
+            .drawBehind {
+                val c = Offset(size.width - 58.dp.toPx(), 62.dp.toPx())
+                for (i in 1..7) drawCircle(ringColor.copy(alpha = 0.09f - i * 0.01f), radius = (40 + i * 26).dp.toPx(), center = c, style = Stroke(1.dp.toPx()))
+            }
+            .clickable(onClick = onGoHealth)
+            .padding(start = 20.dp, end = 16.dp, top = 18.dp, bottom = 16.dp)
+            .testTag("hero"),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        TriDial(t.readiness.score, t.sleep?.score, loadFraction, mood, bpm = vm.restHrRef)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HeroLegend("Recupero", t.readiness.score?.toString() ?: "—", Pillar.recovery[1], onGoHealth, Modifier.weight(1f))
-            HeroLegend("Sonno", t.sleep?.score?.toString() ?: "—", Pillar.sleep[1], onGoHealth, Modifier.weight(1f))
-            HeroLegend("Carico", loadFraction?.let { dayAct!!.load.f(0) } ?: "—", Pillar.load[1], onGoActivity, Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text("Recupero di oggi", style = MaterialTheme.typography.labelLarge, color = p.text2)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        score?.toString() ?: "—",
+                        style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 92.sp, lineHeight = 92.sp, letterSpacing = (-1).sp, fontFeatureSettings = TABULAR),
+                        color = if (score == null) p.text3 else p.text,
+                    )
+                    if (score != null) Text("/100", style = MaterialTheme.typography.titleMedium, color = p.text3, modifier = Modifier.padding(start = 4.dp, bottom = 14.dp))
+                }
+            }
+            BeatingRings(vm.restHrRef, size = 84, light = !p.dark)
         }
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = p.text)
-            Text(msg, style = MaterialTheme.typography.bodyMedium, color = p.text2)
-            // Lettura personale: dove si colloca oggi rispetto alla tua storia (i punteggi assoluti saturano)
-            val parts = listOfNotNull(
-                vm.readinessPercentile?.let { "Recupero: ${Personal.describe(it, "giornate")} (meglio del $it%)" },
-                vm.sleepPercentile?.let { "Sonno: ${Personal.describe(it, "notti")} (meglio del $it%)" },
-            )
-            parts.forEach { Text(it, style = MaterialTheme.typography.labelLarge, color = p.text) }
-            if (parts.isEmpty() && t.readiness.score != null) Text("Il confronto con le tue giornate compare dopo 14 giorni di dati.", style = MaterialTheme.typography.labelMedium, color = p.text3)
+        Text(title, style = MaterialTheme.typography.titleLarge, color = p.text)
+        Text(msg, style = MaterialTheme.typography.bodyMedium, color = p.text2)
+        // Lettura personale: dove si colloca oggi rispetto alla tua storia (i punteggi assoluti saturano)
+        val parts = listOfNotNull(
+            vm.readinessPercentile?.let { "Meglio del $it% delle tue giornate (${Personal.describe(it, "giornate")})" },
+            vm.sleepPercentile?.let { "Sonno meglio del $it% delle tue notti" },
+        )
+        parts.forEach { Text(it, style = MaterialTheme.typography.labelLarge, color = p.text) }
+        if (parts.isEmpty() && score != null) Text("Il confronto con le tue giornate compare dopo 14 giorni di dati.", style = MaterialTheme.typography.labelMedium, color = p.text3)
+        androidx.compose.material3.HorizontalDivider(color = p.sep, thickness = 1.dp, modifier = Modifier.padding(top = 4.dp))
+        val todayMood = vm.journalFor(LocalDate.now()).mood
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            HeroReadout("Sonno", t.sleep?.score?.toString() ?: "—", Tint.sleep, onGoHealth, Modifier.weight(1f))
+            androidx.compose.material3.VerticalDivider(color = p.sep)
+            HeroReadout("Carico", dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.load?.f(0) ?: "—", Tint.load, onGoActivity, Modifier.weight(1f))
+            androidx.compose.material3.VerticalDivider(color = p.sep)
+            HeroReadout("Umore", todayMood?.let { MOOD_LABELS[it - 1] } ?: "—", Tint.mood, onOpenJournal, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun HeroLegend(label: String, value: String, c: Color, onClick: () -> Unit, modifier: Modifier) {
+private fun HeroReadout(label: String, value: String, c: Color, onClick: () -> Unit, modifier: Modifier) {
     val p = LocalPalette.current
-    Column(
-        modifier.clip(RoundedCornerShape(18.dp)).background(c.copy(alpha = 0.12f)).clickable(onClick = onClick).padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(value, style = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, fontFeatureSettings = TABULAR), color = p.text)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = c, maxLines = 1)
+    Column(modifier.clickable(onClick = onClick).padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 26.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(c))
+            Spacer(Modifier.width(5.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = p.text2, maxLines = 1)
+        }
     }
 }
 
@@ -360,12 +383,10 @@ private fun HeroLegend(label: String, value: String, c: Color, onClick: () -> Un
 private fun QuickAction(title: String, value: String, tint: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier) {
     val p = LocalPalette.current
     Column(
-        modifier.clip(RoundedCornerShape(20.dp)).background(p.card).border(1.dp, p.border, RoundedCornerShape(20.dp)).clickable(onClick = onClick).padding(12.dp),
+        modifier.clip(RoundedCornerShape(20.dp)).background(p.card).clickable(onClick = onClick).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(tint.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
-        }
+        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
         Text(value, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
         Text(title, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 1)
     }
@@ -376,7 +397,7 @@ private fun QuickAction(title: String, value: String, tint: Color, icon: android
 private fun CompactRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, title: String, subtitle: String, onClick: () -> Unit) {
     val p = LocalPalette.current
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).border(1.dp, p.border, RoundedCornerShape(20.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card)
             .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

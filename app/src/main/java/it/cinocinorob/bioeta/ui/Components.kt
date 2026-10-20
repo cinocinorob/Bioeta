@@ -112,9 +112,8 @@ fun MetricTile(
     val desc = "$label: ${value ?: "non disponibile"} ${unit ?: ""}. ${status.label}. $period"
     Column(
         modifier
-            .clip(RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(p.card)
-            .border(1.dp, p.border, RoundedCornerShape(22.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .semantics(mergeDescendants = true) { contentDescription = desc }
             .padding(14.dp)
@@ -129,7 +128,7 @@ fun MetricTile(
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 value ?: "—", color = if (value == null) p.text3 else p.text, maxLines = 1,
-                style = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.ExtraBold, fontSize = 26.sp, letterSpacing = (-0.5).sp, fontFeatureSettings = TABULAR),
+                style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 31.sp, letterSpacing = (-0.3).sp, fontFeatureSettings = TABULAR),
             )
             if (unit != null && value != null) {
                 Spacer(Modifier.width(3.dp))
@@ -138,9 +137,9 @@ fun MetricTile(
             Spacer(Modifier.weight(1f))
             if (spark.size >= 3) Sparkline(spark, tint, Modifier.width(54.dp).height(24.dp))
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusBadge(status)
-            Spacer(Modifier.width(6.dp))
+        // «Misurato» è il caso normale: il distintivo compare solo quando il dato è stimato, parziale o assente
+        if (status != DataStatus.MEASURED || trend != null) Row(verticalAlignment = Alignment.CenterVertically) {
+            if (status != DataStatus.MEASURED) { StatusBadge(status); Spacer(Modifier.width(6.dp)) }
             if (trend != null) TrendChip(trend)
         }
         Text(period, style = MaterialTheme.typography.bodySmall, color = p.text3, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -153,7 +152,7 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
     val p = LocalPalette.current
     Row(Modifier.fillMaxWidth().padding(top = 10.dp, start = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleLarge, color = p.text, modifier = Modifier.weight(1f))
-        if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action, color = Tint.brand) }
+        if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action, color = LocalPalette.current.brand) }
     }
 }
 
@@ -162,7 +161,7 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
 fun EmptyState(icon: ImageVector, title: String, body: String, tint: Color = Tint.brand, action: String? = null, onAction: (() -> Unit)? = null) {
     val p = LocalPalette.current
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).border(1.dp, p.border, RoundedCornerShape(24.dp)).padding(22.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -217,27 +216,58 @@ fun agoShort(t: Instant?): String {
 }
 
 // =============================================================================================
-// Logo BioEtà: un anello (il tempo, l'età) aperto in alto con un battito che lo attraversa.
-// Stessa geometria dell'icona dell'app (res/drawable/ic_fg.xml), viewport 108.
+// Logo BioEtà «Anelli»: cuori concentrici come gli anelli di accrescimento (gli anni) con il nucleo pieno
+// (oggi). Stessa geometria dell'icona dell'app (res/drawable/ic_fg.xml), viewport 108, area utile 21..87.
 // =============================================================================================
+
+private const val RING_W = 56f
+private const val RING_H = 52f
+private const val RING_CX = 54f
+private const val RING_CY = 57.5f
+
+/** Disegna i tre anelli; [beat] 0..1 ingrandisce il nucleo (battito), [ripple] 0..1 allarga leggermente gli anelli. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRings(
+    mono: Color?, beat: Float = 0f, ripple: Float = 0f, colors: Triple<Color, Color, Color>,
+) {
+    val k = size.width / 66f
+    fun heart(s: Float): Path {
+        val w = RING_W * s * k; val h = RING_H * s * k
+        val cx = (RING_CX - 21f) * k; val cy = (RING_CY - 21f) * k
+        return heartPath(w, h, cx - w / 2f, cy - h * 0.56f)
+    }
+    val sw = 3.8f * k
+    drawPath(heart(1f + 0.015f * ripple), mono ?: colors.first, style = Stroke(sw, join = StrokeJoin.Round))
+    drawPath(heart(0.6f + 0.02f * ripple), mono ?: colors.second, style = Stroke(sw, join = StrokeJoin.Round))
+    drawPath(heart(0.24f * (1f + 0.22f * beat)), mono ?: colors.third)
+}
+
+private val RING_COLORS = Triple(Color(0xFFFF6F8A), Color(0xFF4FD1C5), Color(0xFFFFF1F3))
 
 @Composable
 fun BioLogo(modifier: Modifier = Modifier, size: Int = 40, mono: Color? = null) {
-    Canvas(modifier.size(size.dp)) {
-        val k = this.size.width / 66f // area utile 21..87 dell'icona adattiva
-        fun x(v: Float) = (v - 21f) * k
-        val ring = Brush.sweepGradient(listOf(Color(0xFF9D8BFF), Color(0xFF3ED69A), Color(0xFF45C8E0), Color(0xFF9D8BFF)), center = Offset(x(54f), x(54f)))
-        drawArc(
-            brush = mono?.let { Brush.linearGradient(listOf(it, it)) } ?: ring,
-            startAngle = -50f, sweepAngle = 310f, useCenter = false,
-            topLeft = Offset(x(28f), x(28f)), size = Size(52f * k, 52f * k),
-            style = Stroke(7f * k, cap = StrokeCap.Round),
-        )
-        drawCircle(mono ?: Color(0xFF3ED69A), 3.6f * k, Offset(x(60.7f), x(28.9f)))
-        val pulse = Path().apply {
-            moveTo(x(34f), x(56f)); lineTo(x(44f), x(56f)); lineTo(x(48.5f), x(46f)); lineTo(x(54.5f), x(66f))
-            lineTo(x(59.5f), x(52f)); lineTo(x(62.5f), x(56f)); lineTo(x(74f), x(56f))
-        }
-        drawPath(pulse, mono ?: Color.White, style = Stroke(4.6f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    Canvas(modifier.size(size.dp)) { drawRings(mono, colors = RING_COLORS) }
+}
+
+/**
+ * Il marchio vivo: il nucleo batte alla tua frequenza a riposo (doppio colpo «lub‑dub») e gli anelli
+ * rispondono appena. Unico movimento continuo dell'app; fermo in anteprima e nei test.
+ */
+@Composable
+fun BeatingRings(bpm: Double?, modifier: Modifier = Modifier, size: Int = 72, light: Boolean = false) {
+    val period = (60_000.0 / (bpm ?: 60.0).coerceIn(40.0, 120.0)).toInt()
+    val inspection = androidx.compose.ui.platform.LocalInspectionMode.current
+    val t = if (inspection) 0f else {
+        val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "battito")
+        tr.animateFloat(
+            0f, 1f,
+            androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(period, easing = androidx.compose.animation.core.LinearEasing)),
+            label = "fase",
+        ).value
     }
+    // lub (0–12%) e dub (18–30%) del ciclo, poi riposo
+    fun bump(x: Float, a: Float, b: Float) = if (x < a || x > b) 0f else kotlin.math.sin(((x - a) / (b - a)) * Math.PI.toFloat())
+    val beat = bump(t, 0f, 0.12f) + 0.6f * bump(t, 0.18f, 0.30f)
+    val ripple = bump(t, 0.04f, 0.5f)
+    val colors = if (light) Triple(Color(0xFFDE3F63), Color(0xFF0F9E92), Color(0xFFDE3F63)) else RING_COLORS
+    Canvas(modifier.size(size.dp)) { drawRings(null, beat, ripple, colors) }
 }

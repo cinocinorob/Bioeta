@@ -54,6 +54,6 @@ Requisiti: Android 9+ (consigliato 14+, dove Connessione Salute è integrata nel
 - Herrmann SD et al. J Sport Health Sci 2024;13:6-12. doi:10.1016/j.jshs.2023.10.010
 - Garber CE et al. Med Sci Sports Exerc 2011 (ACSM); Tanaka H et al. JACC 2001; Morton RH et al. J Appl Physiol 1990
 
-Font: Manrope, SIL Open Font License 1.1 (`MANROPE-OFL.txt`).
+Font: Archivo (Omnibus-Type), SIL Open Font License 1.1 (`ARCHIVO-OFL.txt`).
 
 Non è un dispositivo medico: le stime sono statistiche e non sostituiscono il parere del medico.

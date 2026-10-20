@@ -162,7 +162,7 @@ fun StatChip(label: String, value: String, unit: String, modifier: Modifier = Mo
     Column(modifier.clip(RoundedCornerShape(16.dp)).background(p.card2).padding(horizontal = 12.dp, vertical = 10.dp)) {
         Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = p.text2, maxLines = 1)
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(value, style = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
+            Text(value, style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 22.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
             if (unit.isNotBlank()) Text(" $unit", style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = p.text2, modifier = Modifier.padding(bottom = 3.dp), maxLines = 1)
         }
     }

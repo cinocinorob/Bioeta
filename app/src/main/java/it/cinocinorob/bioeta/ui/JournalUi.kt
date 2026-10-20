@@ -48,25 +48,27 @@ import it.cinocinorob.bioeta.AppViewModel
 import it.cinocinorob.bioeta.science.JournalTags
 import java.time.LocalDate
 
-private val MOOD_LABELS = listOf("Pessimo", "Giù", "Normale", "Bene", "Ottimo")
-private val MOOD_COLORS = listOf(Color(0xFFF2788A), Color(0xFFFFA97A), Color(0xFFFFD27A), Color(0xFF9FDDB0), Color(0xFF5FD3A0))
+internal val MOOD_LABELS = listOf("Pessimo", "Giù", "Normale", "Bene", "Ottimo")
+internal val MOOD_COLORS = listOf(Color(0xFFFF5A4F), Color(0xFFFF9B6A), Color(0xFFF5C85C), Color(0xFF8EDDB4), Color(0xFF4FD1C5))
 
-/** Selettore 1–5 a pallini morbidi. */
+/** Selettore 1–5: cinque segmenti di una scala unica; quello scelto si riempie del suo colore. */
 @Composable
 fun ScalePicker(value: Int?, onChange: (Int) -> Unit) {
     val p = LocalPalette.current
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))) {
         (1..5).forEach { v ->
             val sel = value == v
+            val c = MOOD_COLORS[v - 1]
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
-                    .background(if (sel) MOOD_COLORS[v - 1].copy(alpha = 0.3f) else p.field)
-                    .clickable { onChange(v) }.padding(vertical = 10.dp),
+                Modifier.weight(1f)
+                    .background(if (sel) c else p.field)
+                    .clickable { onChange(v) }.padding(vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.size(18.dp).clip(CircleShape).background(MOOD_COLORS[v - 1]).then(if (sel) Modifier.border(3.dp, p.card, CircleShape) else Modifier))
-                Text(MOOD_LABELS[v - 1], fontSize = 10.sp, color = if (sel) p.text else p.text2, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 4.dp), textAlign = TextAlign.Center)
+                Box(Modifier.size(width = 18.dp, height = 3.dp).clip(RoundedCornerShape(2.dp)).background(if (sel) Color(0x660C1C20) else c))
+                Text(MOOD_LABELS[v - 1], fontSize = 12.sp, color = if (sel) Color(0xFF0C1C20) else p.text2,
+                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier.padding(top = 6.dp), textAlign = TextAlign.Center, maxLines = 1)
             }
         }
     }
@@ -144,8 +146,9 @@ fun JournalScreen(vm: AppViewModel, onBack: () -> Unit) {
                 }
             }
             item {
-                HealthCard("Umore", BioIcons.Sparkle, Tint.sleep) { ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) } }
+                HealthCard("Umore", BioIcons.Sparkle, Tint.mood) { ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) } }
             }
+            item { MoodTrendCard(vm) }
             item {
                 HealthCard("Energia", BioIcons.Bolt, Tint.activity) { ScalePicker(e.energy) { vm.saveJournal(e.copy(energy = it)) } }
             }

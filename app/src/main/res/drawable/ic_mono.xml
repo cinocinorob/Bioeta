@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Variante monocromatica per le icone a tema di Android 13+. -->
+<!-- Versione monocromatica per le icone a tema (Android 13+). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:pathData="M70.71,34.08 A26,26 0 1,1 49.49,28.4" android:strokeColor="#FF000000"
-        android:strokeWidth="7" android:strokeLineCap="round" android:fillColor="#00000000" />
-    <path android:fillColor="#FF000000" android:pathData="M60.73,28.89 m-3.6,0 a3.6,3.6 0 1,0 7.2,0 a3.6,3.6 0 1,0 -7.2,0" />
-    <path android:pathData="M34,56 L44,56 L48.5,46 L54.5,66 L59.5,52 L62.5,56 L74,56" android:strokeColor="#FF000000"
-        android:strokeWidth="4.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+    <path android:pathData="M54.00,77.26 C32.72,62.70 24.88,47.10 32.72,37.22 C40.56,27.34 52.32,30.46 54.00,39.82 C55.68,30.46 67.44,27.34 75.28,37.22 C83.12,47.10 75.28,62.70 54.00,77.26 Z" android:strokeColor="#FF000000" android:strokeWidth="4.3999999999999995" android:strokeLineJoin="round" android:fillColor="#00000000" />
+    <path android:pathData="M54.00,69.36 C41.23,60.62 36.53,51.26 41.23,45.33 C45.94,39.40 52.99,41.28 54.00,46.89 C55.01,41.28 62.06,39.40 66.77,45.33 C71.47,51.26 66.77,60.62 54.00,69.36 Z" android:strokeColor="#FF000000" android:strokeWidth="4.3999999999999995" android:strokeLineJoin="round" android:fillColor="#00000000" />
+    <path android:pathData="M54.00,62.24 C48.89,58.75 47.01,55.00 48.89,52.63 C50.77,50.26 53.60,51.01 54.00,53.26 C54.40,51.01 57.23,50.26 59.11,52.63 C60.99,55.00 59.11,58.75 54.00,62.24 Z" android:fillColor="#FF000000" />
 </vector>
