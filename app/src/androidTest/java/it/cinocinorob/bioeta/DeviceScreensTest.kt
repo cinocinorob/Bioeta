@@ -291,6 +291,12 @@ class DeviceScreensTest {
             compose.onNodeWithContentDescription("Indietro").performClick()
             Thread.sleep(800)
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
+            // Il tasto Indietro di sistema deve chiudere il diario
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("journal_card"))
+            compose.onNodeWithTag("journal_card").performClick()
+            waitText("risposte", 10_000)
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
 
             tab("ACTIVITY")
             screenshot("attivita")
