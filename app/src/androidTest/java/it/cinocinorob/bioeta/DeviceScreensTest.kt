@@ -197,9 +197,12 @@ class DeviceScreensTest {
             ),
         )
         // Diario: umore di 26 degli ultimi 30 giorni (dati sintetici), per il grafico dell'andamento
+        // Etichetta «Alcol» la sera prima dei mattini in cui l'HRV sintetica è più bassa (per la schermata Scoperte)
         store.saveJournal((1..29).filter { it % 7 != 3 }.map { k ->
             val d = LocalDate.now().minusDays(k.toLong())
-            it.cinocinorob.bioeta.science.JournalEntry(d, mood = (3 + kotlin.math.round(1.2 * kotlin.math.sin(k / 4.0))).toInt().coerceIn(1, 5))
+            val nextMorningK = k - 1
+            val tags = if (nextMorningK >= 0 && kotlin.math.sin(nextMorningK / 3.0) < -0.55) setOf("Alcol") else if (k % 4 == 0) setOf("Caffè dopo le 14") else emptySet()
+            it.cinocinorob.bioeta.science.JournalEntry(d, mood = (3 + kotlin.math.round(1.2 * kotlin.math.sin(k / 4.0))).toInt().coerceIn(1, 5), tags = tags)
         }.sortedBy { it.date })
         store.savePanels(listOf(panel(LocalDate.now().minusMonths(9), 1.4, 94.0, 13.2), panel(LocalDate.now().minusDays(20), 0.7, 88.0, 12.8)))
     }
@@ -301,6 +304,18 @@ class DeviceScreensTest {
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("mood_card"))
             waitText("Cosa va insieme al tuo umore", 10_000)
             screenshot("salute_umore")
+            // Scoperte: schermata dedicata
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("discoveries_card"))
+            screenshot("salute_scoperte_card")
+            compose.onNodeWithTag("discoveries_card").performClick()
+            waitText("Cosa cambia i tuoi numeri", 20_000)
+            Thread.sleep(4000) // calcolo in background (bootstrap e permutazioni)
+            screenshot("scoperte")
+            compose.onNodeWithTag("discoveries_list").performTouchInput { swipeUp(durationMillis = 400) }
+            screenshot("scoperte_foresta")
+            compose.onNodeWithTag("discoveries_list").performTouchInput { swipeUp(durationMillis = 400) }
+            screenshot("scoperte_attesa")
+            back()
 
             tab("AGE")
             screenshot("eta_biologica")

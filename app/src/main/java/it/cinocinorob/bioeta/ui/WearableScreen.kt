@@ -78,6 +78,7 @@ fun WearableScreen(
     modifier: Modifier,
     onRequestPermissions: () -> Unit,
     onOpenJournal: () -> Unit = {},
+    onOpenDiscoveries: () -> Unit = {},
     onOpenBp: () -> Unit = {},
     onOpenMetric: (String) -> Unit = {},
 ) {
@@ -104,7 +105,7 @@ fun WearableScreen(
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RadarCard(vm, startExpanded = true) }
         item { MoodTrendCard(vm, onLog = onOpenJournal) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
-        item { TagEffectsCard(vm) }
+        item { DiscoveriesCard(vm, onOpenDiscoveries) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori e composizione corporea") }
         if (vm.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.heart) }
 

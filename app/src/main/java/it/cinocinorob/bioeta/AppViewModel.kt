@@ -988,6 +988,78 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         autoBackupNow()
     }
 
+    // ---------------- Scoperte: abitudini ↔ esiti (vedi science/Associations.kt) ----------------
+
+    var discoveries by mutableStateOf<Discoveries?>(null)
+        private set
+    var discoveriesLoading by mutableStateOf(false)
+        private set
+    private var discKey: Any? = null
+
+    /** Calcolo in background (bootstrap e permutazioni): ripetuto solo se cambiano i dati. */
+    fun refreshDiscoveries() {
+        val today = java.time.LocalDate.now()
+        val key = listOf(journal, wearable, sleepNights, dayActivities, sessions, today)
+        if (key == discKey && discoveries != null) return
+        discKey = key
+        val (exp, out) = discoveryInputs(today)
+        viewModelScope.launch {
+            discoveriesLoading = true
+            try {
+                discoveries = withContext(Dispatchers.Default) { Associations.discover(exp, out, today) }
+            } finally { discoveriesLoading = false }
+        }
+    }
+
+    private fun discoveryInputs(today: java.time.LocalDate): Pair<List<Exposure>, Map<OutcomeKind, Map<java.time.LocalDate, Double>>> {
+        val z = zoneId()
+        val from = today.minusDays(Associations.WINDOW_DAYS)
+        val window = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(today) }.toSet()
+        val exps = mutableListOf<Exposure>()
+        // Diario: «no» solo nei giorni compilati
+        val filled = journal.filter { it.mood != null || it.energy != null || it.tags.isNotEmpty() || it.note.isNotBlank() }.map { it.date }.toSet()
+        JournalTags.ALL.forEach { t ->
+            exps += Exposure("tag:$t", t, journal.filter { t in it.tags }.map { it.date }.toSet(), filled, auto = false)
+        }
+        // Dall'orologio
+        val sessDays = displaySessions.map { it.start.atZone(z).toLocalDate() }.toSet()
+        val sessionWindow = window.filter { !it.isBefore(today.minusDays(89)) }.toSet()
+        exps += Exposure("auto:workout", "Allenamento", sessDays, sessionWindow, auto = true)
+        val evening = displaySessions.filter { it.end.atZone(z).hour >= 19 }.map { it.start.atZone(z).toLocalDate() }.toSet()
+        exps += Exposure("auto:evening", "Allenamento serale (dopo le 19)", evening, sessionWindow, auto = true)
+        val complete = dayActivities.filter { it.quality == LoadQuality.COMPLETE }
+        if (complete.size >= 10) {
+            val p75 = complete.map { it.load }.sorted().let { it[(it.size * 3) / 4] }
+            exps += Exposure("auto:highload", "Carico cardiaco alto", complete.filter { it.load >= p75 && it.load > 0 }.map { it.date }.toSet(), complete.map { it.date }.toSet(), auto = true)
+        }
+        val steps = wearable[Metric.STEPS].orEmpty().filter { it.date in window }
+        if (steps.size >= 10) {
+            val med = Associations.median(steps.map { it.value })
+            exps += Exposure("auto:steps", "Più passi del solito", steps.filter { it.value > med }.map { it.date }.toSet(), steps.map { it.date }.toSet(), auto = true)
+        }
+        // A letto più tardi del solito: notte D→D+1 iniziata ≥ 45 min dopo la tua mediana
+        val bed = sleepNights.map { n ->
+            val t = n.start.atZone(z).toLocalTime()
+            val m = t.hour * 60 + t.minute
+            n.date.minusDays(1) to (if (m < 12 * 60) m + 24 * 60 else m).toDouble()
+        }
+        if (bed.size >= 10) {
+            val med = Associations.median(bed.map { it.second })
+            exps += Exposure("auto:late", "A letto tardi (≥ 45 min oltre il solito)", bed.filter { it.second >= med + 45 }.map { it.first }.toSet(), bed.map { it.first }.toSet(), auto = true)
+        }
+        fun w(m: Metric) = wearable[m].orEmpty().associate { it.date to it.value }
+        val outcomes = linkedMapOf<OutcomeKind, Map<java.time.LocalDate, Double>>(
+            OutcomeKind.HRV to w(Metric.HRV),
+            OutcomeKind.RHR to w(Metric.RHR),
+            OutcomeKind.SLEEP to sleepNights.associate { it.date to it.totalSleepMin },
+            OutcomeKind.DEEP to sleepNights.mapNotNull { n -> n.stagePct(StageType.DEEP)?.let { n.date to it / 100.0 * n.totalSleepMin } }.toMap(),
+            OutcomeKind.EFFICIENCY to sleepNights.mapNotNull { n -> n.efficiency?.let { n.date to it } }.toMap(),
+            OutcomeKind.READINESS to recoveryHistoryLong.mapNotNull { (d, v) -> v?.let { d to it.toDouble() } }.toMap(),
+            OutcomeKind.MOOD to journal.mapNotNull { e -> e.mood?.let { e.date to it.toDouble() } }.toMap(),
+        ).filterValues { it.size >= 10 }
+        return exps to outcomes
+    }
+
     val tagEffects: List<TagEffect>
         get() = Journal.tagEffects(
             journal.filter { it.date.isAfter(java.time.LocalDate.now().minusDays(120)) },
