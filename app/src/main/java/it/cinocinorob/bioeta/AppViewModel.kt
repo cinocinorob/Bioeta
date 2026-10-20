@@ -692,6 +692,36 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val recentChanges: List<ScoreChange>
         get() = scoreChanges.filter { it.at.isAfter(java.time.Instant.now().minus(java.time.Duration.ofHours(24))) }
 
+    // ---------------- Umore: andamento e associazioni ----------------
+
+    val moodPoints: List<MoodPoint>
+        get() = journal.mapNotNull { e -> e.mood?.let { MoodPoint(e.date, it.toDouble()) } }.sortedBy { it.date }
+
+    /** Associazioni tra umore del giorno e dati dell'orologio (solo con ≥ 14 coppie; vedi science/MoodTrend.kt). */
+    val moodAssociations: List<Pair<String, MoodAssoc?>>
+        get() {
+            val mood = moodPoints.associate { it.date to it.value }
+            fun pairs(x: Map<java.time.LocalDate, Double>, lagDays: Long = 0) =
+                mood.mapNotNull { (d, m) -> x[d.minusDays(lagDays)]?.let { it to m } }
+            val sleep = sleepNights.associate { it.date to it.totalSleepMin / 60.0 }
+            val hrv = wearable[Metric.HRV].orEmpty().associate { it.date to it.value }
+            val rec = scoreHistory60.mapNotNull { d -> d.readiness.score?.let { d.date to it.toDouble() } }.toMap()
+            val active = dayActivities.associate { it.date to it.activeMinutes.toDouble() }
+            return listOf(
+                "Ore di sonno (notte prima)" to MoodTrend.assoc("sonno", pairs(sleep)),
+                "HRV del mattino" to MoodTrend.assoc("hrv", pairs(hrv)),
+                "Recupero" to MoodTrend.assoc("recupero", pairs(rec)),
+                "Minuti attivi del giorno prima" to MoodTrend.assoc("attivi", pairs(active, 1)),
+            )
+        }
+
+    /** Giorni con umore e almeno uno dei dati dell'orologio (per dire quanto manca alle associazioni). */
+    val moodPairedDays: Int
+        get() {
+            val nights = sleepNights.map { it.date }.toSet()
+            return moodPoints.count { it.date in nights }
+        }
+
     // ---------------- Fatica percepita (session-RPE) ----------------
 
     var rpe by mutableStateOf<Map<String, Int>>(emptyMap())

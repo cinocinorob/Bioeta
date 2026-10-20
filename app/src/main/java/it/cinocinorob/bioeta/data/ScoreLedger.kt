@@ -63,7 +63,8 @@ object Ledger {
         if (a.rhr != b.rhr) parts += if (a.rhr == null) "è arrivata la FC a riposo (${b.rhr} bpm)" else "FC a riposo ${a.rhr ?: "—"} → ${b.rhr ?: "—"} bpm"
         if (a.resp10 != b.resp10) parts += "respirazione ${a.resp10?.let { "%.1f".format(it / 10.0) } ?: "—"} → ${b.resp10?.let { "%.1f".format(it / 10.0) } ?: "—"}"
         if (a.workouts != b.workouts) parts += if (b.workouts > a.workouts) "allenamento aggiunto (${a.workouts} → ${b.workouts})" else "allenamento rimosso (${a.workouts} → ${b.workouts})"
-        if (a.load != b.load && (a.load == null || b.load == null || abs(a.load - b.load) >= 5)) parts += "carico cardiaco ${a.load ?: "—"} → ${b.load ?: "—"}"
+        // Carico assente e carico zero sono equivalenti; differenze sotto 5 sono arrotondamenti
+        if (abs((a.load ?: 0) - (b.load ?: 0)) >= 5) parts += "carico cardiaco ${a.load ?: 0} → ${b.load ?: 0}"
         return if (parts.isEmpty()) "sono cambiati i dati dei giorni precedenti, usati come riferimento" else parts.joinToString("; ")
     }
 }

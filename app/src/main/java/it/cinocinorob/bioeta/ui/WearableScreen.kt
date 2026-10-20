@@ -102,6 +102,7 @@ fun WearableScreen(
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { WellnessQuestCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RadarCard(vm, startExpanded = true) }
+        item { MoodTrendCard(vm, onLog = onOpenJournal) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
         item { TagEffectsCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori e composizione corporea") }
@@ -282,7 +283,6 @@ private fun HealthShortcut(title: String, value: String, tint: Color, icon: Imag
     val p = LocalPalette.current
     Row(
         modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(p.card)
-            .border(1.dp, p.border, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
             .clickable(onClick = onClick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

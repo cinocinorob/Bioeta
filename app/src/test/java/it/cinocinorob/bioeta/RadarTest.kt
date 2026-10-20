@@ -172,3 +172,51 @@ class LedgerTest {
         assertTrue(abs(ch.single().to!! - 78) == 0)
     }
 }
+
+class MoodTrendTest {
+    private val d0 = LocalDate.of(2026, 10, 1)
+
+    @Test fun spearmanPerfectAndTies() {
+        assertEquals(1.0, it.cinocinorob.bioeta.science.MoodTrend.spearman(listOf(1.0, 2.0, 3.0, 4.0), listOf(10.0, 20.0, 30.0, 40.0))!!, 1e-9)
+        assertEquals(-1.0, it.cinocinorob.bioeta.science.MoodTrend.spearman(listOf(1.0, 2.0, 3.0), listOf(3.0, 2.0, 1.0))!!, 1e-9)
+        // ranghi medi per i pari merito
+        assertEquals(listOf(1.5, 1.5, 3.0), it.cinocinorob.bioeta.science.MoodTrend.ranks(listOf(2.0, 2.0, 5.0)))
+    }
+
+    @Test fun assocNeedsFourteenPairsAndCiContainsRho() {
+        val T = it.cinocinorob.bioeta.science.MoodTrend
+        assertNull(T.assoc("x", (1..13).map { it.toDouble() to it.toDouble() }))
+        val pairs = (1..30).map { i -> i.toDouble() to (if (i % 3 == 0) i - 4.0 else i.toDouble()) }
+        val a = T.assoc("x", pairs)!!
+        assertTrue(a.low < a.rho && a.rho < a.high)
+        assertTrue(a.clear)
+        assertEquals(30, a.n)
+    }
+
+    @Test fun noAssociationWhenIndependent() {
+        val T = it.cinocinorob.bioeta.science.MoodTrend
+        // sequenza alternata senza relazione monotona
+        val pairs = (1..20).map { i -> i.toDouble() to (if (i % 2 == 0) 5.0 else 1.0) }
+        val a = T.assoc("x", pairs)!!
+        assertTrue(!a.clear)
+        assertEquals("nessuna associazione chiara", T.describe(a))
+    }
+
+    @Test fun rollingNeedsThreeEntries() {
+        val T = it.cinocinorob.bioeta.science.MoodTrend
+        val pts = listOf(
+            it.cinocinorob.bioeta.science.MoodPoint(d0, 2.0),
+            it.cinocinorob.bioeta.science.MoodPoint(d0.plusDays(1), 4.0),
+            it.cinocinorob.bioeta.science.MoodPoint(d0.plusDays(3), 3.0),
+        )
+        val r = T.rolling(pts)
+        assertEquals(1, r.size)
+        assertEquals(d0.plusDays(3), r[0].date)
+        assertEquals(3.0, r[0].value, 1e-9)
+    }
+
+    @Test fun ledgerTreatsMissingAndZeroLoadAsEqual() {
+        val a = DayInputs(420, 45, 55, 145, 0, null)
+        assertEquals("sono cambiati i dati dei giorni precedenti, usati come riferimento", Ledger.reason(a, a.copy(load = 0)))
+    }
+}

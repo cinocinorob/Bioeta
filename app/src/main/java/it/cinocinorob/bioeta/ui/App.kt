@@ -42,6 +42,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -246,7 +248,7 @@ private fun MainTabs(
                     }
                 },
                 navigationIcon = {
-                    Box(Modifier.padding(start = 12.dp, end = 4.dp).size(34.dp).clip(RoundedCornerShape(10.dp)).background(androidx.compose.ui.graphics.Color(0xFF0A0E13)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.padding(start = 12.dp, end = 4.dp).size(34.dp).clip(RoundedCornerShape(10.dp)).background(androidx.compose.ui.graphics.Color(0xFF0C1C20)), contentAlignment = Alignment.Center) {
                         BioLogo(size = 30)
                     }
                 },
@@ -268,7 +270,7 @@ private fun MainTabs(
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = pal.card, tonalElevation = 0.dp) {
+            NavigationBar(containerColor = pal.bg, tonalElevation = 0.dp, modifier = Modifier.drawBehind { drawLine(pal.sep, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
                         modifier = Modifier.testTag("tab_${t.name}"),
@@ -276,8 +278,8 @@ private fun MainTabs(
                         icon = { Icon(tabIcon(t), null) },
                         label = { Text(t.label, maxLines = 1) },
                         colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                            selectedIconColor = Tint.brand, selectedTextColor = pal.text,
-                            indicatorColor = Tint.brand.copy(alpha = 0.16f),
+                            selectedIconColor = pal.brand, selectedTextColor = pal.text,
+                            indicatorColor = pal.brand.copy(alpha = 0.14f),
                             unselectedIconColor = pal.text2, unselectedTextColor = pal.text2,
                         ),
                     )

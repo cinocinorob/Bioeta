@@ -101,7 +101,7 @@ private fun RingLegend(color: Color, label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(color))
         Column(Modifier.padding(start = 8.dp)) {
-            Text(value, style = androidx.compose.ui.text.TextStyle(fontFamily = Manrope, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, fontFeatureSettings = TABULAR), color = p.text)
+            Text(value, style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 21.sp, fontFeatureSettings = TABULAR), color = p.text)
             Text(label, style = MaterialTheme.typography.labelSmall, color = p.text2)
         }
     }
@@ -179,14 +179,14 @@ fun ActivityScreen(
                     Text("Ultima sincronizzazione ${agoShort(st.lastSync)}" + (st.origins.takeIf { it.isNotEmpty() }?.let { " · " + it.joinToString(", ") } ?: ""),
                         style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
                 }
-                TextButton(onClick = { vm.syncNow() }, enabled = !vm.syncing && !vm.loading) { Text("Sincronizza", color = Tint.brand) }
+                TextButton(onClick = { vm.syncNow() }, enabled = !vm.syncing && !vm.loading) { Text("Sincronizza", color = LocalPalette.current.brand) }
             }
         }
 
         // ---------- Anelli ----------
         item {
             Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(p.card).border(1.dp, p.border, RoundedCornerShape(26.dp)).padding(18.dp),
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ActivityRings(
