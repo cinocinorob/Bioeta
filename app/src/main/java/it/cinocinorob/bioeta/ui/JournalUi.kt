@@ -120,7 +120,7 @@ private fun RoundStep(label: String, onClick: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JournalScreen(vm: AppViewModel, onBack: () -> Unit) {
+fun JournalScreen(vm: AppViewModel, onBack: () -> Unit, onOpenDiscoveries: () -> Unit = {}) {
     val p = LocalPalette.current
     var day by remember { mutableStateOf(LocalDate.now()) }
     val e = vm.journalFor(day)
@@ -169,7 +169,7 @@ fun JournalScreen(vm: AppViewModel, onBack: () -> Unit) {
                     }
                 }
             }
-            item { TagEffectsCard(vm) }
+            item { DiscoveriesCard(vm, onOpenDiscoveries) }
         }
     }
 }

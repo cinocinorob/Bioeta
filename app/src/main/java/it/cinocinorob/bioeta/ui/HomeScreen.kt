@@ -72,6 +72,7 @@ fun HomeScreen(
     onOpenSync: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenJournal: () -> Unit,
+    onOpenDiscoveries: () -> Unit = {},
     onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
     onRequestPermissions: () -> Unit,
@@ -235,6 +236,7 @@ fun HomeScreen(
                 MoodStrip(vm)
             }
         }
+        if (vm.hasAnyHealthPermission) item { DiscoveriesCard(vm, onOpenDiscoveries) }
         item { WeekCard(vm) }
 
         item {

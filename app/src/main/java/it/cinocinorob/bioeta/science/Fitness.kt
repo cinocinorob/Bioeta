@@ -160,6 +160,7 @@ object JournalTags {
     val ALL = listOf(
         "Alcol", "Caffè dopo le 14", "Cena tardiva", "Stress", "Malattia",
         "Viaggio", "Allenamento intenso", "Schermi a letto", "Meditazione", "Sauna",
+        "Pasto abbondante", "Pisolino", "Luce del mattino", "Lavoro fino a tardi",
     )
 }
 
