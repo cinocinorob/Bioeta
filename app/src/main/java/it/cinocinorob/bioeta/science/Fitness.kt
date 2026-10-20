@@ -151,9 +151,16 @@ data class JournalEntry(
     val date: LocalDate,
     val mood: Int? = null,      // 1–5
     val energy: Int? = null,    // 1–5
+    /** Voci con risposta «Sì» (chiavi di [JournalCatalog]). */
     val tags: Set<String> = emptySet(),
     val water: Int = 0,         // bicchieri
     val note: String = "",
+    /** Voci con risposta esplicita «No». */
+    val no: Set<String> = emptySet(),
+    /** Quantità per le voci numeriche (es. drink, tazze). */
+    val amounts: Map<String, Double> = emptyMap(),
+    /** true = giornata compilata con risposte esplicite (formato nuovo); false = solo etichette (formato vecchio). */
+    val explicit: Boolean = false,
 )
 
 object JournalTags {

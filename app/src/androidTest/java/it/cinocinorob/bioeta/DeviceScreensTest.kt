@@ -272,6 +272,21 @@ class DeviceScreensTest {
             screenshot("home_attivita")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Questa settimana"))
             screenshot("home_fine")
+            // Diario in stile WHOOP: abitudini di ieri
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("journal_yesterday"))
+            compose.onNodeWithTag("journal_yesterday").performClick()
+            waitText("risposte", 10_000)
+            compose.onAllNodesWithTag("yes")[0].performClick()
+            Thread.sleep(400)
+            screenshot("diario")
+            compose.onNodeWithTag("journal_list").performTouchInput { swipeUp(durationMillis = 400) }
+            screenshot("diario_domande")
+            compose.onNodeWithTag("journal_list").performScrollToNode(hasTestTag("journal_manage"))
+            compose.onNodeWithTag("journal_manage").performClick()
+            Thread.sleep(800)
+            screenshot("diario_scelta_domande")
+            back()
+            back()
 
             tab("ACTIVITY")
             screenshot("attivita")

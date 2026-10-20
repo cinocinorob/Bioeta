@@ -201,12 +201,12 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                ScoreRing(today.sleep?.score, "SONNO", RecoveryColors.sleep)
+                ScoreRing(today.sleep?.score, "Sonno", RecoveryColors.sleep)
                 Text(today.sleep?.band ?: "Nessuna notte", fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
                 PersonalLine(vm.sleepPercentile, "notti", today.night?.let { n -> today.sleep?.let { ScoreReliability.sleep(it, n) } })
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                ScoreRing(today.readiness.score, "RECUPERO", RecoveryColors.ready)
+                ScoreRing(today.readiness.score, "Recupero", RecoveryColors.ready)
                 Text(when { today.readiness.calibrating -> "In calibrazione"; today.readiness.provisional -> today.readiness.band + " · provvisorio"; else -> today.readiness.band }, fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
                 PersonalLine(vm.readinessPercentile, "giornate", ScoreReliability.readiness(today.readiness))
             }
@@ -255,8 +255,8 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
                     }
                 }
                 Text(
-                    if (showSleepDetail) "Nascondi contributori" else "Mostra contributori",
-                    color = Tint.blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    if (showSleepDetail) "Nascondi i fattori" else "Mostra i fattori",
+                    color = p.brand, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clickable { showSleepDetail = !showSleepDetail },
                 )
                 if (showSleepDetail) today.sleep?.contributors?.forEach { ContributorRow(it) }
@@ -276,9 +276,9 @@ fun RecoveryMini(vm: AppViewModel, onOpen: () -> Unit) {
         Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(20.dp)).background(p.card).clickable(onClick = onOpen).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ScoreRing(t.sleep?.score, "SONNO", RecoveryColors.sleep, size = 84, stroke = 9)
+        ScoreRing(t.sleep?.score, "Sonno", RecoveryColors.sleep, size = 84, stroke = 9)
         Spacer(Modifier.width(10.dp))
-        ScoreRing(t.readiness.score, "RECUPERO", RecoveryColors.ready, size = 84, stroke = 9)
+        ScoreRing(t.readiness.score, "Recupero", RecoveryColors.ready, size = 84, stroke = 9)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text("Oggi", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = p.text)

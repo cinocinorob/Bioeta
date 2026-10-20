@@ -72,7 +72,7 @@ fun RadarCard(vm: AppViewModel, startExpanded: Boolean = false) {
             Spacer(Modifier.width(10.dp))
             Text(r.level.label, style = MaterialTheme.typography.titleMedium, color = p.text, modifier = Modifier.weight(1f))
             val n = r.signals.count { it.hasBaseline }
-            if (n > 0) Text(if (open) "Nascondi" else "$n parametri", fontSize = 13.sp, color = Tint.blue)
+            if (n > 0) Text(if (open) "Nascondi" else "$n parametri", fontSize = 13.sp, color = p.brand)
         }
         if (alert || r.level == RadarLevel.CALIBRATING || open) Caption(r.detail)
         r.context?.let { InlineNotice(it, NoticeKind.INFO) }

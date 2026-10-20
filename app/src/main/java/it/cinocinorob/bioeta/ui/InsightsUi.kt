@@ -83,7 +83,7 @@ fun InsightCard(insight: Insight, onAsk: ((String) -> Unit)?) {
     ) {
         Column(Modifier.padding(start = 19.dp, end = 14.dp, top = 14.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(insight.area.label.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = areaTint(insight.area))
+                Text(insight.area.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = areaTint(insight.area))
                 Spacer(Modifier.weight(1f))
                 Pill(levelLabel(insight.level), lc)
             }
