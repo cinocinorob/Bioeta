@@ -179,6 +179,11 @@ fun LoadTrendCard(vm: AppViewModel) {
     }
     HealthCard("Andamento del carico", BioIcons.Gauge, Tint.vo2,
         info = "Carico medio degli ultimi 7 giorni diviso per quello degli ultimi 28 (stessa idea del rapporto acuto:cronico di Gabbett 2016, PMID 26758673). È una descrizione di quanto stai cambiando il carico, non una previsione di infortunio: un legame causale non è dimostrato (Impellizzeri 2020, PMID 32502973). Servono almeno 14 giorni con l'orologio indossato.") {
+        if (t.state == LoadTrendState.NA) {
+            // In calibrazione: una riga sola, niente indicatori vuoti
+            Caption("Confronta il carico degli ultimi 7 giorni con quello degli ultimi 28. ${t.message}")
+            return@HealthCard
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Caption("7 giorni vs 28 giorni")

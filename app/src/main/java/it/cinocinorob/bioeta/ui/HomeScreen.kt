@@ -73,6 +73,7 @@ fun HomeScreen(
     onOpenProfile: () -> Unit,
     onOpenJournal: () -> Unit,
     onOpenDiscoveries: () -> Unit = {},
+    onOpenJournalYesterday: () -> Unit = {},
     onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
     onRequestPermissions: () -> Unit,
@@ -231,9 +232,24 @@ fun HomeScreen(
         }
         item {
             val e = vm.journalFor(today)
-            HealthCard("Come ti senti oggi?", BioIcons.Pencil, Tint.mood, onClick = onOpenJournal) {
+            HealthCard("Diario", BioIcons.Pencil, Tint.mood, onClick = onOpenJournal, modifier = Modifier.testTag("journal_card")) {
+                Text("Come ti senti oggi?", style = MaterialTheme.typography.labelLarge, color = p.text2)
                 ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) }
                 MoodStrip(vm)
+                // In stile WHOOP: le abitudini si registrano il giorno dopo, per la giornata appena conclusa
+                val (a, n) = vm.journalProgress(today.minusDays(1))
+                if (n > 0) Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field).clickable(onClick = onOpenJournalYesterday)
+                        .padding(horizontal = 14.dp, vertical = 12.dp).testTag("journal_yesterday"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (a >= n) "Abitudini di ieri: complete" else "Abitudini di ieri: $a di $n", style = MaterialTheme.typography.titleSmall, color = p.text)
+                        val st = vm.journalStreak
+                        Text(if (st > 0) "Serie di $st ${if (st == 1) "giorno" else "giorni"}" else "Ci vogliono 30 secondi", style = MaterialTheme.typography.bodySmall, color = p.text2)
+                    }
+                    Text(if (a >= n) "Rivedi" else "Rispondi", style = MaterialTheme.typography.labelLarge, color = p.brand)
+                }
             }
         }
         if (vm.hasAnyHealthPermission) item { DiscoveriesCard(vm, onOpenDiscoveries) }

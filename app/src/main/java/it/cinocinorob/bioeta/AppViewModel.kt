@@ -988,6 +988,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         autoBackupNow()
     }
 
+    // ---------------- Diario in stile WHOOP: voci seguite, completamento, serie ----------------
+
+    /** Voci del diario seguite (chiavi del catalogo o «custom:…»). */
+    var journalTracked by mutableStateOf<List<String>>(
+        settings.getString("journal_items", null)?.split("\u001F")?.filter { it.isNotBlank() } ?: JournalCatalog.ITEMS.filter { it.default }.map { it.key }
+    )
+        private set
+
+    fun setTracked(key: String, on: Boolean) {
+        journalTracked = if (on) (journalTracked + key).distinct() else journalTracked - key
+        settings.edit().putString("journal_items", journalTracked.joinToString("\u001F")).apply()
+    }
+
+    fun addCustomItem(label: String) {
+        val l = label.trim().take(40)
+        if (l.isNotEmpty()) setTracked("custom:$l", true)
+    }
+
+    val trackedItems: List<JItem> get() = journalTracked.map { JournalCatalog.resolve(it) }
+
+    /** Risposte date su quelle richieste per un giorno. */
+    fun journalProgress(d: java.time.LocalDate): Pair<Int, Int> {
+        val e = journalFor(d)
+        return journalTracked.count { e.answer(it) != null } to journalTracked.size
+    }
+
+    /** Giorni consecutivi (fino a ieri, o oggi se completo) con almeno l'80% delle risposte. */
+    val journalStreak: Int
+        get() {
+            fun done(d: java.time.LocalDate) = journalProgress(d).let { (a, n) -> n > 0 && a >= (n * 0.8) }
+            var d = java.time.LocalDate.now()
+            if (!done(d)) d = d.minusDays(1)
+            var k = 0
+            while (done(d) && k < 400) { k++; d = d.minusDays(1) }
+            return k
+        }
+
     // ---------------- Scoperte: abitudini ↔ esiti (vedi science/Associations.kt) ----------------
 
     var discoveries by mutableStateOf<Discoveries?>(null)
@@ -1016,10 +1053,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val from = today.minusDays(Associations.WINDOW_DAYS)
         val window = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(today) }.toSet()
         val exps = mutableListOf<Exposure>()
-        // Diario: «no» solo nei giorni compilati
-        val filled = journal.filter { it.mood != null || it.energy != null || it.tags.isNotEmpty() || it.note.isNotBlank() }.map { it.date }.toSet()
-        JournalTags.ALL.forEach { t ->
-            exps += Exposure("tag:$t", t, journal.filter { t in it.tags }.map { it.date }.toSet(), filled, auto = false)
+        // Diario: conta solo la risposta esplicita Sì/No. Le giornate del vecchio formato (solo etichette, senza
+        // «No» espliciti) valgono come risposte per le voci di allora, se il diario era compilato.
+        val legacyFilled = journal.filter { !it.hasExplicitAnswers }
+            .filter { it.mood != null || it.energy != null || it.tags.isNotEmpty() || it.note.isNotBlank() }.map { it.date }.toSet()
+        val keys = (journalTracked + journal.flatMap { it.tags + it.no }).distinct()
+        keys.forEach { k ->
+            val item = JournalCatalog.resolve(k)
+            val yes = journal.filter { k in it.tags }.map { it.date }.toSet()
+            val explicit = journal.filter { k in it.tags || k in it.no }.map { it.date }.toSet()
+            val legacy = if (k in JournalTags.ALL) legacyFilled else emptySet()
+            exps += Exposure("tag:$k", item.label, yes, explicit + legacy, auto = false)
+            // Quantità: confronto anche «molto» contro «poco o niente», con soglia = mediana dei giorni «sì»
+            if (item.kind == JKind.COUNT) {
+                val amt = journal.mapNotNull { e -> e.amounts[k]?.let { e.date to it } }
+                val pos = amt.filter { it.second > 0 }.map { it.second }
+                if (pos.size >= 5) {
+                    val thr = maxOf(2.0, kotlin.math.ceil(Associations.median(pos)))
+                    val zero = journal.filter { k in it.no }.map { it.date }
+                    exps += Exposure("dose:$k", "${item.label}: ${thr.toInt()} ${item.unit ?: ""} o più".trim(),
+                        amt.filter { it.second >= thr }.map { it.first }.toSet(), (amt.map { it.first } + zero).toSet(), auto = false)
+                }
+            }
         }
         // Dall'orologio
         val sessDays = displaySessions.map { it.start.atZone(z).toLocalDate() }.toSet()

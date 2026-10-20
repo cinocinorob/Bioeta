@@ -160,6 +160,9 @@ class LabStore(context: Context) {
                     put("d", e.date.toString())
                     e.mood?.let { put("mood", it) }; e.energy?.let { put("energy", it) }
                     put("tags", JSONArray(e.tags.toList())); put("water", e.water)
+                    if (e.no.isNotEmpty()) put("no", JSONArray(e.no.toList()))
+                    if (e.explicit) put("x", true)
+                    if (e.amounts.isNotEmpty()) put("amounts", JSONObject().apply { e.amounts.forEach { (k, v) -> put(k, v) } })
                     if (e.note.isNotBlank()) put("note", e.note)
                 })
             }
@@ -172,12 +175,17 @@ class LabStore(context: Context) {
                 val o = arr.getJSONObject(i)
                 runCatching {
                     val t = o.optJSONArray("tags")
+                    val nn = o.optJSONArray("no")
+                    val am = o.optJSONObject("amounts")
                     JournalEntry(
                         date = LocalDate.parse(o.getString("d")),
                         mood = if (o.has("mood")) o.getInt("mood") else null,
                         energy = if (o.has("energy")) o.getInt("energy") else null,
                         tags = if (t == null) emptySet() else (0 until t.length()).map { t.getString(it) }.toSet(),
                         water = o.optInt("water", 0), note = o.optString("note", ""),
+                        no = if (nn == null) emptySet() else (0 until nn.length()).map { nn.getString(it) }.toSet(),
+                        amounts = am?.keys()?.asSequence()?.associateWith { am.getDouble(it) } ?: emptyMap(),
+                        explicit = o.optBoolean("x", false),
                     )
                 }.getOrNull()
             }.sortedBy { it.date }

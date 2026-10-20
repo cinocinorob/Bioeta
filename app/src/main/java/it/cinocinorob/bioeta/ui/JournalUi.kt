@@ -46,6 +46,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.cinocinorob.bioeta.AppViewModel
 import it.cinocinorob.bioeta.science.JournalTags
+import it.cinocinorob.bioeta.science.answer
+import it.cinocinorob.bioeta.science.JItem
+import it.cinocinorob.bioeta.science.JKind
+import it.cinocinorob.bioeta.science.JournalEntry
+import it.cinocinorob.bioeta.science.JournalCatalog
+import it.cinocinorob.bioeta.science.withAnswer
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.platform.testTag
 import java.time.LocalDate
 
 internal val MOOD_LABELS = listOf("Pessimo", "Giù", "Normale", "Bene", "Ottimo")
@@ -118,60 +126,202 @@ private fun RoundStep(label: String, onClick: () -> Unit) {
     }
 }
 
+private fun dayLabel(d: LocalDate): String {
+    val t = LocalDate.now()
+    val base = d.format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.ITALIAN))
+    return when (d) { t -> "Oggi, $base"; t.minusDays(1) -> "Ieri, $base"; else -> base.replaceFirstChar { it.uppercase() } }
+}
+
+/**
+ * Diario in stile WHOOP: per il giorno scelto, una domanda per ogni abitudine seguita con risposta esplicita
+ * Sì/No (o quantità). Le risposte alimentano le Scoperte; un giorno senza risposta resta «sconosciuto».
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JournalScreen(vm: AppViewModel, onBack: () -> Unit, onOpenDiscoveries: () -> Unit = {}) {
+fun JournalScreen(vm: AppViewModel, onBack: () -> Unit, onOpenDiscoveries: () -> Unit = {}, initialDay: LocalDate = LocalDate.now()) {
     val p = LocalPalette.current
-    var day by remember { mutableStateOf(LocalDate.now()) }
+    var day by remember { mutableStateOf(initialDay) }
     val e = vm.journalFor(day)
     var note by remember(day) { mutableStateOf(e.note) }
+    var manage by remember { mutableStateOf(false) }
+    if (manage) ManageItemsDialog(vm) { manage = false }
+    val items = vm.trackedItems
+    val (answered, total) = vm.journalProgress(day)
     Scaffold(
         containerColor = p.bg,
         topBar = {
-            TopAppBar(title = {}, navigationIcon = { IconButton(onClick = onBack) { Icon(BioIcons.Back, "Indietro", tint = Tint.blue) } },
+            TopAppBar(title = {}, navigationIcon = { IconButton(onClick = onBack) { Icon(BioIcons.Back, "Indietro", tint = p.text) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg))
         },
     ) { pad ->
         LazyColumn(
-            Modifier.padding(pad).fillMaxSize(),
+            Modifier.padding(pad).fillMaxSize().testTag("journal_list"),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { LargeHeader("Diario", day.itLong()) }
+                    Box(Modifier.weight(1f)) { LargeHeader("Diario", dayLabel(day)) }
                     RoundStep("‹") { day = day.minusDays(1) }
                     Spacer(Modifier.width(8.dp))
                     RoundStep("›") { if (day.isBefore(LocalDate.now())) day = day.plusDays(1) }
                 }
             }
+            // Completamento e serie
             item {
-                HealthCard("Umore", BioIcons.Sparkle, Tint.mood) { ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) } }
+                HealthCard {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        BigValue("$answered", "di $total risposte", size = 28)
+                        Spacer(Modifier.weight(1f))
+                        val st = vm.journalStreak
+                        if (st > 0) Text("Serie: $st ${if (st == 1) "giorno" else "giorni"}", style = MaterialTheme.typography.labelLarge, color = p.brand)
+                    }
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { if (total == 0) 0f else answered / total.toFloat() },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = p.brand, trackColor = p.field, drawStopIndicator = {},
+                    )
+                    Caption("Rispondi su ${if (day == LocalDate.now()) "oggi" else "quella giornata"}: le risposte «No» contano quanto i «Sì», perché permettono il confronto.")
+                }
             }
-            item { MoodTrendCard(vm) }
             item {
-                HealthCard("Energia", BioIcons.Bolt, Tint.activity) { ScalePicker(e.energy) { vm.saveJournal(e.copy(energy = it)) } }
+                HealthCard("Come stai", BioIcons.Sparkle, Tint.mood) {
+                    Text("Umore", style = MaterialTheme.typography.labelLarge, color = p.text2)
+                    ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) }
+                    Text("Energia", style = MaterialTheme.typography.labelLarge, color = p.text2)
+                    ScalePicker(e.energy) { vm.saveJournal(e.copy(energy = it)) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Acqua", style = MaterialTheme.typography.labelLarge, color = p.text2, modifier = Modifier.weight(1f))
+                        RoundStep("−") { vm.saveJournal(e.copy(water = (e.water - 1).coerceAtLeast(0))) }
+                        Text("${e.water} bicchieri", style = MaterialTheme.typography.titleSmall, color = p.text, modifier = Modifier.padding(horizontal = 12.dp))
+                        RoundStep("+") { vm.saveJournal(e.copy(water = (e.water + 1).coerceAtMost(30))) }
+                    }
+                }
+            }
+            items.groupBy { it.cat }.toSortedMap(compareBy { it.ordinal }).forEach { (cat, list) ->
+                item(key = "cat_" + cat.name) {
+                    HealthCard(cat.label) {
+                        list.forEachIndexed { i, it ->
+                            if (i > 0) androidx.compose.material3.HorizontalDivider(color = p.sep)
+                            QuestionRow(it, e) { upd -> vm.saveJournal(upd) }
+                        }
+                    }
+                }
             }
             item {
-                HealthCard("Cosa è successo oggi", BioIcons.Pencil, Tint.blue) {
-                    TagChips(e.tags) { t -> vm.saveJournal(e.copy(tags = if (t in e.tags) e.tags - t else e.tags + t)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { vm.saveJournal(items.fold(e) { acc, it -> if (acc.answer(it.key) == null) acc.withAnswer(it.key, false) else acc }) },
+                        enabled = answered < total, modifier = Modifier.weight(1f),
+                    ) { Text("Le altre: No", maxLines = 1) }
+                    androidx.compose.material3.OutlinedButton(onClick = { manage = true }, modifier = Modifier.weight(1f).testTag("journal_manage")) { Text("Scegli le domande", maxLines = 1) }
                 }
             }
             item {
                 HealthCard("Note", BioIcons.Doc, Tint.body) {
                     OutlinedTextField(
-                        note, { note = it }, modifier = Modifier.fillMaxWidth().height(110.dp), shape = RoundedCornerShape(18.dp),
+                        note, { note = it }, modifier = Modifier.fillMaxWidth().height(110.dp), shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = p.field, unfocusedContainerColor = p.field,
-                            unfocusedBorderColor = Color.Transparent, focusedBorderColor = Tint.sleep),
+                            unfocusedBorderColor = Color.Transparent, focusedBorderColor = p.brand),
                     )
-                    Button(onClick = { vm.saveJournal(e.copy(note = note.trim())) }, colors = ButtonDefaults.buttonColors(containerColor = Tint.sleep)) {
-                        Text("Salva nota", fontWeight = FontWeight.Bold)
-                    }
+                    Button(onClick = { vm.saveJournal(e.copy(note = note.trim())) }) { Text("Salva nota") }
                 }
             }
+            item { MoodTrendCard(vm) }
             item { DiscoveriesCard(vm, onOpenDiscoveries) }
         }
     }
+}
+
+/** Una domanda: Sì/No; per le quantità, contatore quando la risposta è Sì. */
+@Composable
+private fun QuestionRow(item: JItem, e: JournalEntry, onChange: (JournalEntry) -> Unit) {
+    val p = LocalPalette.current
+    val ans = e.answer(item.key)
+    var showWhy by remember { mutableStateOf(false) }
+    Column(Modifier.padding(vertical = 4.dp).testTag("q_" + item.key)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).then(if (item.why.isNotEmpty()) Modifier.clickable { showWhy = !showWhy } else Modifier)) {
+                Text(item.label, style = MaterialTheme.typography.bodyLarge, color = p.text)
+                if (showWhy) Text(item.why, style = MaterialTheme.typography.bodySmall, color = p.text2)
+            }
+            Spacer(Modifier.width(8.dp))
+            YesNo(ans) { v ->
+                val amount = if (v == true && item.kind == JKind.COUNT) (e.amounts[item.key] ?: 1.0) else null
+                onChange(e.withAnswer(item.key, v, amount))
+            }
+        }
+        if (ans == true && item.kind == JKind.COUNT) {
+            val n = (e.amounts[item.key] ?: 1.0).toInt()
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                Text("Quanti?", style = MaterialTheme.typography.labelLarge, color = p.text2, modifier = Modifier.weight(1f))
+                RoundStep("−") { if (n > 1) onChange(e.withAnswer(item.key, true, (n - 1).toDouble())) }
+                Text("$n ${item.unit ?: ""}", style = MaterialTheme.typography.titleSmall, color = p.text, modifier = Modifier.padding(horizontal = 12.dp))
+                RoundStep("+") { if (n < item.max) onChange(e.withAnswer(item.key, true, (n + 1).toDouble())) }
+            }
+        }
+    }
+}
+
+/** Interruttore a due posizioni; toccare di nuovo la scelta la annulla. */
+@Composable
+private fun YesNo(value: Boolean?, onChange: (Boolean?) -> Unit) {
+    val p = LocalPalette.current
+    Row(Modifier.clip(RoundedCornerShape(12.dp)).background(p.field)) {
+        listOf(false to "No", true to "Sì").forEach { (v, l) ->
+            val sel = value == v
+            Box(
+                Modifier.width(52.dp).height(36.dp).clip(RoundedCornerShape(12.dp))
+                    .background(if (sel) p.text else Color.Transparent)
+                    .clickable { onChange(if (sel) null else v) }.testTag(if (v) "yes" else "no"),
+                contentAlignment = Alignment.Center,
+            ) { Text(l, style = MaterialTheme.typography.labelLarge, color = if (sel) p.bg else p.text2) }
+        }
+    }
+}
+
+/** Scelta delle domande da seguire, per categoria, più voci personalizzate. */
+@Composable
+private fun ManageItemsDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val p = LocalPalette.current
+    var custom by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Domande del diario") },
+        text = {
+            LazyColumn(Modifier.height(480.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                item { Caption("Scegli cosa vuoi monitorare. Meglio poche domande a cui rispondi ogni giorno che molte lasciate vuote.") }
+                JournalCatalog.ITEMS.groupBy { it.cat }.forEach { (cat, list) ->
+                    item { Text(cat.label, style = MaterialTheme.typography.titleSmall, color = p.text, modifier = Modifier.padding(top = 10.dp)) }
+                    list.forEach { ji ->
+                        item {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { vm.setTracked(ji.key, ji.key !in vm.journalTracked) }) {
+                                androidx.compose.material3.Checkbox(ji.key in vm.journalTracked, { vm.setTracked(ji.key, it) })
+                                Text(ji.label, style = MaterialTheme.typography.bodyMedium, color = p.text)
+                            }
+                        }
+                    }
+                }
+                val customs = vm.journalTracked.filter { it.startsWith("custom:") }
+                item { Text("Le tue voci", style = MaterialTheme.typography.titleSmall, color = p.text, modifier = Modifier.padding(top = 10.dp)) }
+                customs.forEach { k ->
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(k.removePrefix("custom:"), style = MaterialTheme.typography.bodyMedium, color = p.text, modifier = Modifier.weight(1f))
+                            androidx.compose.material3.TextButton(onClick = { vm.setTracked(k, false) }) { Text("Togli") }
+                        }
+                    }
+                }
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(custom, { custom = it.take(40) }, placeholder = { Text("Nuova voce") }, singleLine = true, modifier = Modifier.weight(1f))
+                        androidx.compose.material3.TextButton(onClick = { vm.addCustomItem(custom); custom = "" }, enabled = custom.isNotBlank()) { Text("Aggiungi") }
+                    }
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Fatto") } },
+    )
 }
 
 /** "Cosa influenza il tuo recupero": confronto personale con/senza ciascun tag. */

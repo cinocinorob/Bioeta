@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performClick
@@ -272,6 +273,30 @@ class DeviceScreensTest {
             screenshot("home_attivita")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Questa settimana"))
             screenshot("home_fine")
+            // Diario in stile WHOOP: abitudini di ieri
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("journal_yesterday"))
+            compose.onNodeWithTag("journal_yesterday").performClick()
+            waitText("risposte", 10_000)
+            compose.onAllNodesWithTag("yes")[0].performClick()
+            Thread.sleep(400)
+            screenshot("diario")
+            compose.onNodeWithTag("journal_list").performTouchInput { swipeUp(durationMillis = 400) }
+            screenshot("diario_domande")
+            compose.onNodeWithTag("journal_list").performScrollToNode(hasTestTag("journal_manage"))
+            compose.onNodeWithTag("journal_manage").performClick()
+            Thread.sleep(800)
+            screenshot("diario_scelta_domande")
+            compose.onNodeWithText("Fatto").performClick()
+            Thread.sleep(500)
+            compose.onNodeWithContentDescription("Indietro").performClick()
+            Thread.sleep(800)
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
+            // Il tasto Indietro di sistema deve chiudere il diario
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("journal_card"))
+            compose.onNodeWithTag("journal_card").performClick()
+            waitText("risposte", 10_000)
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
 
             tab("ACTIVITY")
             screenshot("attivita")
