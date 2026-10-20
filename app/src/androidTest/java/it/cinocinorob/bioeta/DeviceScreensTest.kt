@@ -285,8 +285,10 @@ class DeviceScreensTest {
             compose.onNodeWithTag("journal_manage").performClick()
             Thread.sleep(800)
             screenshot("diario_scelta_domande")
+            compose.onNodeWithText("Fatto").performClick()
+            Thread.sleep(500)
             back()
-            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
 
             tab("ACTIVITY")
             screenshot("attivita")
