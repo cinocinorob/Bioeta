@@ -127,3 +127,13 @@ Exerc* 1998;30:1164-1168, doi:10.1097/00005768-199807000-00023 (PMID 9662690); H
 - Settimana = somma degli ultimi 7 giorni; media di 4 settimane = somma dei 28 giorni / 4 (dopo 14 giorni di voti).
 - Monotonia = media / DS (campionaria) del carico giornaliero dei 7 giorni, giorni senza allenamento = 0;
   tensione = carico settimanale × monotonia.
+
+## Umore: andamento e associazioni (versione 1)
+
+- Scala del diario 1–5 (Pessimo … Ottimo). Linea = media mobile di 7 giorni, solo con almeno 3 registrazioni
+  nella finestra.
+- Associazioni con ore di sonno della notte precedente, HRV del mattino, Recupero e minuti attivi del giorno
+  prima: correlazione per ranghi di Spearman (ranghi medi per i pari merito), IC 95% con trasformazione di
+  Fisher ed errore standard √(1,06/(n−3)) (Fieller, Hartley & Pearson 1957); mostrate da 14 coppie.
+- «Nessuna associazione chiara» se l'IC comprende lo zero; altrimenti debole (|ρ| < 0,3), moderata (< 0,5), forte.
+- Limiti: una sola persona, giorni autocorrelati (IC reale più largo), nessuna direzione causale.
