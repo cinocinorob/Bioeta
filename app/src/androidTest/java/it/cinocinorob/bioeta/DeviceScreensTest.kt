@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performClick
@@ -287,7 +288,8 @@ class DeviceScreensTest {
             screenshot("diario_scelta_domande")
             compose.onNodeWithText("Fatto").performClick()
             Thread.sleep(500)
-            back()
+            compose.onNodeWithContentDescription("Indietro").performClick()
+            Thread.sleep(800)
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
 
             tab("ACTIVITY")
