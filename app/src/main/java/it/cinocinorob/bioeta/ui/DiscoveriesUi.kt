@@ -49,7 +49,16 @@ const val DISCOVERIES_INFO =
         "Confermata = supera la correzione e la soglia. Indizio = p < 0,10 senza correzione: da verificare con altri giorni.\n\n" +
         "Limiti: sono associazioni nei dati di una sola persona, non prove di causa. Abitudini che capitano insieme (per esempio alcol e cena tardiva) si confondono: quando succede lo segnaliamo. Per una prova vera serve un esperimento: cambiare una sola abitudine per 2–3 settimane."
 
-private fun findingTitle(r: AssocResult) = "${r.exposure.label} → ${r.outcome.label.replaceFirstChar { it.lowercase() }}"
+private fun findingTitle(r: AssocResult): String {
+    val o = r.outcome.label
+    // minuscola solo per le parole comuni, non per le sigle (HRV, FC)
+    val out = if (o.length > 1 && o[1].isLowerCase()) o.replaceFirstChar { it.lowercase() } else o
+    return "${r.exposure.label} → $out"
+}
+
+/** Ampiezza dell'asse (in multipli della soglia di rilevanza) che contiene tutti gli intervalli, minimo ±4. */
+private fun axisRange(rs: List<AssocResult>): Double =
+    maxOf(4.0, rs.maxOfOrNull { maxOf(kotlin.math.abs(it.lowMid), kotlin.math.abs(it.highMid)) } ?: 4.0) * 1.1
 
 /** Riepilogo in Home e in Salute: le scoperte più forti, oppure quanto manca. */
 @Composable
@@ -113,7 +122,8 @@ fun DiscoveriesScreen(vm: AppViewModel, onBack: () -> Unit, onOpenJournal: () ->
                     val e = rs.first().exposure
                     HealthCard(e.label, if (e.auto) BioIcons.Pulse else BioIcons.Pencil, if (e.auto) Tint.hrv else Tint.mood,
                         trailing = "${rs.maxOf { it.nWith }} sì · ${rs.maxOf { it.nWithout }} no") {
-                        rs.sortedBy { it.outcome.ordinal }.forEach { r -> ForestRow(r) }
+                        val range = axisRange(rs)
+                        rs.sortedBy { it.outcome.ordinal }.forEach { r -> ForestRow(r, range) }
                         CoNote(d.cooccurring[e.key])
                     }
                 }
@@ -159,14 +169,12 @@ private fun FindingRow(r: AssocResult, compact: Boolean) {
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Text(findingTitle(r), style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 2)
-            Text(
-                "${r.verdict.label} · ${r.nWith} giorni con, ${r.nWithout} senza" + if (!compact) " · IC ${Associations.ciText(r)}" else "",
-                style = MaterialTheme.typography.bodySmall, color = p.text2,
-            )
+            Text("${r.verdict.label} · ${r.nWith} giorni con, ${r.nWithout} senza", style = MaterialTheme.typography.bodySmall, color = p.text2)
+            if (!compact) Text("Intervallo 95%: ${Associations.ciText(r)} ${r.outcome.unit}", style = MaterialTheme.typography.bodySmall, color = p.text3)
         }
         Text(Associations.effectText(r), style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 22.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontFeatureSettings = TABULAR), color = c)
     }
-    if (!compact) ForestBar(r, Modifier.fillMaxWidth().height(22.dp))
+    if (!compact) ForestBar(r, Modifier.fillMaxWidth().height(22.dp), axisRange(listOf(r)))
 }
 
 @Composable
@@ -181,11 +189,11 @@ private fun ForestLegend() {
 
 /** Riga del grafico a foresta: esito, punto e intervallo orientati in modo che destra = meglio. */
 @Composable
-private fun ForestRow(r: AssocResult) {
+private fun ForestRow(r: AssocResult, range: Double) {
     val p = LocalPalette.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(r.outcome.label, style = MaterialTheme.typography.bodySmall, color = p.text, modifier = Modifier.width(112.dp), maxLines = 2)
-        ForestBar(r, Modifier.weight(1f).height(20.dp))
+        ForestBar(r, Modifier.weight(1f).height(20.dp), range)
         Text(Associations.effectText(r), style = MaterialTheme.typography.labelMedium,
             color = when { r.verdict == Verdict.NONE -> p.text3; r.favorable -> Tint.good; else -> Tint.bad },
             modifier = Modifier.width(78.dp), textAlign = TextAlign.End, maxLines = 1)
@@ -193,7 +201,7 @@ private fun ForestRow(r: AssocResult) {
 }
 
 @Composable
-private fun ForestBar(r: AssocResult, modifier: Modifier) {
+private fun ForestBar(r: AssocResult, modifier: Modifier, range: Double = 4.0) {
     val p = LocalPalette.current
     val sign = if (r.outcome.higherBetter) 1.0 else -1.0
     val e = r.effMid * sign
@@ -201,7 +209,6 @@ private fun ForestBar(r: AssocResult, modifier: Modifier) {
     val c = when { r.verdict == Verdict.NONE -> p.text3; e > 0 -> Tint.good; else -> Tint.bad }
     val band = p.field; val axis = p.sep
     Canvas(modifier) {
-        val range = 4.0
         fun x(v: Double) = ((v.coerceIn(-range, range) + range) / (2 * range)).toFloat() * size.width
         val y = size.height / 2
         drawRect(band, Offset(x(-1.0), 0f), Size(x(1.0) - x(-1.0), size.height))

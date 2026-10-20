@@ -137,3 +137,22 @@ Exerc* 1998;30:1164-1168, doi:10.1097/00005768-199807000-00023 (PMID 9662690); H
   Fisher ed errore standard √(1,06/(n−3)) (Fieller, Hartley & Pearson 1957); mostrate da 14 coppie.
 - «Nessuna associazione chiara» se l'IC comprende lo zero; altrimenti debole (|ρ| < 0,3), moderata (< 0,5), forte.
 - Limiti: una sola persona, giorni autocorrelati (IC reale più largo), nessuna direzione causale.
+
+## Scoperte: abitudini ed esiti (versione 1)
+
+Ispirazione: Oura «Personal discoveries», WHOOP «Journal Impact». Regole proprie, dichiarate qui.
+
+- Esposizioni del giorno D: etichette del diario; dall'orologio: allenamento, allenamento serale (fine ≥ 19:00),
+  carico cardiaco ≥ 75° percentile personale, passi sopra la mediana personale, a letto ≥ 45 min oltre la
+  mediana personale.
+- Esiti della notte D→D+1 e del mattino D+1: HRV (scala log, effetto in %), FC a riposo, sonno totale, sonno
+  profondo, efficienza, Recupero, umore.
+- Ogni esito → scarto dalla mediana dei 28 giorni precedenti (≥ 7 valori): rimuove tendenze lente.
+- Etichette del diario: «no» solo nei giorni compilati (i giorni non compilati sono sconosciuti).
+- Minimo 5 giorni con e 5 senza negli ultimi 120.
+- Effetto = differenza delle medie; IC 95% bootstrap percentile (2.000, seme fisso); p da 5.000 permutazioni.
+- Correzione di Benjamini‑Hochberg (FDR 10%) su tutte le coppie testate.
+- Soglie di rilevanza: HRV 3%, FC 1 bpm, sonno 10 min, profondo 5 min, efficienza 1,5 punti, Recupero 3 punti,
+  umore 0,3. «Confermata» = q ≤ 0,10 e |effetto| ≥ soglia; «Indizio» = p < 0,10 e |effetto| ≥ soglia.
+- Co‑occorrenze segnalate quando due abitudini coincidono in ≥ 60% dei giorni della prima.
+- Limiti: osservazionale, una sola persona, autocorrelazione tra giorni; non stabilisce cause.
