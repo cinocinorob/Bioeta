@@ -179,7 +179,7 @@ fun ActivityScreen(
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("${st.sessionsInWindow} allenamenti importati · ${st.state.label.lowercase()}", style = MaterialTheme.typography.titleSmall, color = p.text)
-                    Text("Ultima sincronizzazione ${agoShort(st.lastSync)}" + (st.origins.takeIf { it.isNotEmpty() }?.let { " · " + it.joinToString(", ") } ?: ""),
+                    Text("Ultima sincronizzazione ${agoShort(st.lastSync)}" + (st.origins.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { " · " + it.joinToString(", ") } ?: ""),
                         style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
                 }
                 TextButton(onClick = { vm.syncNow() }, enabled = !vm.syncing && !vm.loading) { Text("Sincronizza", color = LocalPalette.current.brand) }
@@ -263,6 +263,7 @@ fun ActivityScreen(
                 info = "OMS 2020 (PMID 33239350): 150–300 minuti a settimana di attività moderata; un minuto vigoroso vale 2.\n\nMisurati: minuti con frequenza cardiaca ≥ 40% della riserva cardiaca (moderati) o ≥ 60% (vigorosi), secondo ACSM (PMID 21694556). I buchi di FC fino a 5 minuti vengono interpolati.\n\nStimati: minuti di allenamenti registrati senza frequenza cardiaca; intensità attribuita dal tipo di attività secondo il Compendio delle attività fisiche 2024 (PMID 38242596), in modo prudente. Yoga, stretching e attività non classificate non sono conteggiati. Ogni minuto conta una sola volta anche se due app registrano lo stesso allenamento.",
             ) {
                 WeekActiveBars(vm)
+                Caption("Verde: minuti moderati. Arancio: minuti vigorosi (valgono doppio).")
                 if (dayAct != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatChip("Oggi da FC", "${dayAct.moderateMeasured + 2 * dayAct.vigorousMeasured}", "min", Modifier.weight(1f))
                     StatChip("Oggi stimati", "${dayAct.estimatedShare}", "min", Modifier.weight(1f))

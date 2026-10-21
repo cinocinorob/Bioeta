@@ -371,7 +371,8 @@ fun SleepRegularityCard(vm: AppViewModel) {
                 StatChip("Sveglia", SleepTimingCalc.hhmm(t.wakeMedianMin), "± ${t.wakeSdMin.toInt()} min", Modifier.weight(1f))
             }
             t.socialJetLagMin?.let { j ->
-                Caption("Jet lag sociale: nel fine settimana il centro del sonno si sposta di ${kotlin.math.abs(j).toInt()} minuti ${if (j >= 0) "più tardi" else "prima"}." +
+                Caption((if (kotlin.math.abs(j) < 15) "Jet lag sociale trascurabile: nel fine settimana dormi agli stessi orari dei giorni feriali."
+                    else "Jet lag sociale: nel fine settimana il centro del sonno si sposta di ${kotlin.math.abs(j).toInt()} minuti ${if (j >= 0) "più tardi" else "prima"}.") +
                     if (kotlin.math.abs(j) >= 60) " Oltre un'ora è associato a peggior sonno e salute metabolica negli studi osservazionali." else "")
             }
             Caption("Ultimi 28 giorni, ${t.nights} notti.")
