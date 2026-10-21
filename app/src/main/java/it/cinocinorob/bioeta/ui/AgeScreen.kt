@@ -137,7 +137,7 @@ fun AgeScreen(
         // ---------- Assistente ----------
         item {
             Row(
-                Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(18.dp)).background(p.card)
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card)
                     .clickable { onAsk("") }.padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

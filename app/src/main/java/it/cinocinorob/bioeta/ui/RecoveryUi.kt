@@ -1,6 +1,8 @@
 package it.cinocinorob.bioeta.ui
 
 import it.cinocinorob.bioeta.science.ScoreReliability
+import it.cinocinorob.bioeta.science.SleepTimingCalc
+import androidx.compose.material3.MaterialTheme
 import it.cinocinorob.bioeta.science.Reliability
 import it.cinocinorob.bioeta.science.ReliabilityInfo
 import androidx.compose.animation.core.Animatable
@@ -29,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -50,18 +53,20 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object RecoveryColors {
-    val sleep = listOf(Color(0xFF9D8CFF), Color(0xFFD59BF6))
-    val ready = listOf(Color(0xFF5FD3A0), Color(0xFF7CC8F0))
-    val deep = Color(0xFF3634A3)
-    val rem = Color(0xFF64D2FF)
-    val light = Color(0xFF7D7AFF)
-    val awake = Color(0xFFFF9F0A)
+    // Tinta piena (niente sfumature): stessi colori di dominio del resto dell'app
+    val sleep = listOf(Tint.sleep, Tint.sleep)
+    val ready = listOf(Tint.hrv, Tint.hrv)
+    // Fasi del sonno: scala dello stesso viola, dal più profondo al più chiaro; veglia in ambra
+    val deep = Color(0xFF5A5FD6)
+    val rem = Color(0xFF6CC4E8)
+    val light = Color(0xFFB4BBFF)
+    val awake = Color(0xFFF5B94E)
 }
 
 fun scoreColor(s: Int?): Color = when {
-    s == null -> Color(0xFF8E8E93)
+    s == null -> Color(0xFF6C8987)
     s >= 85 -> Tint.good
-    s >= 70 -> Color(0xFF34C3A0)
+    s >= 70 -> Tint.hrv
     s >= 50 -> Tint.warn
     else -> Tint.bad
 }
@@ -195,21 +200,17 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
                 Caption("Per i punteggi servono anche frequenza cardiaca e allenamenti. Tocca per concederli.")
             }
         }
-        // Anelli
+        // Punteggi di oggi: numero e, soprattutto, posizione rispetto alla tua storia
         Row(
-            Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(24.dp)).background(p.card).padding(vertical = 18.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card).padding(vertical = 18.dp, horizontal = 4.dp)
+                .height(androidx.compose.foundation.layout.IntrinsicSize.Min).testTag("scores_card"),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                ScoreRing(today.sleep?.score, "Sonno", RecoveryColors.sleep)
-                Text(today.sleep?.band ?: "Nessuna notte", fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
-                PersonalLine(vm.sleepPercentile, "notti", today.night?.let { n -> today.sleep?.let { ScoreReliability.sleep(it, n) } })
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                ScoreRing(today.readiness.score, "Recupero", RecoveryColors.ready)
-                Text(when { today.readiness.calibrating -> "In calibrazione"; today.readiness.provisional -> today.readiness.band + " · provvisorio"; else -> today.readiness.band }, fontSize = 13.sp, color = p.text2, modifier = Modifier.padding(top = 6.dp))
-                PersonalLine(vm.readinessPercentile, "giornate", ScoreReliability.readiness(today.readiness))
-            }
+            ScoreColumn("Sonno", today.sleep?.score, today.sleep?.band ?: "Nessuna notte", vm.sleepPercentile, "notti",
+                today.night?.let { n -> today.sleep?.let { ScoreReliability.sleep(it, n) } }, Tint.sleep, Modifier.weight(1f))
+            androidx.compose.material3.VerticalDivider(color = p.sep)
+            ScoreColumn("Recupero", today.readiness.score,
+                when { today.readiness.calibrating -> "In calibrazione"; today.readiness.provisional -> today.readiness.band + ", provvisorio"; else -> today.readiness.band },
+                vm.readinessPercentile, "giornate", ScoreReliability.readiness(today.readiness), Tint.hrv, Modifier.weight(1f))
         }
         (today.readiness.flags + (today.sleep?.flags ?: emptyList())).forEach { fl ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Tint.warn.copy(alpha = 0.12f)).padding(12.dp)) {
@@ -220,7 +221,7 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
         }
 
         // Prontezza
-        HealthCard("Recupero", BioIcons.Bolt, Tint.brand,
+        HealthCard("Recupero", BioIcons.Bolt, Tint.hrv,
             info = "Indice BioEtà (0–100) dal confronto con la TUA baseline: HRV notturna (30%), FC a riposo (20%), sonno della notte (20%), debito di sonno (10%), frequenza respiratoria (5%), carico cardiaco recente con modello fitness–fatica (15%). I pesi sono scelte progettuali dichiarate, non un algoritmo validato. Il rango \"meglio del X% dei tuoi giorni\" confronta il valore di oggi con i tuoi ultimi 60 giorni ed è il modo più informativo di leggerlo.") {
             if (today.readiness.calibrating) Caption("Servono almeno 3 giorni di HRV o FC a riposo in Connessione Salute. BioEtà usa già tutto lo storico disponibile: se vedi questo messaggio, l'app dell'orologio ha scritto pochi giorni.")
             else if (today.readiness.provisional) Caption("Punteggio provvisorio: baseline su ${today.readiness.baselineDays} giorni. Finché lo storico è sotto i 14 giorni la tua variabilità abituale è stimata unendo i tuoi dati a un valore tipico, quindi il punteggio è più prudente.")
@@ -273,7 +274,7 @@ fun RecoveryMini(vm: AppViewModel, onOpen: () -> Unit) {
     val p = LocalPalette.current
     val t = vm.today
     Row(
-        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(20.dp)).background(p.card).clickable(onClick = onOpen).padding(14.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).clickable(onClick = onOpen).padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ScoreRing(t.sleep?.score, "Sonno", RecoveryColors.sleep, size = 84, stroke = 9)
@@ -296,6 +297,30 @@ fun RecoveryMini(vm: AppViewModel, onOpen: () -> Unit) {
     }
 }
 
+/** Una colonna di punteggio: valore, giudizio, rango personale (striscia) e affidabilità. */
+@Composable
+private fun ScoreColumn(label: String, score: Int?, band: String, pct: Int?, what: String, rel: ReliabilityInfo?, color: androidx.compose.ui.graphics.Color, modifier: Modifier) {
+    val p = LocalPalette.current
+    Column(modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).clip(androidx.compose.foundation.shape.CircleShape).background(color))
+            Spacer(Modifier.width(6.dp))
+            Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = p.text2)
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(score?.toString() ?: "—", style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 56.sp, lineHeight = 56.sp, fontFeatureSettings = TABULAR),
+                color = if (score == null) p.text3 else p.text)
+            if (score != null) Text("/100", style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = p.text3, modifier = Modifier.padding(start = 3.dp, bottom = 9.dp))
+        }
+        Text(band, style = androidx.compose.material3.MaterialTheme.typography.labelLarge, color = p.text)
+        PercentileStrip(pct, color)
+        Text(if (pct != null) "Meglio del $pct% delle tue $what" else "Rango personale dopo 14 $what",
+            style = androidx.compose.material3.MaterialTheme.typography.labelMedium, color = if (pct != null) p.text2 else p.text3)
+        if (rel != null) Text(rel.level.label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+            color = when (rel.level) { Reliability.HIGH -> p.text3; Reliability.MEDIUM -> Tint.warn; Reliability.LOW -> Tint.bad })
+    }
+}
+
 /** "Meglio del 72% delle tue notti" + affidabilità del punteggio. */
 @Composable
 fun PersonalLine(pct: Int?, what: String, rel: ReliabilityInfo?) {
@@ -313,6 +338,44 @@ fun PersonalLine(pct: Int?, what: String, rel: ReliabilityInfo?) {
                 Reliability.LOW -> Tint.bad
             }
             Text(rel.level.label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = c)
+        }
+    }
+}
+
+/**
+ * Regolarità del sonno: SRI degli ultimi 7 giorni (Phillips 2017) e orari degli ultimi 28 (media circolare
+ * e deviazione standard), più il «jet lag sociale» (Wittmann 2006). Nella UK Biobank (Windred 2024) un SRI
+ * più alto si associava a minore mortalità, in alcune analisi più della durata del sonno.
+ */
+@Composable
+fun SleepRegularityCard(vm: AppViewModel) {
+    val p = LocalPalette.current
+    val sri = vm.sleepRegularity
+    val t = vm.sleepTiming
+    HealthCard("Regolarità del sonno", BioIcons.Moon, Tint.sleep,
+        info = "Indice di regolarità del sonno (SRI, Phillips 2017): probabilità di essere nello stesso stato (sonno o veglia) alla stessa ora in giorni consecutivi, da −100 a 100. Nella UK Biobank (Windred 2024, oltre 60.000 persone) il valore mediano era 81; chi aveva l'SRI più alto aveva una mortalità più bassa, in alcune analisi in modo più marcato che per la durata del sonno. Dati osservazionali: associazione, non prova di causa.\n\nOrari: media e variabilità (deviazione standard circolare) di addormentamento e risveglio negli ultimi 28 giorni. Jet lag sociale (Wittmann 2006): quanto si sposta il punto medio del sonno nel fine settimana rispetto ai giorni feriali.",
+        modifier = Modifier.testTag("regularity_card")) {
+        if (sri == null && t == null) { Caption("Servono almeno 7 notti registrate."); return@HealthCard }
+        if (sri != null) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                BigValue(sri.toInt().toString(), "/100 negli ultimi 7 giorni", size = 34)
+            }
+            // Riferimento UK Biobank: mediana 81, IQR 73,8–86,3
+            Text(when { sri >= 86.3 -> "Molto regolare: nel quarto più alto della UK Biobank"; sri >= 81 -> "Regolare: sopra la mediana della UK Biobank (81)"; sri >= 73.8 -> "Nella media della UK Biobank"; else -> "Irregolare: nel quarto più basso della UK Biobank" },
+                style = MaterialTheme.typography.labelLarge, color = p.text)
+            Track(((sri - 50) / 50).toFloat(), Tint.sleep)
+        }
+        if (t != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatChip("A letto", SleepTimingCalc.hhmm(t.bedMedianMin), "± ${t.bedSdMin.toInt()} min", Modifier.weight(1f))
+                StatChip("Sveglia", SleepTimingCalc.hhmm(t.wakeMedianMin), "± ${t.wakeSdMin.toInt()} min", Modifier.weight(1f))
+            }
+            t.socialJetLagMin?.let { j ->
+                Caption((if (kotlin.math.abs(j) < 15) "Jet lag sociale trascurabile: nel fine settimana dormi agli stessi orari dei giorni feriali."
+                    else "Jet lag sociale: nel fine settimana il centro del sonno si sposta di ${kotlin.math.abs(j).toInt()} minuti ${if (j >= 0) "più tardi" else "prima"}.") +
+                    if (kotlin.math.abs(j) >= 60) " Oltre un'ora è associato a peggior sonno e salute metabolica negli studi osservazionali." else "")
+            }
+            Caption("Ultimi 28 giorni, ${t.nights} notti.")
         }
     }
 }

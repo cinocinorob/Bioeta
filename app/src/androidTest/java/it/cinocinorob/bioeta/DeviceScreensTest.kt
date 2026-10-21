@@ -326,6 +326,8 @@ class DeviceScreensTest {
             screenshot("salute")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("salute_recupero")
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("regularity_card"))
+            screenshot("salute_regolarita")
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("mood_card"))
             waitText("Cosa va insieme al tuo umore", 10_000)
             screenshot("salute_umore")

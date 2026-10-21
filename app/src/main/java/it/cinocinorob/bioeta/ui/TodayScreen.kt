@@ -50,9 +50,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object Pillar {
-    val recovery = listOf(Color(0xFF7BEBC0), Tint.brand)
-    val sleep = listOf(Color(0xFFC0B4FF), Tint.sleep)
-    val load = listOf(Color(0xFFFFC07A), Tint.load)
+    val recovery = listOf(Tint.hrv, Tint.hrv)
+    val sleep = listOf(Tint.sleep, Tint.sleep)
+    val load = listOf(Tint.load, Tint.load)
 }
 
 /**
@@ -172,7 +172,7 @@ fun StatChip(label: String, value: String, unit: String, modifier: Modifier = Mo
 private fun ShortcutTile(title: String, value: String, tint: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier) {
     val p = LocalPalette.current
     Column(
-        modifier.softShadow(p.dark).clip(RoundedCornerShape(24.dp)).background(p.card).clickable(onClick = onClick).padding(14.dp),
+        modifier.clip(RoundedCornerShape(24.dp)).background(p.card).clickable(onClick = onClick).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(tint.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {

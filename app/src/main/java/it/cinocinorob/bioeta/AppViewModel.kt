@@ -1025,6 +1025,39 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return k
         }
 
+    // ---------------- Esperimenti personali e orari di sonno ----------------
+
+    var experiments by mutableStateOf(
+        settings.getString("experiments", null)?.split("\u001F")?.mapNotNull { r ->
+            val f = r.split("|"); if (f.size < 4) null else runCatching { Experiment(f[0], f[1] == "1", java.time.LocalDate.parse(f[2]), f[3].toInt()) }.getOrNull()
+        } ?: emptyList()
+    )
+        private set
+
+    private fun saveExperiments() {
+        settings.edit().putString("experiments", experiments.joinToString("\u001F") { "${it.itemKey}|${if (it.doIt) 1 else 0}|${it.start}|${it.days}" }).apply()
+    }
+
+    fun startExperiment(key: String, doIt: Boolean, days: Int) {
+        if (key !in journalTracked) setTracked(key, true)
+        experiments = experiments.filter { it.finished(java.time.LocalDate.now()) } + Experiment(key, doIt, java.time.LocalDate.now(), days)
+        saveExperiments(); discKey = null; refreshDiscoveries()
+    }
+
+    fun stopExperiment(e: Experiment) {
+        experiments = experiments - e
+        saveExperiments(); discKey = null; refreshDiscoveries()
+    }
+
+    val activeExperiment: Experiment? get() = experiments.lastOrNull { !it.finished(java.time.LocalDate.now()) }
+
+    var experimentResults by mutableStateOf<List<ExperimentResult>>(emptyList())
+        private set
+
+    /** Orari di sonno degli ultimi 28 giorni e regolarità (SRI) degli ultimi 7. */
+    val sleepTiming: SleepTiming? get() = SleepTimingCalc.compute(sleepNights, java.time.LocalDate.now(), zoneId())
+    val sleepRegularity: Double? get() = SleepScore.sleepRegularityIndex(sleepNights, java.time.LocalDate.now(), zoneId())
+
     // ---------------- Scoperte: abitudini ↔ esiti (vedi science/Associations.kt) ----------------
 
     var discoveries by mutableStateOf<Discoveries?>(null)
@@ -1036,14 +1069,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Calcolo in background (bootstrap e permutazioni): ripetuto solo se cambiano i dati. */
     fun refreshDiscoveries() {
         val today = java.time.LocalDate.now()
-        val key = listOf(journal, wearable, sleepNights, dayActivities, sessions, today)
+        val key = listOf(journal, wearable, sleepNights, dayActivities, sessions, today, experiments)
         if (key == discKey && discoveries != null) return
         discKey = key
         val (exp, out) = discoveryInputs(today)
+        val exps = experiments; val j = journal
         viewModelScope.launch {
             discoveriesLoading = true
             try {
                 discoveries = withContext(Dispatchers.Default) { Associations.discover(exp, out, today) }
+                experimentResults = withContext(Dispatchers.Default) { exps.map { Experiments.evaluate(it, j, out, today) } }
             } finally { discoveriesLoading = false }
         }
     }

@@ -77,7 +77,7 @@ fun InsightCard(insight: Insight, onAsk: ((String) -> Unit)?) {
     var open by rememberSaveable(insight.id) { mutableStateOf(false) }
     val lc = levelColor(insight.level)
     Row(
-        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(18.dp)).background(p.card)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card)
             .drawBehind { drawRect(lc, size = androidx.compose.ui.geometry.Size(5.dp.toPx(), size.height)) }
             .clickable { open = !open }.animateContentSize(),
     ) {
@@ -135,7 +135,7 @@ fun InsightSummaryRow(insights: List<Insight>) {
         listOf(Level.ALERT, Level.ATTENTION, Level.INFO, Level.POSITIVE).forEach { l ->
             val c = insights.count { it.level == l }
             Column(
-                Modifier.weight(1f).softShadow(p.dark).clip(RoundedCornerShape(16.dp)).background(p.card).padding(vertical = 10.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(p.card).padding(vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(c.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (c > 0) levelColor(l) else p.text2)

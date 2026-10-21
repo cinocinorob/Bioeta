@@ -271,3 +271,62 @@ fun BeatingRings(bpm: Double?, modifier: Modifier = Modifier, size: Int = 72, li
     val colors = if (light) Triple(Color(0xFFDE3F63), Color(0xFF0F9E92), Color(0xFFDE3F63)) else RING_COLORS
     Canvas(modifier.size(size.dp)) { drawRings(null, beat, ripple, colors) }
 }
+
+// =============================================================================================
+// Linguaggio visivo comune: numero grande condensato + traccia sottile (progressi) o striscia del rango
+// personale. Gli anelli sono riservati al marchio.
+// =============================================================================================
+
+/** Traccia di avanzamento sottile; oltre il 100% la parte eccedente resta piena. */
+@Composable
+fun Track(fraction: Float, color: Color, modifier: Modifier = Modifier) {
+    val p = LocalPalette.current
+    val f = animatedValue(fraction.coerceIn(0f, 1f), 700)
+    Canvas(modifier.fillMaxWidth().height(8.dp)) {
+        val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2, size.height / 2)
+        drawRoundRect(p.field, cornerRadius = r)
+        if (f > 0f) drawRoundRect(color, size = Size(maxOf(size.height, size.width * f), size.height), cornerRadius = r)
+    }
+}
+
+/**
+ * Dove si colloca oggi rispetto alla tua storia: striscia 0–100 con tacche a 25/50/75 e un punto al rango.
+ * È la lettura principale dei punteggi, perché i valori assoluti tendono a restare alti.
+ */
+@Composable
+fun PercentileStrip(pct: Int?, color: Color, modifier: Modifier = Modifier) {
+    val p = LocalPalette.current
+    Canvas(modifier.fillMaxWidth().height(14.dp)) {
+        val y = size.height / 2; val h = 4.dp.toPx()
+        drawRoundRect(p.field, Offset(0f, y - h / 2), Size(size.width, h), androidx.compose.ui.geometry.CornerRadius(h / 2, h / 2))
+        listOf(0.25f, 0.5f, 0.75f).forEach { t -> drawLine(p.sep, Offset(size.width * t, y - 5.dp.toPx()), Offset(size.width * t, y + 5.dp.toPx()), 1.dp.toPx()) }
+        if (pct != null) {
+            val x = size.width * (pct / 100f).coerceIn(0f, 1f)
+            drawCircle(p.card, 7.dp.toPx(), Offset(x, y))
+            drawCircle(color, 5.dp.toPx(), Offset(x, y))
+        }
+    }
+}
+
+/** Riga di sintesi: etichetta con punto colorato, valore grande, obiettivo e traccia. */
+@Composable
+fun SummaryRow(label: String, value: String, goal: String?, fraction: Float?, color: Color, onClick: (() -> Unit)? = null) {
+    val p = LocalPalette.current
+    Column(
+        Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(color))
+                    Spacer(Modifier.width(6.dp))
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = p.text2)
+                }
+                Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 30.sp, fontFeatureSettings = TABULAR), color = p.text)
+            }
+            if (goal != null) Text(goal, style = MaterialTheme.typography.labelMedium, color = p.text3, modifier = Modifier.padding(bottom = 6.dp))
+        }
+        if (fraction != null) Track(fraction, color)
+    }
+}

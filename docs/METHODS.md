@@ -156,3 +156,18 @@ Ispirazione: Oura «Personal discoveries», WHOOP «Journal Impact». Regole pro
   umore 0,3. «Confermata» = q ≤ 0,10 e |effetto| ≥ soglia; «Indizio» = p < 0,10 e |effetto| ≥ soglia.
 - Co‑occorrenze segnalate quando due abitudini coincidono in ≥ 60% dei giorni della prima.
 - Limiti: osservazionale, una sola persona, autocorrelazione tra giorni; non stabilisce cause.
+
+## Esperimenti personali (versione 1)
+
+- Disegno A‑B: fase A = 21 giorni prima dell'inizio; fase B = giorni dell'esperimento in cui la risposta nel
+  diario corrisponde all'impegno (fare/evitare l'abitudine). Esiti della notte e del mattino successivi.
+- Minimo 5 giorni per fase; differenza delle medie, IC bootstrap 95%, p per permutazione, Benjamini‑Hochberg
+  sui 7 esiti, stesse soglie di rilevanza delle Scoperte.
+- Limite: cambiamenti esterni contemporanei vengono attribuiti all'esperimento; la ripetizione (A‑B‑A) lo riduce.
+
+## Regolarità e orari del sonno
+
+- SRI (Phillips 2017) sugli ultimi 7 giorni, riferimenti UK Biobank (Windred 2024: mediana 81, IQR 73,8–86,3).
+- Orari: media e deviazione standard circolari di addormentamento e risveglio (28 giorni).
+- Jet lag sociale (Wittmann 2006): differenza del punto medio del sonno tra notti con risveglio sabato/domenica
+  e notti feriali (minimo 2 e 4 notti).
