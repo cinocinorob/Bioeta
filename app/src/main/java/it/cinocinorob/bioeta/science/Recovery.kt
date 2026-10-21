@@ -124,6 +124,16 @@ fun piecewise(x: Double, vararg pts: Pair<Double, Double>): Double {
     return pts.last().second
 }
 
+
+/** Scarto dal proprio solito in parole: entro mezza deviazione standard è «in linea». */
+internal fun solito(z: Double): String = when {
+    z >= 1.5 -> "molto sopra il tuo solito"
+    z >= 0.5 -> "sopra il tuo solito"
+    z <= -1.5 -> "molto sotto il tuo solito"
+    z <= -0.5 -> "sotto il tuo solito"
+    else -> "in linea con il tuo solito"
+}
+
 /** z-score rispetto alla baseline personale: valori più alti = meglio. */
 fun zGood(z: Double): Double = piecewise(
     z, -2.5 to 5.0, -2.0 to 15.0, -1.0 to 45.0, -0.5 to 70.0, 0.0 to 85.0, 0.5 to 100.0,
@@ -381,11 +391,11 @@ object Readiness {
 
         val hz = zToday(i.hrv, i.date, log = true, priorSd = PRIOR_SD_LNRMSSD)
         cs += Contributor("hrv", "Variabilità cardiaca", hz?.let { zGood(it.z).roundToInt() }, W_HRV,
-            hz?.let { "HRV ${f(it.today, 0)} ms (tua baseline ${f(it.base, 0)} ms, ${f(it.z, 1)} DS)" } ?: "Servono almeno 3 giorni di HRV")
+            hz?.let { "HRV ${f(it.today, 0)} ms, ${solito(it.z)} (di solito ${f(it.base, 0)} ms)" } ?: "Servono almeno 3 giorni di HRV")
 
         val rz = zToday(i.rhr, i.date, log = false, priorSd = PRIOR_SD_RHR)
         cs += Contributor("rhr", "FC a riposo", rz?.let { zGood(-it.z).roundToInt() }, W_RHR,
-            rz?.let { "${f(it.today, 0)} bpm (tua baseline ${f(it.base, 0)} bpm)" } ?: "Servono almeno 3 giorni di FC a riposo")
+            rz?.let { "${f(it.today, 0)} bpm, ${solito(it.z)} (di solito ${f(it.base, 0)} bpm)" } ?: "Servono almeno 3 giorni di FC a riposo")
 
         cs += Contributor("sleep", "Sonno della notte", i.lastNightScore, W_SLEEP,
             i.lastNightScore?.let { "Punteggio sonno $it" } ?: "Nessuna notte registrata")

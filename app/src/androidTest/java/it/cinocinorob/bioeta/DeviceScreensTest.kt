@@ -272,6 +272,8 @@ class DeviceScreensTest {
             compose.onNodeWithTag("rpe_4").performClick()
             Thread.sleep(500)
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("highlights"))
+            screenshot("home_in_evidenza")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("I tuoi numeri"))
             screenshot("home_eta_fisiologia")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Allenamenti oggi", substring = true))

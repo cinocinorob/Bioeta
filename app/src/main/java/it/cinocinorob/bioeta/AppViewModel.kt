@@ -1055,6 +1055,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return k
         }
 
+    // ---------------- In evidenza: cambiamenti rilevanti della settimana o del mese ----------------
+
+    val highlights: List<Highlight>
+        get() {
+            fun w(m: Metric) = wearable[m].orEmpty().associate { it.date to it.value }
+            return Highlights.compute(
+                linkedMapOf(
+                    HMetric.RHR to w(Metric.RHR), HMetric.HRV to w(Metric.HRV),
+                    HMetric.SLEEP to sleepNights.associate { it.date to it.totalSleepMin / 60.0 },
+                    HMetric.STEPS to w(Metric.STEPS),
+                    HMetric.ACTIVE to dayActivities.filter { it.date.isBefore(java.time.LocalDate.now()) }.associate { it.date to it.activeMinutes.toDouble() },
+                    HMetric.VO2 to w(Metric.VO2), HMetric.WEIGHT to w(Metric.WEIGHT), HMetric.RESP to w(Metric.RESP),
+                ),
+                java.time.LocalDate.now(),
+            )
+        }
+
     // ---------------- Esperimenti personali e orari di sonno ----------------
 
     var experiments by mutableStateOf(

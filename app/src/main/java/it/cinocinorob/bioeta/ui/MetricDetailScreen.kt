@@ -19,6 +19,7 @@ import it.cinocinorob.bioeta.AppViewModel
 import it.cinocinorob.bioeta.health.HealthRepo
 import it.cinocinorob.bioeta.health.Metric
 import it.cinocinorob.bioeta.science.LoadQuality
+import it.cinocinorob.bioeta.science.solito
 import java.time.LocalDate
 
 /** Chiavi delle schermate di dettaglio: le metriche di Connessione Salute più due serie calcolate. */
@@ -85,7 +86,7 @@ fun MetricDetailScreen(vm: AppViewModel, key: String, onBack: () -> Unit) {
                             }
                             val all = vm.wearable[metric].orEmpty()
                             if (all.size >= 3) HealthRepo.summarize(metric, all).z?.let { z ->
-                                Caption("Ultimi 7 giorni rispetto alla tua baseline (giorni 8–67): ${z.fs(1)} deviazioni standard.")
+                                Caption("Ultimi 7 giorni: ${solito(z)}.")
                             }
                         }
                     }
