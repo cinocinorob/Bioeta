@@ -358,8 +358,15 @@ private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGo
     val p = LocalPalette.current
     val t = vm.today
     val dayAct = vm.todayDayActivity
-    val (title, msg) = gentleMessage(mood, t.readiness.flags.isNotEmpty())
     val score = t.readiness.score
+    // Un solo messaggio coerente: quando c'è il rango personale guida il testo (il punteggio assoluto tende a stare alto)
+    val pct = vm.readinessPercentile
+    val (title, msg) = when {
+        t.readiness.flags.isNotEmpty() || pct == null -> gentleMessage(mood, t.readiness.flags.isNotEmpty())
+        pct >= 70 -> "Meglio del solito" to "Sei più recuperato della maggior parte delle tue giornate: buon giorno per un allenamento impegnativo, se ti va."
+        pct >= 30 -> "Nella tua media" to "Recupero in linea con le tue giornate abituali: puoi allenarti come al solito."
+        else -> "Sotto il tuo solito" to "Il punteggio è ancora buono, ma più basso della maggior parte delle tue giornate: oggi meglio un'attività moderata e un buon sonno."
+    }
     val ringColor = p.brand
     // Contenitore tonale (Material 3): una velatura del colore dello stato di oggi
     val tone = when { score == null -> Color.Transparent; score >= 75 -> Tint.good; score >= 50 -> Tint.warn; else -> Tint.bad }
@@ -393,7 +400,7 @@ private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGo
         Text(msg, style = MaterialTheme.typography.bodyMedium, color = p.text2)
         // Lettura personale: dove si colloca oggi rispetto alla tua storia (i punteggi assoluti saturano)
         val parts = listOfNotNull(
-            vm.readinessPercentile?.let { "Meglio del $it% delle tue giornate (${Personal.describe(it, "giornate")})" },
+            vm.readinessPercentile?.let { "Meglio del $it% delle tue giornate" },
             vm.sleepPercentile?.let { "Sonno meglio del $it% delle tue notti" },
         )
         parts.forEach { Text(it, style = MaterialTheme.typography.labelLarge, color = p.text) }

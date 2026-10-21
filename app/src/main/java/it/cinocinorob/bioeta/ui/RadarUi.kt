@@ -114,7 +114,8 @@ fun ScoreChange.text(): String {
 /** Avviso in Home quando un punteggio già visto è cambiato, con il motivo. */
 @Composable
 fun ChangesNotice(vm: AppViewModel) {
-    val recent = vm.recentChanges
+    // In Home solo i cambiamenti con un motivo concreto (dato arrivato o modificato); gli altri restano nello storico
+    val recent = vm.recentChanges.filter { !it.reason.startsWith("sono cambiati i dati dei giorni precedenti") }
     if (recent.isEmpty()) return
     var show by rememberSaveable { mutableStateOf(false) }
     if (show) ChangesDialog(vm.scoreChanges) { show = false }
