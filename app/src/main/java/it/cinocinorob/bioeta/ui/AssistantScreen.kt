@@ -82,13 +82,8 @@ private fun DisclaimerGate(vm: AppViewModel, modifier: Modifier) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         LargeHeader("Assistente", "Claude + PubMed")
-        GradientHero(listOf(Color(0xFFB9A8FF), Color(0xFF7F8CF5))) {
-            Icon(BioIcons.Sparkle, null, tint = Color.White, modifier = Modifier.size(32.dp))
-            Text("Prima di iniziare", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "L'assistente commenta analisi e andamenti cercando le prove su PubMed. Ogni affermazione deve citare uno studio, e l'app verifica che le citazioni esistano davvero.",
-                color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp, lineHeight = 20.sp,
-            )
+        HealthCard("Prima di iniziare", BioIcons.Sparkle, Tint.blue) {
+            Body("L'assistente commenta analisi e andamenti cercando le prove su PubMed. Ogni affermazione deve citare uno studio, e l'app verifica che le citazioni esistano davvero.")
         }
         HealthCard("Avvertenza medica", BioIcons.Info, Tint.bad) {
             Body("Le risposte hanno scopo esclusivamente informativo ed educativo. Non costituiscono diagnosi, prescrizione o parere medico e non sostituiscono la visita. Per qualsiasi decisione su esami, terapie, dieta, integratori o attività fisica rivolgiti sempre al tuo medico o a uno specialista.")
@@ -291,10 +286,10 @@ private fun ChatView(vm: AppViewModel, modifier: Modifier, initialQuestion: Stri
 private fun UserBubble(text: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Text(
-            text, color = Color.White, fontSize = 15.sp, lineHeight = 20.sp,
+            text, color = LocalPalette.current.text, fontSize = 15.sp, lineHeight = 20.sp,
             modifier = Modifier.widthIn(max = 300.dp)
                 .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp))
-                .background(Brush.linearGradient(listOf(Color(0xFF0A84FF), Color(0xFF5E5CE6))))
+                .background(LocalPalette.current.card2)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         )
     }
@@ -311,8 +306,8 @@ private fun AssistantBubble(m: AppViewModel.ChatMsg) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(22.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF5E5CE6), Color(0xFF0A84FF)))), contentAlignment = Alignment.Center) {
-                Icon(BioIcons.Sparkle, null, tint = Color.White, modifier = Modifier.size(13.dp))
+            Box(Modifier.size(22.dp).clip(CircleShape).background(Tint.blue.copy(alpha = 0.18f)), contentAlignment = Alignment.Center) {
+                Icon(BioIcons.Sparkle, null, tint = Tint.blue, modifier = Modifier.size(13.dp))
             }
             Spacer(Modifier.size(8.dp))
             Text(if (m.isError) "Errore" else "Claude", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = if (m.isError) Tint.bad else p.text)

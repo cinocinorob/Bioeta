@@ -38,6 +38,11 @@ import it.cinocinorob.bioeta.AppViewModel
 import it.cinocinorob.bioeta.science.AssocResult
 import it.cinocinorob.bioeta.science.Associations
 import it.cinocinorob.bioeta.science.Verdict
+import it.cinocinorob.bioeta.science.JournalCatalog
+import it.cinocinorob.bioeta.science.JCat
+import it.cinocinorob.bioeta.science.Experiments
+import it.cinocinorob.bioeta.science.ExperimentResult
+import androidx.compose.foundation.clickable
 
 const val DISCOVERIES_INFO =
     "Come funziona. Per ogni abitudine (dal diario o rilevata dall'orologio) BioEtà confronta i giorni in cui c'è con quelli in cui non c'è, guardando la notte successiva e il mattino dopo: HRV, FC a riposo, sonno totale e profondo, efficienza, Recupero, umore.\n\n" +
@@ -94,6 +99,12 @@ fun DiscoveriesScreen(vm: AppViewModel, onBack: () -> Unit, onOpenJournal: () ->
                     Caption("Confronto tra i giorni con e senza ciascuna abitudine, rispetto alla tua normalità. Le frecce indicano la notte e il mattino successivi.")
                     if (d == null || vm.discoveriesLoading) LoadingBar()
                 }
+            }
+            // ---------- Esperimenti (n-di-1) ----------
+            item { SectionHeader("Esperimenti") }
+            item { ExperimentsCard(vm, onOpenJournal) }
+            vm.experimentResults.filter { it.exp.finished(java.time.LocalDate.now()) }.reversed().forEach { r ->
+                item(key = "exp_" + r.exp.itemKey + r.exp.start) { ExperimentResultCard(r) }
             }
             if (d == null) return@LazyColumn
             val good = d.results.filter { it.verdict != Verdict.NONE && it.favorable }
@@ -216,4 +227,103 @@ private fun ForestBar(r: AssocResult, modifier: Modifier, range: Double = 4.0) {
         drawLine(c, Offset(x(lo), y), Offset(x(hi), y), 2.dp.toPx(), cap = StrokeCap.Round)
         drawCircle(c, 5.dp.toPx(), Offset(x(e), y))
     }
+}
+
+
+private const val EXPERIMENT_INFO =
+    "Un esperimento personale cambia una sola abitudine per 14 o 21 giorni, decisa in anticipo. BioEtà confronta i giorni in cui hai rispettato l'impegno (segnati nel diario) con i 21 giorni prima dell'inizio, sugli stessi esiti delle Scoperte, con la stessa statistica (bootstrap, permutazioni, correzione per confronti multipli).\n\n" +
+        "È più solido di una semplice associazione perché la scelta è tua e non dipende da cosa succede quel giorno. Resta un limite: se nello stesso periodo cambia altro (stagione, lavoro, una malattia), l'effetto viene attribuito all'esperimento. Ripeterlo, o tornare all'abitudine di prima per due settimane e confrontare, lo rende più affidabile."
+
+@Composable
+private fun ExperimentsCard(vm: AppViewModel, onOpenJournal: () -> Unit) {
+    val p = LocalPalette.current
+    val today = java.time.LocalDate.now()
+    val active = vm.activeExperiment
+    var choose by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (choose) NewExperimentDialog(vm) { choose = false }
+    HealthCard(if (active != null) "Esperimento in corso" else "Prova a cambiare una cosa", BioIcons.Sparkle, Tint.mood, info = EXPERIMENT_INFO, modifier = Modifier.testTag("experiments_card")) {
+        if (active == null) {
+            Caption("Le Scoperte mostrano associazioni. Per sapere se un'abitudine conta davvero per te, cambiala per 2–3 settimane e confronta con il periodo prima.")
+            androidx.compose.material3.Button(onClick = { choose = true }) { Text("Inizia un esperimento") }
+        } else {
+            val item = JournalCatalog.resolve(active.itemKey)
+            val r = vm.experimentResults.firstOrNull { it.exp == active }
+            Text("${if (active.doIt) "Ogni giorno" else "Niente"}: ${item.label.replaceFirstChar { c -> c.lowercase() }}", style = MaterialTheme.typography.titleMedium, color = p.text)
+            val k = active.dayIndex(today)
+            Row(verticalAlignment = Alignment.Bottom) {
+                BigValue("$k", "di ${active.days} giorni", size = 26)
+                Spacer(Modifier.weight(1f))
+                if (r != null) Text("Impegno rispettato: ${r.adherent} di ${r.answered} risposte", style = MaterialTheme.typography.labelMedium, color = p.text2)
+            }
+            Track(k / active.days.toFloat(), Tint.mood)
+            if (r == null || r.results.isEmpty()) Caption("I primi confronti compaiono dopo ${Experiments.MIN_DAYS} giorni rispettati. Rispondi alla domanda «${item.label}» nel diario ogni giorno.")
+            else {
+                Caption("Lettura provvisoria (esperimento non concluso):")
+                val range = maxOf(4.0, r.results.maxOf { maxOf(kotlin.math.abs(it.lowMid), kotlin.math.abs(it.highMid)) } * 1.1)
+                r.results.forEach { ForestRow(it, range) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOpenJournal, modifier = Modifier.weight(1f)) { Text("Apri il diario") }
+                androidx.compose.material3.TextButton(onClick = { vm.stopExperiment(active) }) { Text("Interrompi") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExperimentResultCard(r: ExperimentResult) {
+    val item = JournalCatalog.resolve(r.exp.itemKey)
+    val fmt = java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ITALIAN)
+    HealthCard("${if (r.exp.doIt) "Ogni giorno" else "Niente"}: ${item.label.replaceFirstChar { it.lowercase() }}", BioIcons.Sparkle, Tint.mood,
+        trailing = "${r.exp.start.format(fmt)} – ${r.exp.end.format(fmt)}") {
+        if (r.results.isEmpty()) Caption("Dati insufficienti: servono almeno 5 giorni rispettati con dati dell'orologio (rispettati: ${r.adherent}).")
+        else {
+            val range = maxOf(4.0, r.results.maxOf { maxOf(kotlin.math.abs(it.lowMid), kotlin.math.abs(it.highMid)) } * 1.1)
+            r.results.forEach { ForestRow(it, range) }
+            val conf = r.results.filter { it.verdict != Verdict.NONE }
+            Caption(if (conf.isEmpty()) "Nessun cambiamento chiaro rispetto alle 3 settimane prima." else conf.joinToString("; ") { "${it.outcome.label} ${Associations.effectText(it)} (${it.verdict.label.lowercase()})" } + ".")
+        }
+    }
+}
+
+@Composable
+private fun NewExperimentDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val p = LocalPalette.current
+    var key by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var doIt by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var days by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(14) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nuovo esperimento") },
+        text = {
+            LazyColumn(Modifier.height(460.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                item { Caption("1. Scegli l'abitudine") }
+                items(JournalCatalog.ITEMS.filter { it.cat != JCat.HEALTH }, key = { it.key }) { ji ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        .background(if (key == ji.key) p.field else androidx.compose.ui.graphics.Color.Transparent)
+                        .clickable { key = ji.key }.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        Text(ji.label, style = MaterialTheme.typography.bodyMedium, color = p.text)
+                    }
+                }
+                item { Caption("2. Cosa fai per tutto il periodo") }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(false to "Evitarla", true to "Farla ogni giorno").forEach { (v, l) ->
+                            androidx.compose.material3.FilterChip(selected = doIt == v, onClick = { doIt = v }, label = { Text(l) })
+                        }
+                    }
+                }
+                item { Caption("3. Durata") }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(14, 21).forEach { d -> androidx.compose.material3.FilterChip(selected = days == d, onClick = { days = d }, label = { Text("$d giorni") }) }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = key != null, onClick = { vm.startExperiment(key!!, doIt, days); onDismiss() }) { Text("Inizia") }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Annulla") } },
+    )
 }

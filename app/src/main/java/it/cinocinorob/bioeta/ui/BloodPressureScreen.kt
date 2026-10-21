@@ -105,14 +105,9 @@ fun BloodPressureScreen(vm: AppViewModel, onBack: () -> Unit, onAsk: (String) ->
             item { LargeHeader("Pressione", "Misure a domicilio") }
 
             if (readings.isEmpty()) item {
-                GradientHero(listOf(Color(0xFFFFB3CF), Color(0xFFE85D9A))) {
-                    Icon(BioIcons.Heart, null, tint = Color.White, modifier = Modifier.size(28.dp))
-                    Text("Registra la tua pressione", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("Per una valutazione affidabile: 3–7 giorni, 2 misure al mattino e 2 alla sera, seduto da 5 minuti, bracciale all'altezza del cuore.",
-                        color = Color.White.copy(alpha = 0.95f), fontSize = 14.sp, lineHeight = 19.sp)
-                    Button(onClick = { adding = true }, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Tint.bp)) {
-                        Text("Aggiungi misura", fontWeight = FontWeight.Bold)
-                    }
+                HealthCard("Registra la tua pressione", BioIcons.Heart, Tint.bp) {
+                    Body("Per una valutazione affidabile (protocollo ESH): 3–7 giorni, 2 misure al mattino e 2 alla sera, seduto da 5 minuti, bracciale all'altezza del cuore.")
+                    Button(onClick = { adding = true }) { Text("Aggiungi misura") }
                 }
             }
 
@@ -120,7 +115,7 @@ fun BloodPressureScreen(vm: AppViewModel, onBack: () -> Unit, onAsk: (String) ->
                 val c = bpColor(summary.category)
                 HealthCard("Media degli ultimi 7 giorni", BioIcons.Heart, Tint.bp) {
                     Row(verticalAlignment = Alignment.Bottom) {
-                        Text("${summary.meanSys.f(0)}/${summary.meanDia.f(0)}", fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
+                        Text("${summary.meanSys.f(0)}/${summary.meanDia.f(0)}", style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 52.sp, fontFeatureSettings = TABULAR), color = p.text)
                         Text(" mmHg", fontSize = 16.sp, color = p.text2, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
                     }
                     Pill(summary.category.label, c)
@@ -152,7 +147,7 @@ fun BloodPressureScreen(vm: AppViewModel, onBack: () -> Unit, onAsk: (String) ->
                     BpRangeChart(readings.filter { !it.time.toLocalDate().isBefore(LocalDate.now().minusDays(range.toLong() - 1)) })
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         LegendDot(Tint.bp, "Sistolica")
-                        LegendDot(Color(0xFF8E7CFF), "Diastolica")
+                        LegendDot(Tint.sleep, "Diastolica")
                         LegendDot(p.text2, "Soglie 135/85")
                     }
                 }
@@ -271,7 +266,7 @@ fun BpRangeChart(readings: List<BpReading>) {
     val hi = maxOf(150, readings.maxOf { it.sys } + 5).toFloat()
     val label = p.text2.toArgb()
     val grid = p.sep
-    val diaColor = Color(0xFF8E7CFF)
+    val diaColor = Tint.sleep
     Canvas(Modifier.fillMaxWidth().height(200.dp)) {
         val right = 34.dp.toPx(); val bottom = 18.dp.toPx()
         val w = size.width - right; val h = size.height - bottom
@@ -374,7 +369,7 @@ fun BpMini(vm: AppViewModel, onOpen: () -> Unit) {
     val s = vm.bpSummary
     val last = vm.bpReadings.lastOrNull()
     Row(
-        Modifier.fillMaxWidth().softShadow(p.dark).clip(RoundedCornerShape(26.dp)).background(p.card).clickable(onClick = onOpen).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).clickable(onClick = onOpen).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(Tint.bp.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {

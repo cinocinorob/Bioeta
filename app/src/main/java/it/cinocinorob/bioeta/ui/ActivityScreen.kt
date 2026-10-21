@@ -39,6 +39,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.CircleShape
+import it.cinocinorob.bioeta.science.LoadTrendState
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -65,11 +68,11 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 fun zoneColor(z: Zone): Color = when (z) {
-    Zone.VERY_LIGHT -> Color(0xFF6E7A88)
-    Zone.LIGHT -> Color(0xFF45C8E0)
-    Zone.MODERATE -> Color(0xFF3ED69A)
-    Zone.VIGOROUS -> Color(0xFFFFAA4C)
-    Zone.MAXIMAL -> Color(0xFFFF5D73)
+    Zone.VERY_LIGHT -> Color(0xFF6C8987)
+    Zone.LIGHT -> Tint.hrv
+    Zone.MODERATE -> Tint.good
+    Zone.VIGOROUS -> Tint.activity
+    Zone.MAXIMAL -> Tint.bad
 }
 
 /** Tre anelli concentrici: passi, minuti attivi della settimana, carico di oggi. */
@@ -172,7 +175,7 @@ fun ActivityScreen(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).clickable(onClick = onOpenSync).padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(BioIcons.Refresh, null, tint = Tint.brand, modifier = Modifier.size(18.dp))
+                Icon(BioIcons.Refresh, null, tint = p.brand, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("${st.sessionsInWindow} allenamenti importati · ${st.state.label.lowercase()}", style = MaterialTheme.typography.titleSmall, color = p.text)
@@ -183,22 +186,29 @@ fun ActivityScreen(
             }
         }
 
-        // ---------- Anelli ----------
+        // ---------- Sintesi: numero + traccia (gli anelli sono riservati al marchio) ----------
         item {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ActivityRings(
-                    steps = (act?.steps ?: 0L) / goal.toFloat(),
-                    minutes = week / 150f,
-                    load = if (quality == LoadQuality.UNAVAILABLE) 0f else ((dayAct?.load ?: 0.0) / maxOf(target?.high ?: loadScale(vm), 1.0)).toFloat(),
-                )
-                Spacer(Modifier.width(18.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    RingLegend(Tint.activity, "passi / ${String.format(Locale.ITALY, "%,d", goal)}", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—")
-                    RingLegend(Tint.good, "min attivi sett. / 150", "$week")
-                    RingLegend(Tint.load, target?.let { "carico / ${it.high.f(0)}" } ?: "carico oggi", if (quality == LoadQuality.UNAVAILABLE) "—" else dayAct!!.load.f(0))
+            val days7 = (0L..6L).map { today.minusDays(it) }
+            val workoutDays = vm.displaySessions.map { it.start.atZone(ZoneId.systemDefault()).toLocalDate() }.toSet()
+            HealthCard(modifier = Modifier.testTag("activity_summary")) {
+                SummaryRow("Passi oggi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—",
+                    "obiettivo ${String.format(Locale.ITALY, "%,d", goal)}", act?.let { it.steps / goal.toFloat() }, Tint.activity) { onOpenMetric("STEPS") }
+                SummaryRow("Minuti attivi della settimana", "$week", "obiettivo OMS 150", week / 150f, Tint.good) { onOpenMetric(DETAIL_ACTIVE) }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(7.dp).clip(CircleShape).background(Tint.vo2))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Giorni con allenamento negli ultimi 7", style = MaterialTheme.typography.labelLarge, color = p.text2, modifier = Modifier.weight(1f))
+                        Text("${days7.count { it in workoutDays }}", style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 22.sp), color = p.text)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        days7.reversed().forEach { d ->
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(if (d in workoutDays) Tint.vo2 else p.field))
+                                Text(d.format(java.time.format.DateTimeFormatter.ofPattern("EEEEE", Locale.ITALIAN)).uppercase(), style = MaterialTheme.typography.labelSmall, color = p.text3)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -233,6 +243,16 @@ fun ActivityScreen(
                     }
                 }
                 DayBars(loadBars(vm), Tint.load, "carico", band = target?.let { it.low to it.high })
+                // Andamento 7 vs 28 giorni (prima era una scheda separata)
+                val lt = vm.loadTrend
+                if (lt.ratio != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Ultimi 7 giorni rispetto ai 28: ${lt.ratio.f(2)}", style = MaterialTheme.typography.labelLarge, color = p.text, modifier = Modifier.weight(1f))
+                    Pill(lt.state.label, when (lt.state) {
+                        LoadTrendState.DETRAINING -> Tint.blue; LoadTrendState.STEADY -> Tint.good
+                        LoadTrendState.BUILDING -> Tint.activity; LoadTrendState.SPIKE -> Tint.warn; LoadTrendState.NA -> Tint.sleep
+                    })
+                } else Caption("Il confronto tra ultimi 7 e 28 giorni compare dopo 14 giorni con l'orologio indossato.")
+                if (lt.ratio != null) Caption(lt.message)
             }
         }
 
@@ -242,10 +262,6 @@ fun ActivityScreen(
                 "Minuti attivi", BioIcons.Bolt, Tint.good, onClick = { onOpenMetric(DETAIL_ACTIVE) },
                 info = "OMS 2020 (PMID 33239350): 150–300 minuti a settimana di attività moderata; un minuto vigoroso vale 2.\n\nMisurati: minuti con frequenza cardiaca ≥ 40% della riserva cardiaca (moderati) o ≥ 60% (vigorosi), secondo ACSM (PMID 21694556). I buchi di FC fino a 5 minuti vengono interpolati.\n\nStimati: minuti di allenamenti registrati senza frequenza cardiaca; intensità attribuita dal tipo di attività secondo il Compendio delle attività fisiche 2024 (PMID 38242596), in modo prudente. Yoga, stretching e attività non classificate non sono conteggiati. Ogni minuto conta una sola volta anche se due app registrano lo stesso allenamento.",
             ) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    BigValue("$week", "/ 150 min questa settimana", size = 32)
-                }
-                ProgressBar(week / 150f, listOf(Color(0xFF8FEBC6), Tint.good))
                 WeekActiveBars(vm)
                 if (dayAct != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatChip("Oggi da FC", "${dayAct.moderateMeasured + 2 * dayAct.vigorousMeasured}", "min", Modifier.weight(1f))
@@ -268,7 +284,6 @@ fun ActivityScreen(
         }
 
         // ---------- Allenamenti ----------
-        item { LoadTrendCard(vm) }
         item { RpeLoadCard(vm) }
         item { SectionHeader("Allenamenti recenti", "Tutti", onOpenSync) }
         if (vm.displaySessions.isEmpty()) item {
@@ -289,13 +304,11 @@ private fun WorkoutCard(w: it.cinocinorob.bioeta.science.Session, vm: AppViewMod
     val zone = ZoneId.systemDefault()
     val st = vm.workoutStats[w.id]
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp)).background(p.card).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brush.linearGradient(Pillar.load)), contentAlignment = Alignment.Center) {
-                Icon(BioIcons.Bolt, null, tint = Color.White, modifier = Modifier.size(22.dp))
-            }
+            IconBadge(BioIcons.Bolt, Tint.vo2, 40)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(exerciseName(w.hcType, w.title), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = p.text)
                 Text(w.start.atZone(zone).format(DateTimeFormatter.ofPattern("EEEE d MMM, HH:mm", Locale.ITALIAN)) + " · " + vm.health.originLabel(w.origin), fontSize = 12.sp, color = p.text2)
@@ -459,7 +472,7 @@ private fun StepWeek(values: List<Pair<LocalDate, Double>>, goal: Int) {
                 pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
             values.forEachIndexed { i, (_, v) ->
                 val h = (v.toFloat() / mx * size.height).coerceAtLeast(3.dp.toPx())
-                val c = if (v >= goal) Brush.verticalGradient(listOf(Color(0xFFFFC27A), Color(0xFFFF9F5A))) else Brush.verticalGradient(listOf(Color(0xFFFFC27A).copy(alpha = 0.5f), Color(0xFFFF9F5A).copy(alpha = 0.5f)))
+                val c = if (v >= goal) Tint.activity else Tint.activity.copy(alpha = 0.45f)
                 drawRoundRect(c, Offset(i * slot + (slot - bw) / 2, size.height - h), Size(bw, h), CornerRadius(bw / 2))
             }
         }
