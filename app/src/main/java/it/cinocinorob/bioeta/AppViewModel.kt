@@ -1017,13 +1017,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val trackedItems: List<JItem> get() = journalTracked.map { JournalCatalog.resolve(it) }
 
-    /** Avvertenza iniziale (benessere, non dispositivo medico) accettata. */
-    var disclaimerAccepted by mutableStateOf(settings.getBoolean("disclaimer_v1", false))
+    /** Schermata di benvenuto (benessere, non dispositivo medico; privacy) vista e accettata. */
+    var welcomeAccepted by mutableStateOf(settings.getBoolean("welcome_v1", false))
         private set
 
-    fun acceptDisclaimer() {
-        disclaimerAccepted = true
-        settings.edit().putBoolean("disclaimer_v1", true).apply()
+    fun acceptWelcome() {
+        welcomeAccepted = true
+        settings.edit().putBoolean("welcome_v1", true).apply()
     }
 
     /** Promemoria serale del diario (notifica solo se le risposte di oggi non sono complete). */

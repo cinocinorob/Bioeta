@@ -96,7 +96,7 @@ fun App(
     onPickBackupFolder: () -> Unit,
 ) {
     // Primo avvio: avvertenza su scopo e limiti (requisito delle norme Google Play per le app di salute)
-    if (!vm.disclaimerAccepted && !startOnPrivacy) { WelcomeScreen(onAccept = { vm.acceptDisclaimer() }); return }
+    if (!vm.welcomeAccepted && !startOnPrivacy) { WelcomeScreen(onAccept = { vm.acceptWelcome() }); return }
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var healthSection by rememberSaveable { mutableStateOf(0) }
     var stackStr by rememberSaveable { mutableStateOf(if (startOnPrivacy) R_INFO else if (startOnJournal) R_JOURNAL else "") }
