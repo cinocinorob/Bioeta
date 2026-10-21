@@ -892,17 +892,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return withContext(Dispatchers.Default) { ActivityEngine.minuteSeries(samples) } to failed
     }
 
-    private fun computeDay(d: java.time.LocalDate, hr: Map<Long, Double>, rest: Double): DayActivity {
+    /** Cadenza dei passi minuto per minuto di un giorno locale (fallback quando la FC è rada o assente). */
+    private suspend fun cadenceFor(d: java.time.LocalDate): Map<Long, Double> {
+        val zone = zoneId()
+        val chunks = health.stepChunksSafe(d.atStartOfDay(zone).toInstant(), d.plusDays(1).atStartOfDay(zone).toInstant())
+        return withContext(Dispatchers.Default) { ActivityEngine.cadenceByMinute(chunks) }
+    }
+
+    private fun computeDay(d: java.time.LocalDate, hr: Map<Long, Double>, rest: Double, cadence: Map<Long, Double> = emptyMap()): DayActivity {
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
-        return ActivityEngine.day(d, zoneId(), hr, displaySessions, rest, age, profile.sex == Sex.M)
+        return ActivityEngine.day(d, zoneId(), hr, displaySessions, rest, age, profile.sex == Sex.M, cadence)
     }
 
     /** Solo oggi: per mostrare subito minuti attivi e carico di oggi nella fase veloce. */
     private suspend fun refreshToday() {
         val today = java.time.LocalDate.now(zoneId())
         val (hr, _) = hrMinutesFor(today)
+        val cad = cadenceFor(today)
         val rest = stableRest()
-        val day = withContext(Dispatchers.Default) { computeDay(today, hr, rest) }
+        val day = withContext(Dispatchers.Default) { computeDay(today, hr, rest, cad) }
         dayActivities = (dayActivities.filter { it.date != today } + day).sortedBy { it.date }
     }
 
@@ -930,7 +938,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (c != null && k >= 2 && c.hrMinutes >= ActivityEngine.COMPLETE_COVERAGE_MIN && d !in sessionDays) { out += c; continue }
                 val (hr, err) = hrMinutesFor(d)
                 if (err) failed += d
-                out += withContext(Dispatchers.Default) { computeDay(d, hr, rest) }
+                val cad = cadenceFor(d)
+                out += withContext(Dispatchers.Default) { computeDay(d, hr, rest, cad) }
             }
             dayActivities = out
             withContext(Dispatchers.IO) { workoutStore.saveDays(rest, age, out.filter { it.date !in failed }) }
@@ -1007,6 +1016,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val trackedItems: List<JItem> get() = journalTracked.map { JournalCatalog.resolve(it) }
+
+    /** Schermata di benvenuto (benessere, non dispositivo medico; privacy) vista e accettata. */
+    var welcomeAccepted by mutableStateOf(settings.getBoolean("welcome_v1", false))
+        private set
+
+    fun acceptWelcome() {
+        welcomeAccepted = true
+        settings.edit().putBoolean("welcome_v1", true).apply()
+    }
 
     /** Promemoria serale del diario (notifica solo se le risposte di oggi non sono complete). */
     var journalReminderOn by mutableStateOf(settings.getBoolean(it.cinocinorob.bioeta.data.JournalReminder.KEY_ON, false))

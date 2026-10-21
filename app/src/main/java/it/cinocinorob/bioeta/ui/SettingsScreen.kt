@@ -186,6 +186,36 @@ fun SettingsScreen(
                 Caption("BioEtà è uno strumento di automonitoraggio, non un dispositivo medico: non fornisce diagnosi.")
             }
         }
+        item {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            HealthCard("Informativa privacy", BioIcons.Shield, Tint.blue, onClick = {
+                runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_URL))) }
+            }) { Caption("Cosa legge l'app, cosa resta sul telefono e cosa esce solo se usi l'assistente.") }
+        }
+        item { DeleteAllCard() }
+    }
+}
+
+const val PRIVACY_URL = "https://cinocinorob.github.io/Bioeta/privacy/"
+
+/** Cancella tutti i dati dell'app (referti, diario, profilo, impostazioni, cache). Connessione Salute non viene toccata. */
+@Composable
+private fun DeleteAllCard() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var ask by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (ask) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { ask = false },
+        title = { Text("Eliminare tutti i dati?") },
+        text = { Text("Referti, pressione, diario, profilo, esperimenti e impostazioni verranno cancellati da questo telefono e l'app si chiuderà. I dati in Connessione Salute non vengono toccati. Se vuoi conservarli, esporta prima un backup.") },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                ctx.getSystemService(android.app.ActivityManager::class.java)?.clearApplicationUserData()
+            }) { Text("Elimina tutto", color = Tint.bad) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { ask = false }) { Text("Annulla") } },
+    )
+    HealthCard("Elimina tutti i dati", BioIcons.Info, Tint.bad, onClick = { ask = true }) {
+        Caption("Cancella da questo telefono tutto ciò che hai inserito in BioEtà. Non si può annullare.")
     }
 }
 

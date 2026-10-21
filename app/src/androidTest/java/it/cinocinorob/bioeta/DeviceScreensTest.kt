@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
@@ -248,6 +249,10 @@ class DeviceScreensTest {
         seedLocal()
 
         ActivityScenario.launch(MainActivity::class.java).use {
+            // Primo avvio: avvertenza su scopo e privacy
+            compose.waitUntil(20_000) { compose.onAllNodesWithTag("welcome_accept").fetchSemanticsNodes().isNotEmpty() }
+            screenshot("benvenuto")
+            compose.onNodeWithTag("welcome_accept").performScrollTo().performClick()
             waitText("Aggiornato", 90_000)
             Thread.sleep(6000) // fase completa: storico, carico, statistiche allenamenti
             screenshot("home")
