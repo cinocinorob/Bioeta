@@ -128,6 +128,7 @@ class WorkoutStore(context: Context) {
                     LocalDate.parse(d.getString("d")), d.getInt("hr"), d.getInt("mm"), d.getInt("vm"), d.getInt("me"), d.getInt("ve"),
                     d.getDouble("l"), Zone.entries.associateWith { z?.optInt(it.name, 0) ?: 0 },
                     runCatching { LoadQuality.valueOf(d.getString("q")) }.getOrDefault(LoadQuality.UNAVAILABLE),
+                    d.optInt("cad", 0),
                 )
             },
         )
@@ -138,7 +139,7 @@ class WorkoutStore(context: Context) {
         days.forEach { a ->
             val z = JSONObject(); a.zoneMinutes.forEach { (k, v) -> z.put(k.name, v) }
             arr.put(JSONObject().put("d", a.date.toString()).put("hr", a.hrMinutes).put("mm", a.moderateMeasured).put("vm", a.vigorousMeasured)
-                .put("me", a.moderateEstimated).put("ve", a.vigorousEstimated).put("l", a.load).put("q", a.quality.name).put("z", z))
+                .put("me", a.moderateEstimated).put("ve", a.vigorousEstimated).put("l", a.load).put("q", a.quality.name).put("z", z).put("cad", a.cadenceMinutes))
         }
         actFile.writeText(JSONObject().put("v", ACTIVITY_ALGO_VERSION).put("rest", rest).put("age", age).put("days", arr).toString())
     }

@@ -3,6 +3,7 @@ package it.cinocinorob.bioeta.ui
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -94,6 +95,8 @@ fun App(
     onImportReport: () -> Unit,
     onPickBackupFolder: () -> Unit,
 ) {
+    // Primo avvio: avvertenza su scopo e limiti (requisito delle norme Google Play per le app di salute)
+    if (!vm.disclaimerAccepted && !startOnPrivacy) { WelcomeScreen(onAccept = { vm.acceptDisclaimer() }); return }
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var healthSection by rememberSaveable { mutableStateOf(0) }
     var stackStr by rememberSaveable { mutableStateOf(if (startOnPrivacy) R_INFO else if (startOnJournal) R_JOURNAL else "") }
@@ -387,5 +390,35 @@ fun ProfileRoute(
 ) {
     SubScaffold("Profilo e impostazioni", onBack) { m ->
         SettingsScreen(vm, m, onExport, onImport, onPickBackupFolder, onOpenInfo, onOpenDiagnostics)
+    }
+}
+
+
+/** Primo avvio: cosa fa l'app, cosa non è, dove restano i dati. */
+@Composable
+fun WelcomeScreen(onAccept: () -> Unit) {
+    val p = LocalPalette.current
+    androidx.compose.foundation.layout.Column(
+        Modifier.fillMaxSize().background(p.bg).verticalScroll(androidx.compose.foundation.rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 48.dp).testTag("welcome"),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(18.dp),
+    ) {
+        BeatingRings(60.0, size = 96, light = !p.dark)
+        Text("Benvenuto in BioEtà", style = MaterialTheme.typography.headlineLarge, color = p.text)
+        Text("Legge i dati del tuo orologio da Connessione Salute e le tue analisi del sangue, e li confronta con la tua normalità e con la letteratura scientifica.",
+            style = MaterialTheme.typography.bodyLarge, color = p.text2)
+        listOf(
+            "Non è un dispositivo medico" to "Stime e confronti a scopo informativo e di benessere. Non fa diagnosi e non sostituisce il medico: per sintomi o dubbi rivolgiti a un professionista, in urgenza al 112.",
+            "I tuoi dati restano sul telefono" to "Nessun account, nessun server, nessuna pubblicità. Connessione Salute è letta in sola lettura. Solo se usi l'assistente, la domanda e un riepilogo dei tuoi valori vengono inviati ad Anthropic con la tua chiave.",
+            "Ogni numero ha un metodo" to "Formule, fonti e limiti sono spiegati nell'app (icona ⓘ) e nel documento dei metodi.",
+        ).forEach { (t, b) ->
+            androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+                Text(t, style = MaterialTheme.typography.titleMedium, color = p.text)
+                Text(b, style = MaterialTheme.typography.bodyMedium, color = p.text2)
+            }
+        }
+        androidx.compose.material3.Button(onClick = onAccept, modifier = Modifier.fillMaxWidth().testTag("welcome_accept")) { Text("Ho capito, iniziamo") }
+        Text("Informativa privacy: cinocinorob.github.io/Bioeta/privacy", style = MaterialTheme.typography.labelMedium, color = p.text3)
     }
 }

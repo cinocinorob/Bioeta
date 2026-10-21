@@ -233,6 +233,11 @@ class HealthRepo(private val context: Context) {
     /** true se i passi mostrati vengono dai record grezzi perché l'aggregato di Connessione Salute era vuoto. */
     @Volatile var stepsFromRaw = false
 
+    /** Record grezzi dei passi (per la cadenza minuto per minuto). Lettura fallita → lista vuota. */
+    suspend fun stepChunksSafe(start: Instant, end: Instant): List<StepChunk> =
+        if (HealthPermission.getReadPermission(StepsRecord::class) !in granted()) emptyList()
+        else track("Passi (cadenza)") { stepChunks(start, end) } ?: emptyList()
+
     private suspend fun stepChunks(start: Instant, end: Instant): List<StepChunk> =
         readRecords(StepsRecord::class, start, end).map { StepChunk(it.metadata.dataOrigin.packageName, it.startTime, it.endTime, it.count) }
 

@@ -260,10 +260,19 @@ fun ActivityScreen(
         item {
             HealthCard(
                 "Minuti attivi", BioIcons.Bolt, Tint.good, onClick = { onOpenMetric(DETAIL_ACTIVE) },
-                info = "OMS 2020 (PMID 33239350): 150–300 minuti a settimana di attività moderata; un minuto vigoroso vale 2.\n\nMisurati: minuti con frequenza cardiaca ≥ 40% della riserva cardiaca (moderati) o ≥ 60% (vigorosi), secondo ACSM (PMID 21694556). I buchi di FC fino a 5 minuti vengono interpolati.\n\nStimati: minuti di allenamenti registrati senza frequenza cardiaca; intensità attribuita dal tipo di attività secondo il Compendio delle attività fisiche 2024 (PMID 38242596), in modo prudente. Yoga, stretching e attività non classificate non sono conteggiati. Ogni minuto conta una sola volta anche se due app registrano lo stesso allenamento.",
+                info = "OMS 2020 (PMID 33239350): 150–300 minuti a settimana di attività moderata; un minuto vigoroso vale 2.\n\nMisurati: minuti con frequenza cardiaca ≥ 40% della riserva cardiaca (moderati) o ≥ 60% (vigorosi), secondo ACSM (PMID 21694556). I buchi di FC fino a 5 minuti vengono interpolati. Valgono anche i minuti con cadenza dei passi ≥ 100 passi/min (moderati) o ≥ 130 (vigorosi), soglie dello studio CADENCE-Adults (Tudor-Locke 2019 e 2020, misurate con calorimetria): servono quando l'orologio scrive la FC solo ogni tanto. Per ogni minuto conta il valore più alto tra FC e cadenza, una sola volta.\n\nStimati: minuti di allenamenti registrati senza frequenza cardiaca; intensità attribuita dal tipo di attività secondo il Compendio delle attività fisiche 2024 (PMID 38242596), in modo prudente. Yoga, stretching e attività non classificate non sono conteggiati. Ogni minuto conta una sola volta anche se due app registrano lo stesso allenamento.",
             ) {
                 WeekActiveBars(vm)
                 Caption("Verde: minuti moderati. Arancio: minuti vigorosi (valgono doppio).")
+                // Da dove vengono i minuti di oggi: rende visibile perché possono mancare
+                if (dayAct != null) {
+                    if (dayAct.hrMinutes == 0 && dayAct.cadenceMinutes == 0 && dayAct.estimatedShare == 0) InlineNotice(
+                        "Oggi nessun minuto attivo riconosciuto. Possibili cause: l'orologio non scrive la frequenza cardiaca in Connessione Salute, il permesso «Frequenza cardiaca» non è concesso, oppure i passi arrivano in blocchi lunghi (oltre 10 minuti) da cui non si ricava la cadenza. La Diagnostica mostra cosa arriva e da quale app.",
+                        NoticeKind.WARN,
+                    )
+                    else Caption("Oggi: frequenza cardiaca per ${dayAct.hrMinutes} min" +
+                        (if (dayAct.cadenceMinutes > 0) "; ${dayAct.cadenceMinutes} min attivi riconosciuti dalla cadenza dei passi (≥ 100 passi/min)" else "") + ".")
+                }
                 if (dayAct != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatChip("Oggi da FC", "${dayAct.moderateMeasured + 2 * dayAct.vigorousMeasured}", "min", Modifier.weight(1f))
                     StatChip("Oggi stimati", "${dayAct.estimatedShare}", "min", Modifier.weight(1f))

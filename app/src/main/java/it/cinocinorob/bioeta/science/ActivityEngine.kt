@@ -39,7 +39,7 @@ import kotlin.math.min
  *    Non è il carico muscolare né il consumo calorico.
  */
 
-const val ACTIVITY_ALGO_VERSION = 2
+const val ACTIVITY_ALGO_VERSION = 3
 
 enum class LoadQuality(val label: String) {
     UNAVAILABLE("Non disponibile"),
@@ -96,6 +96,8 @@ data class DayActivity(
     val load: Double,
     val zoneMinutes: Map<Zone, Int>,
     val quality: LoadQuality,
+    /** Minuti classificati attivi dalla cadenza dei passi (non dalla FC). Già inclusi nei misurati. */
+    val cadenceMinutes: Int = 0,
 ) {
     /** Minuti attivi equivalenti OMS (vigorosi ×2), misurati + stimati. */
     val activeMinutes: Int get() = moderateMeasured + moderateEstimated + 2 * (vigorousMeasured + vigorousEstimated)
@@ -163,6 +165,39 @@ object ActivityEngine {
     /**
      * Calcolo di un giorno locale. [hrByMinute] può contenere minuti di altri giorni: vengono ignorati.
      */
+    /**
+     * Soglie di cadenza (passi/min) per intensità moderata (3 MET) e vigorosa (6 MET) nella camminata:
+     * 100 e 130 tra 21 e 60 anni (CADENCE-Adults: Tudor-Locke 2019, doi:10.1186/s12966-019-0769-6;
+     * Tudor-Locke 2020, doi:10.1186/s12966-020-01045-z). Oltre i 60 anni i dati non supportano una soglia per
+     * 6 MET (Tudor-Locke 2021): si usa solo quella moderata.
+     */
+    const val CADENCE_MODERATE = 100.0
+    const val CADENCE_VIGOROUS = 130.0
+    /** Si usa la cadenza solo da record di passi brevi: in un blocco lungo non si sa come sono distribuiti. */
+    const val CADENCE_MAX_CHUNK_MIN = 10
+
+    /** Cadenza per minuto (passi/min) dai record grezzi brevi; tra app diverse si prende il massimo. */
+    fun cadenceByMinute(chunks: List<StepChunk>): Map<Long, Double> {
+        val perOrigin = HashMap<String, HashMap<Long, Double>>()
+        for (c in chunks) {
+            val secs = Duration.between(c.start, c.end).seconds
+            if (c.count <= 0 || secs < 30 || secs > CADENCE_MAX_CHUNK_MIN * 60L) continue
+            val perSec = c.count.toDouble() / secs
+            var t = c.start.epochSecond
+            val end = c.end.epochSecond
+            val m = perOrigin.getOrPut(c.origin) { HashMap() }
+            while (t < end) {
+                val minute = Math.floorDiv(t, 60L)
+                val segEnd = min(end, (minute + 1) * 60L)
+                m.merge(minute, perSec * (segEnd - t), Double::plus)
+                t = segEnd
+            }
+        }
+        val out = HashMap<Long, Double>()
+        for (m in perOrigin.values) for ((k, v) in m) out[k] = maxOf(out[k] ?: 0.0, v)
+        return out
+    }
+
     fun day(
         date: LocalDate,
         zone: ZoneId,
@@ -171,12 +206,21 @@ object ActivityEngine {
         restHr: Double,
         age: Double,
         male: Boolean,
+        cadence: Map<Long, Double> = emptyMap(),
     ): DayActivity {
         val dayStartMin = Math.floorDiv(date.atStartOfDay(zone).toEpochSecond(), 60L)
         val dayEndMin = Math.floorDiv(date.plusDays(1).atStartOfDay(zone).toEpochSecond(), 60L)
         val maxHr = Fitness.hrMax(age)
-        var load = 0.0; var hrMin = 0; var modM = 0; var vigM = 0
+        var load = 0.0; var hrMin = 0; var modM = 0; var vigM = 0; var cadM = 0
         val zones = Zone.entries.associateWith { 0 }.toMutableMap()
+        // 0 = sotto la soglia moderata, 1 = moderato, 2 = vigoroso
+        fun cadClass(c: Double?) = when {
+            c == null -> 0
+            c >= CADENCE_VIGOROUS && age <= 60 -> 2
+            c >= CADENCE_MODERATE -> 1
+            else -> 0
+        }
+        val active = HashSet<Long>()
         for ((m, bpm) in hrByMinute) {
             if (m < dayStartMin || m >= dayEndMin) continue
             hrMin++
@@ -184,12 +228,18 @@ object ActivityEngine {
             val z = Fitness.zoneOf(f)
             zones[z] = zones.getValue(z) + 1
             if (f >= Zone.LIGHT.lo) load += Fitness.trimpMinute(f, male)
-            when {
-                f >= Zone.VIGOROUS.lo -> vigM++
-                f >= Zone.MODERATE.lo -> modM++
-            }
+            val hrClass = when { f >= Zone.VIGOROUS.lo -> 2; f >= Zone.MODERATE.lo -> 1; else -> 0 }
+            val cc = cadClass(cadence[m])
+            when (maxOf(hrClass, cc)) { 2 -> vigM++; 1 -> modM++ }
+            if (cc > hrClass) cadM++
+            if (maxOf(hrClass, cc) > 0) active += m
         }
-        // Minuti di allenamento senza FC: unione degli intervalli, per intensità (la vigorosa prevale)
+        // Minuti senza FC ma con cadenza da camminata svelta o corsa
+        for ((m, c) in cadence) {
+            if (m < dayStartMin || m >= dayEndMin || hrByMinute.containsKey(m)) continue
+            when (cadClass(c)) { 2 -> { vigM++; cadM++; active += m }; 1 -> { modM++; cadM++; active += m } }
+        }
+        // Minuti di allenamento senza FC né cadenza: unione degli intervalli, per intensità (la vigorosa prevale)
         val estimated = HashMap<Long, SessionIntensity>()
         for (s in dedupe(sessions)) {
             val inten = s.kind.intensity
@@ -197,7 +247,7 @@ object ActivityEngine {
             val a = max(Math.floorDiv(s.start.epochSecond, 60L), dayStartMin)
             val b = min(Math.floorDiv(s.end.epochSecond + 59, 60L), dayEndMin)
             for (m in a until b) {
-                if (hrByMinute.containsKey(m)) continue
+                if (hrByMinute.containsKey(m) || m in active) continue
                 val prev = estimated[m]
                 if (prev == null || (prev == SessionIntensity.MODERATE && inten == SessionIntensity.VIGOROUS)) estimated[m] = inten
             }
@@ -209,7 +259,7 @@ object ActivityEngine {
             hrMin < COMPLETE_COVERAGE_MIN -> LoadQuality.PARTIAL
             else -> LoadQuality.COMPLETE
         }
-        return DayActivity(date, hrMin, modM, vigM, modE, vigE, load, zones, quality)
+        return DayActivity(date, hrMin, modM, vigM, modE, vigE, load, zones, quality, cadM)
     }
 
     /** Minuti di FC (reale o interpolata) dentro una sessione: serve a dire se l'allenamento ha dati cardiaci. */

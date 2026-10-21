@@ -12,8 +12,8 @@ android {
         applicationId = "it.cinocinorob.bioeta"
         minSdk = 28
         targetSdk = 36
-        versionCode = 18
-        versionName = "0.16.0"
+        versionCode = 19
+        versionName = "0.17.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -27,7 +27,22 @@ android {
         }
     }
 
+    // Chiave di caricamento per Google Play (Play App Signing): solo da variabili d'ambiente / segreti CI,
+    // mai nel repository. Se manca, la variante «play» non viene firmata e il CI lo segnala.
+    val uploadStore = System.getenv("BIOETA_UPLOAD_STORE_FILE")
+    if (uploadStore != null) signingConfigs.create("upload") {
+        storeFile = file(uploadStore)
+        storePassword = System.getenv("BIOETA_UPLOAD_STORE_PASSWORD")
+        keyAlias = System.getenv("BIOETA_UPLOAD_KEY_ALIAS")
+        keyPassword = System.getenv("BIOETA_UPLOAD_KEY_PASSWORD")
+    }
+
     buildTypes {
+        create("play") {
+            initWith(getByName("release"))
+            signingConfig = if (uploadStore != null) signingConfigs.getByName("upload") else null
+            matchingFallbacks += listOf("release")
+        }
         debug {
             signingConfig = signingConfigs.getByName("fixed")
         }

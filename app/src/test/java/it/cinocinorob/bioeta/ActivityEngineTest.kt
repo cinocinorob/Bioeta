@@ -186,3 +186,47 @@ class ActivityEngineTest {
         assertEquals(300L, d[day]); assertEquals(300L, d[day.plusDays(1)])
     }
 }
+
+class CadenceTest {
+    private val z = java.time.ZoneId.of("Europe/Rome")
+    private val day = java.time.LocalDate.of(2026, 10, 20)
+    private fun at(h: Int, m: Int) = day.atTime(h, m).atZone(z).toInstant()
+
+    @org.junit.Test fun briskWalkWithoutHeartRateCountsAsModerate() {
+        // 20 minuti a 110 passi/min, registrati a blocchi di 1 minuto, nessuna FC
+        val chunks = (0 until 20).map { i -> it.cinocinorob.bioeta.science.StepChunk("w", at(9, i), at(9, i + 1), 110) }
+        val cad = it.cinocinorob.bioeta.science.ActivityEngine.cadenceByMinute(chunks)
+        val d = it.cinocinorob.bioeta.science.ActivityEngine.day(day, z, emptyMap(), emptyList(), 55.0, 45.0, true, cad)
+        org.junit.Assert.assertEquals(20, d.moderateMeasured)
+        org.junit.Assert.assertEquals(20, d.cadenceMinutes)
+        org.junit.Assert.assertEquals(20, d.activeMinutes)
+    }
+
+    @org.junit.Test fun runningCadenceIsVigorousUnder60() {
+        val chunks = (0 until 10).map { i -> it.cinocinorob.bioeta.science.StepChunk("w", at(7, i), at(7, i + 1), 160) }
+        val cad = it.cinocinorob.bioeta.science.ActivityEngine.cadenceByMinute(chunks)
+        val young = it.cinocinorob.bioeta.science.ActivityEngine.day(day, z, emptyMap(), emptyList(), 55.0, 45.0, true, cad)
+        org.junit.Assert.assertEquals(10, young.vigorousMeasured)
+        val old = it.cinocinorob.bioeta.science.ActivityEngine.day(day, z, emptyMap(), emptyList(), 60.0, 70.0, true, cad)
+        org.junit.Assert.assertEquals(0, old.vigorousMeasured); org.junit.Assert.assertEquals(10, old.moderateMeasured)
+    }
+
+    @org.junit.Test fun longStepBlocksAreIgnoredAndSlowWalkIsNotActive() {
+        val long = listOf(it.cinocinorob.bioeta.science.StepChunk("w", at(10, 0), at(11, 0), 7000)) // 1 h: distribuzione ignota
+        org.junit.Assert.assertTrue(it.cinocinorob.bioeta.science.ActivityEngine.cadenceByMinute(long).isEmpty())
+        val slow = (0 until 15).map { i -> it.cinocinorob.bioeta.science.StepChunk("w", at(12, i), at(12, i + 1), 80) }
+        val d = it.cinocinorob.bioeta.science.ActivityEngine.day(day, z, emptyMap(), emptyList(), 55.0, 45.0, true,
+            it.cinocinorob.bioeta.science.ActivityEngine.cadenceByMinute(slow))
+        org.junit.Assert.assertEquals(0, d.activeMinutes)
+    }
+
+    @org.junit.Test fun heartRateAndCadenceCountOnce() {
+        // stessa finestra: FC moderata (≈45% HRR) e cadenza 110 → 10 minuti, non 20
+        val hr = (0 until 10).associate { i -> Math.floorDiv(at(18, i).epochSecond, 60L) to 112.0 }
+        val chunks = (0 until 10).map { i -> it.cinocinorob.bioeta.science.StepChunk("w", at(18, i), at(18, i + 1), 110) }
+        val d = it.cinocinorob.bioeta.science.ActivityEngine.day(day, z, hr, emptyList(), 55.0, 45.0, true,
+            it.cinocinorob.bioeta.science.ActivityEngine.cadenceByMinute(chunks))
+        org.junit.Assert.assertEquals(10, d.moderateMeasured + d.vigorousMeasured)
+        org.junit.Assert.assertEquals(0, d.cadenceMinutes)
+    }
+}

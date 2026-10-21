@@ -51,6 +51,31 @@ jobs:
           sha256sum BioEta-${{ github.run_number }}.apk | tee BioEta-${{ github.run_number }}.apk.sha256
           echo "::notice title=SHA-256::$(cut -d' ' -f1 BioEta-${{ github.run_number }}.apk.sha256)"
 
+      # Pacchetto per Google Play (AAB). Firmato con la chiave di caricamento se i segreti sono configurati;
+      # altrimenti non firmato (serve solo a verificare che il pacchetto si costruisce). Mai nelle release pubbliche.
+      - name: AAB per Google Play
+        env:
+          KEYSTORE_B64: ${{ secrets.BIOETA_UPLOAD_KEYSTORE_B64 }}
+          BIOETA_UPLOAD_STORE_PASSWORD: ${{ secrets.BIOETA_UPLOAD_STORE_PASSWORD }}
+          BIOETA_UPLOAD_KEY_ALIAS: ${{ secrets.BIOETA_UPLOAD_KEY_ALIAS }}
+          BIOETA_UPLOAD_KEY_PASSWORD: ${{ secrets.BIOETA_UPLOAD_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            export BIOETA_UPLOAD_STORE_FILE="$RUNNER_TEMP/upload.jks"
+            echo "::notice title=AAB::firmato con la chiave di caricamento"
+          else
+            echo "::warning title=AAB::segreti della chiave di caricamento assenti: AAB non firmato"
+          fi
+          gradle --no-daemon bundlePlay
+          cp app/build/outputs/bundle/play/app-play.aab BioEta-play-${{ github.run_number }}.aab
+          rm -f "$RUNNER_TEMP/upload.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BioEta-play-aab
+          path: BioEta-play-${{ github.run_number }}.aab
+
       - uses: actions/upload-artifact@v4
         with:
           name: BioEta-apk
