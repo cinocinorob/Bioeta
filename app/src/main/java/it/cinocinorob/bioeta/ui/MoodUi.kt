@@ -98,8 +98,8 @@ fun MoodTrendCard(vm: AppViewModel, onLog: (() -> Unit)? = null) {
                 }
                 if (a != null) {
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("ρ ${a.rho.fs(2)}", style = MaterialTheme.typography.labelLarge, color = if (a.clear) p.text else p.text3)
-                        Text("IC ${a.low.f(2)}…${a.high.f(2)} · n ${a.n}", style = MaterialTheme.typography.labelSmall, color = p.text3)
+                        Text(if (a.clear) (if (a.rho > 0) "↑ insieme" else "↓ opposti") else "—", style = MaterialTheme.typography.labelLarge, color = if (a.clear) p.text else p.text3)
+                        Text("${a.n} giorni", style = MaterialTheme.typography.labelSmall, color = p.text3)
                     }
                 }
             }

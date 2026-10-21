@@ -183,7 +183,7 @@ private fun FindingRow(r: AssocResult, compact: Boolean) {
         Column(Modifier.weight(1f)) {
             Text(findingTitle(r), style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 2)
             Text("${r.verdict.label} · ${r.nWith} giorni con, ${r.nWithout} senza", style = MaterialTheme.typography.bodySmall, color = p.text2)
-            if (!compact) Text("Intervallo 95%: ${Associations.ciText(r)} ${r.outcome.unit}", style = MaterialTheme.typography.bodySmall, color = p.text3)
+            if (!compact) Text("Effetto probabile: tra ${Associations.ciText(r).replace(" … ", " e ")} ${r.outcome.unit}", style = MaterialTheme.typography.bodySmall, color = p.text3)
         }
         Text(Associations.effectText(r), style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 22.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontFeatureSettings = TABULAR), color = c)
     }

@@ -78,7 +78,7 @@ fun RadarCard(vm: AppViewModel, startExpanded: Boolean = false) {
         r.context?.let { InlineNotice(it, NoticeKind.INFO) }
         if (open || alert) {
             r.signals.filter { it.value != null }.forEach { e -> VitalRow(e, highlight = e.concerning) }
-            if (r.signals.any { it.hasBaseline }) Caption("Banda = il tuo intervallo abituale (± 2 deviazioni robuste, notti da −30 a −3 giorni). Punto = la notte valutata.")
+            if (r.signals.any { it.hasBaseline }) Caption("Fascia = il tuo intervallo abituale nelle notti del mese scorso. Punto = la notte valutata.")
         }
         if (open) SourcesRow(listOf(ExtraRefs.ALAVI, ExtraRefs.MISHRA))
     }
@@ -114,7 +114,8 @@ fun ScoreChange.text(): String {
 /** Avviso in Home quando un punteggio già visto è cambiato, con il motivo. */
 @Composable
 fun ChangesNotice(vm: AppViewModel) {
-    val recent = vm.recentChanges
+    // In Home solo i cambiamenti con un motivo concreto (dato arrivato o modificato); gli altri restano nello storico
+    val recent = vm.recentChanges.filter { !it.reason.startsWith("sono cambiati i dati dei giorni precedenti") }
     if (recent.isEmpty()) return
     var show by rememberSaveable { mutableStateOf(false) }
     if (show) ChangesDialog(vm.scoreChanges) { show = false }
@@ -236,12 +237,12 @@ fun RpeLoadCard(vm: AppViewModel) {
             return@HealthCard
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            BigValue(sm.week.f(0), "UA", size = 34)
+            BigValue(sm.week.f(0), "punti fatica", size = 34)
             Spacer(Modifier.width(8.dp))
             Caption("${sm.sessions7} allenamenti votati")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatChip("Media 4 sett.", sm.chronicWeek?.f(0) ?: "—", if (sm.chronicWeek != null) "UA/sett." else "dopo 14 gg", Modifier.weight(1f))
+            StatChip("Media 4 sett.", sm.chronicWeek?.f(0) ?: "—", if (sm.chronicWeek != null) "a settimana" else "dopo 14 gg", Modifier.weight(1f))
             StatChip("Rapporto", sm.ratio?.f(2) ?: "—", "7 gg / media", Modifier.weight(1f))
             StatChip("Monotonia", sm.monotony?.f(1) ?: "—", "indice", Modifier.weight(1f))
         }

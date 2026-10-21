@@ -126,6 +126,12 @@ fun HomeScreen(
         if (vm.hasAnyHealthPermission && !radarAlert) item { RadarCard(vm) }
         item { RpePrompt(vm) }
 
+        // ---------------- In evidenza: solo ciò che è cambiato davvero ----------------
+        if (vm.hasAnyHealthPermission) {
+            item { SectionHeader("In evidenza") }
+            item { HighlightsSection(vm.highlights, onOpenMetric) }
+        }
+
         // ---------------- Età ----------------
         item { SectionHeader("Età", "Dettagli", onGoAge) }
         item {
@@ -272,7 +278,6 @@ fun HomeScreen(
             }
         }
         if (vm.hasAnyHealthPermission) item { DiscoveriesCard(vm, onOpenDiscoveries) }
-        item { WeekCard(vm) }
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -313,8 +318,8 @@ private fun BaselineTile(vm: AppViewModel, metric: Metric, label: String, icon: 
         if (value != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
         when {
             value == null -> "Nessun dato in Connessione Salute"
-            s?.recent != null && s.baseline != null -> "Media 7 gg vs tua baseline (giorni 8–67)"
-            s?.recent != null -> "Media 7 giorni · baseline in costruzione"
+            s?.recent != null && s.baseline != null -> "Media della settimana, rispetto al tuo solito"
+            s?.recent != null -> "Media della settimana (il confronto arriva con più giorni)"
             else -> "Ultimo valore del ${last!!.date.itLong()}"
         },
         m, trend = trend, spark = pts.takeLast(14).map { it.value }, onClick = onClick,
@@ -353,11 +358,20 @@ private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGo
     val p = LocalPalette.current
     val t = vm.today
     val dayAct = vm.todayDayActivity
-    val (title, msg) = gentleMessage(mood, t.readiness.flags.isNotEmpty())
     val score = t.readiness.score
+    // Un solo messaggio coerente: quando c'è il rango personale guida il testo (il punteggio assoluto tende a stare alto)
+    val pct = vm.readinessPercentile
+    val (title, msg) = when {
+        t.readiness.flags.isNotEmpty() || pct == null -> gentleMessage(mood, t.readiness.flags.isNotEmpty())
+        pct >= 70 -> "Meglio del solito" to "Sei più recuperato della maggior parte delle tue giornate: buon giorno per un allenamento impegnativo, se ti va."
+        pct >= 30 -> "Nella tua media" to "Recupero in linea con le tue giornate abituali: puoi allenarti come al solito."
+        else -> "Sotto il tuo solito" to "Il punteggio è ancora buono, ma più basso della maggior parte delle tue giornate: oggi meglio un'attività moderata e un buon sonno."
+    }
     val ringColor = p.brand
+    // Contenitore tonale (Material 3): una velatura del colore dello stato di oggi
+    val tone = when { score == null -> Color.Transparent; score >= 75 -> Tint.good; score >= 50 -> Tint.warn; else -> Tint.bad }
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card)
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)).background(p.card).background(tone.copy(alpha = if (p.dark) 0.09f else 0.07f))
             // Anelli di accrescimento attorno al marchio: l'unico elemento decorativo dell'app
             .drawBehind {
                 val c = Offset(size.width - 58.dp.toPx(), 62.dp.toPx())
@@ -386,7 +400,7 @@ private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGo
         Text(msg, style = MaterialTheme.typography.bodyMedium, color = p.text2)
         // Lettura personale: dove si colloca oggi rispetto alla tua storia (i punteggi assoluti saturano)
         val parts = listOfNotNull(
-            vm.readinessPercentile?.let { "Meglio del $it% delle tue giornate (${Personal.describe(it, "giornate")})" },
+            vm.readinessPercentile?.let { "Meglio del $it% delle tue giornate" },
             vm.sleepPercentile?.let { "Sonno meglio del $it% delle tue notti" },
         )
         parts.forEach { Text(it, style = MaterialTheme.typography.labelLarge, color = p.text) }
