@@ -43,6 +43,8 @@ import it.cinocinorob.bioeta.science.JCat
 import it.cinocinorob.bioeta.science.Experiments
 import it.cinocinorob.bioeta.science.ExperimentResult
 import androidx.compose.foundation.clickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 const val DISCOVERIES_INFO =
     "Come funziona. Per ogni abitudine (dal diario o rilevata dall'orologio) BioEtà confronta i giorni in cui c'è con quelli in cui non c'è, guardando la notte successiva e il mattino dopo: HRV, FC a riposo, sonno totale e profondo, efficienza, Recupero, umore.\n\n" +
