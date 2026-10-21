@@ -278,7 +278,7 @@ class DeviceScreensTest {
             screenshot("home_eta_fisiologia")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Allenamenti oggi", substring = true))
             screenshot("home_attivita")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Questa settimana"))
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("discoveries_card"))
             screenshot("home_fine")
             // Diario in stile WHOOP: abitudini di ieri
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("journal_yesterday"))
