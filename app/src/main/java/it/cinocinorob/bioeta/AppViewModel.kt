@@ -1008,6 +1008,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val trackedItems: List<JItem> get() = journalTracked.map { JournalCatalog.resolve(it) }
 
+    /** Promemoria serale del diario (notifica solo se le risposte di oggi non sono complete). */
+    var journalReminderOn by mutableStateOf(settings.getBoolean(it.cinocinorob.bioeta.data.JournalReminder.KEY_ON, false))
+        private set
+    var journalReminderMin by mutableIntStateOf(settings.getInt(it.cinocinorob.bioeta.data.JournalReminder.KEY_TIME, it.cinocinorob.bioeta.data.JournalReminder.DEFAULT_MIN))
+        private set
+
+    fun setJournalReminder(on: Boolean, minutes: Int = journalReminderMin) {
+        journalReminderOn = on; journalReminderMin = minutes
+        settings.edit().putBoolean(it.cinocinorob.bioeta.data.JournalReminder.KEY_ON, on).putInt(it.cinocinorob.bioeta.data.JournalReminder.KEY_TIME, minutes).apply()
+        it.cinocinorob.bioeta.data.JournalReminder.schedule(getApplication())
+    }
+
     /** Risposte date su quelle richieste per un giorno. */
     fun journalProgress(d: java.time.LocalDate): Pair<Int, Int> {
         val e = journalFor(d)

@@ -236,19 +236,38 @@ fun HomeScreen(
                 Text("Come ti senti oggi?", style = MaterialTheme.typography.labelLarge, color = p.text2)
                 ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) }
                 MoodStrip(vm)
-                // In stile WHOOP: le abitudini si registrano il giorno dopo, per la giornata appena conclusa
-                val (a, n) = vm.journalProgress(today.minusDays(1))
+                // Diario serale: dalle 18 si risponde sulla giornata di oggi; al mattino si recupera ieri se mancava
+                val evening = java.time.LocalTime.now().hour >= 18
+                val (ya, yn) = vm.journalProgress(today.minusDays(1))
+                val (ta, tn) = vm.journalProgress(today)
+                val forToday = evening || ya >= yn
+                val (a, n) = if (forToday) ta to tn else ya to yn
                 if (n > 0) Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field).clickable(onClick = onOpenJournalYesterday)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field)
+                        .clickable(onClick = if (forToday) onOpenJournal else onOpenJournalYesterday)
                         .padding(horizontal = 14.dp, vertical = 12.dp).testTag("journal_yesterday"),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(if (a >= n) "Abitudini di ieri: complete" else "Abitudini di ieri: $a di $n", style = MaterialTheme.typography.titleSmall, color = p.text)
+                        val title = when {
+                            !forToday -> "Ieri sera non hai finito: $a di $n"
+                            !evening && a == 0 -> "Diario di stasera: $n domande"
+                            a >= n -> "Diario di oggi: completo"
+                            else -> "Diario di oggi: $a di $n"
+                        }
+                        Text(title, style = MaterialTheme.typography.titleSmall, color = p.text)
                         val st = vm.journalStreak
-                        Text(if (st > 0) "Serie di $st ${if (st == 1) "giorno" else "giorni"}" else "Ci vogliono 30 secondi", style = MaterialTheme.typography.bodySmall, color = p.text2)
+                        val m = vm.journalReminderMin
+                        Text(
+                            when {
+                                st > 0 -> "Serie di $st ${if (st == 1) "giorno" else "giorni"}"
+                                !evening && vm.journalReminderOn -> "Promemoria alle %02d:%02d".format(m / 60, m % 60)
+                                else -> "Si compila la sera, in 30 secondi"
+                            },
+                            style = MaterialTheme.typography.bodySmall, color = p.text2,
+                        )
                     }
-                    Text(if (a >= n) "Rivedi" else "Rispondi", style = MaterialTheme.typography.labelLarge, color = p.brand)
+                    Text(if (a >= n) "Rivedi" else if (!evening && forToday && a == 0) "Apri" else "Rispondi", style = MaterialTheme.typography.labelLarge, color = p.brand)
                 }
             }
         }

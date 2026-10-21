@@ -181,9 +181,10 @@ fun JournalScreen(vm: AppViewModel, onBack: () -> Unit, onOpenDiscoveries: () ->
                         modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                         color = p.brand, trackColor = p.field, drawStopIndicator = {},
                     )
-                    Caption("Rispondi su ${if (day == LocalDate.now()) "oggi" else "quella giornata"}: le risposte «No» contano quanto i «Sì», perché permettono il confronto.")
+                    Caption("Compilalo la sera, sulla giornata appena passata: i ricordi sono più precisi. Le risposte «No» contano quanto i «Sì», perché permettono il confronto.")
                 }
             }
+            item { ReminderCard(vm) }
             item {
                 HealthCard("Come stai", BioIcons.Sparkle, Tint.mood) {
                     Text("Umore", style = MaterialTheme.typography.labelLarge, color = p.text2)
@@ -344,6 +345,43 @@ fun TagEffectsCard(vm: AppViewModel) {
                 }
             }
             Caption("Differenza media del recupero del mattino successivo. È un'associazione nei tuoi dati, con pochi giorni: può dipendere dal caso o da altri fattori insieme (es. alcol e cena tardiva nella stessa sera).")
+        }
+    }
+}
+
+
+/** Promemoria serale: notifica all'ora scelta solo se il diario di oggi non è completo. */
+@Composable
+private fun ReminderCard(vm: AppViewModel) {
+    val p = LocalPalette.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        vm.setJournalReminder(ok)
+    }
+    HealthCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Promemoria serale", style = MaterialTheme.typography.titleSmall, color = p.text)
+                Text(if (vm.journalReminderOn) "Solo se il diario di oggi non è completo" else "Disattivato", style = MaterialTheme.typography.bodySmall, color = p.text2)
+            }
+            androidx.compose.material3.Switch(
+                checked = vm.journalReminderOn,
+                onCheckedChange = { on ->
+                    if (on && android.os.Build.VERSION.SDK_INT >= 33 &&
+                        ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ) launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    else vm.setJournalReminder(on)
+                },
+                modifier = Modifier.testTag("reminder_switch"),
+            )
+        }
+        if (vm.journalReminderOn) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(20 * 60 + 30, 21 * 60 + 30, 22 * 60 + 30).forEach { m ->
+                androidx.compose.material3.FilterChip(
+                    selected = vm.journalReminderMin == m, onClick = { vm.setJournalReminder(true, m) },
+                    label = { Text("%02d:%02d".format(m / 60, m % 60)) },
+                )
+            }
         }
     }
 }

@@ -87,6 +87,7 @@ private const val R_JOURNAL_Y = "journal_y"
 fun App(
     vm: AppViewModel,
     startOnPrivacy: Boolean,
+    startOnJournal: Boolean = false,
     onRequestPermissions: () -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
@@ -95,7 +96,7 @@ fun App(
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var healthSection by rememberSaveable { mutableStateOf(0) }
-    var stackStr by rememberSaveable { mutableStateOf(if (startOnPrivacy) R_INFO else "") }
+    var stackStr by rememberSaveable { mutableStateOf(if (startOnPrivacy) R_INFO else if (startOnJournal) R_JOURNAL else "") }
     val stack: List<String> = if (stackStr.isEmpty()) emptyList() else stackStr.split("|")
     val push: (String) -> Unit = { r -> stackStr = (stack + r).joinToString("|") }
     val pop: () -> Unit = { stackStr = stack.dropLast(1).joinToString("|") }

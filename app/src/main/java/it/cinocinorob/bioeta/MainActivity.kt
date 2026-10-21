@@ -43,6 +43,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         it.cinocinorob.bioeta.data.BackgroundSyncWorker.schedule(applicationContext)
+        it.cinocinorob.bioeta.data.JournalReminder.schedule(applicationContext)
+        val openJournal = intent?.getStringExtra("open") == "journal"
         val action = intent?.action
         val openPrivacy = action == "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" ||
             action == "android.intent.action.VIEW_PERMISSION_USAGE"
@@ -63,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 App(
                     vm = vm,
                     startOnPrivacy = openPrivacy,
+                    startOnJournal = openJournal,
                     onRequestPermissions = { permissionLauncher.launch(vm.health.permissionsToRequest()) },
                     onExport = { exportLauncher.launch("bioeta-backup-${LocalDate.now()}.json") },
                     onImport = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
