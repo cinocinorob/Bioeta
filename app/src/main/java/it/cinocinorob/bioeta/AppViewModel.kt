@@ -461,13 +461,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- Modalità gratuita: domanda inviata all'app Claude dell'utente ----
-    /** Tema grafico (predefinito: scuro). */
-    var themeMode by mutableStateOf(runCatching { it.cinocinorob.bioeta.ui.ThemeMode.valueOf(settings.getString("theme", "DARK") ?: "DARK") }.getOrDefault(it.cinocinorob.bioeta.ui.ThemeMode.DARK))
+    /**
+     * Tema grafico (predefinito: segue il sistema). Chiave nuova «theme_v2»: il nuovo design nasce chiaro e la scelta
+     * fatta con il design precedente (predefinito scuro) non viene riportata.
+     */
+    var themeMode by mutableStateOf(runCatching { it.cinocinorob.bioeta.ui.ThemeMode.valueOf(settings.getString("theme_v2", "SYSTEM") ?: "SYSTEM") }.getOrDefault(it.cinocinorob.bioeta.ui.ThemeMode.SYSTEM))
         private set
 
     fun selectTheme(m: it.cinocinorob.bioeta.ui.ThemeMode) {
         themeMode = m
-        settings.edit().putString("theme", m.name).apply()
+        settings.edit().putString("theme_v2", m.name).apply()
     }
 
     var assistantMode by mutableStateOf(settings.getString("assistant_mode", "free") ?: "free")

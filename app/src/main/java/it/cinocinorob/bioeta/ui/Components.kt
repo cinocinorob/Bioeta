@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -71,12 +72,12 @@ fun StatusBadge(status: DataStatus) {
         DataStatus.UNAVAILABLE -> p.text3
     }
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(c.copy(alpha = 0.14f)).padding(horizontal = 7.dp, vertical = 2.dp),
+        Modifier.clip(RoundedCornerShape(50)).background(p.card.copy(alpha = 0.75f)).padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(5.dp).clip(CircleShape).background(c))
-        Spacer(Modifier.width(4.dp))
-        Text(status.label, style = MaterialTheme.typography.labelSmall, color = c, maxLines = 1)
+        Box(Modifier.size(6.dp).clip(CircleShape).background(c))
+        Spacer(Modifier.width(5.dp))
+        Text(status.label, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 1)
     }
 }
 
@@ -86,8 +87,8 @@ data class Trend(val text: String, val up: Boolean, val goodWhenUp: Boolean?)
 @Composable
 fun TrendChip(t: Trend) {
     val p = LocalPalette.current
-    val c = when (t.goodWhenUp) { null -> p.text2; else -> if (t.up == t.goodWhenUp) Tint.good else Tint.warn }
-    Text((if (t.up) "▲ " else "▼ ") + t.text, style = MaterialTheme.typography.labelMedium, color = c, maxLines = 1)
+    val c = when (t.goodWhenUp) { null -> p.text2; else -> p.ink(if (t.up == t.goodWhenUp) Tint.good else Tint.warn) }
+    Text((if (t.up) "↑ " else "↓ ") + t.text, style = MaterialTheme.typography.labelLarge, color = c, maxLines = 1)
 }
 
 /**
@@ -112,37 +113,39 @@ fun MetricTile(
     val desc = "$label: ${value ?: "non disponibile"} ${unit ?: ""}. ${status.label}. $period"
     Column(
         modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(p.card)
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (value == null) p.card else p.tone(tint))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .semantics(mergeDescendants = true) { contentDescription = desc }
-            .padding(14.dp)
-            .heightIn(min = 118.dp),
+            .padding(16.dp)
+            .heightIn(min = 124.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(15.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, color = p.text2, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Box(Modifier.size(28.dp).clip(CircleShape).background(if (value == null) p.card2 else tint), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = if (value == null) p.text3 else Color.White, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         }
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 value ?: "—", color = if (value == null) p.text3 else p.text, maxLines = 1,
-                style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 31.sp, letterSpacing = (-0.3).sp, fontFeatureSettings = TABULAR),
+                style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 32.sp, letterSpacing = (-0.2).sp, fontFeatureSettings = TABULAR),
             )
             if (unit != null && value != null) {
                 Spacer(Modifier.width(3.dp))
                 Text(unit, style = MaterialTheme.typography.labelMedium, color = p.text2, modifier = Modifier.padding(bottom = 4.dp), maxLines = 1)
             }
             Spacer(Modifier.weight(1f))
-            if (spark.size >= 3) Sparkline(spark, tint, Modifier.width(54.dp).height(24.dp))
+            if (spark.size >= 3) Sparkline(spark, p.ink(tint), Modifier.width(54.dp).height(24.dp))
         }
         // «Misurato» è il caso normale: il distintivo compare solo quando il dato è stimato, parziale o assente
         if (status != DataStatus.MEASURED || trend != null) Row(verticalAlignment = Alignment.CenterVertically) {
             if (status != DataStatus.MEASURED) { StatusBadge(status); Spacer(Modifier.width(6.dp)) }
             if (trend != null) TrendChip(trend)
         }
-        Text(period, style = MaterialTheme.typography.bodySmall, color = p.text3, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(period, style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -150,7 +153,7 @@ fun MetricTile(
 @Composable
 fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)? = null) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp, start = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(top = 14.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleLarge, color = p.text, modifier = Modifier.weight(1f))
         if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action, color = LocalPalette.current.brand) }
     }
@@ -161,12 +164,12 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
 fun EmptyState(icon: ImageVector, title: String, body: String, tint: Color = Tint.brand, action: String? = null, onAction: (() -> Unit)? = null) {
     val p = LocalPalette.current
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(22.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.tone(tint)).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.size(48.dp).clip(CircleShape).background(tint.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(24.dp))
+        Box(Modifier.size(56.dp).clip(CircleShape).background(tint), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
         }
         Text(title, style = MaterialTheme.typography.titleMedium, color = p.text)
         Text(body, style = MaterialTheme.typography.bodyMedium, color = p.text2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -184,13 +187,13 @@ fun InlineNotice(text: String, kind: NoticeKind = NoticeKind.INFO, action: Strin
     val p = LocalPalette.current
     val c = when (kind) { NoticeKind.INFO -> Tint.blue; NoticeKind.WARN -> Tint.warn; NoticeKind.ERROR -> Tint.bad }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.copy(alpha = 0.12f)).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.tone(c, 1.2f)).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(BioIcons.Info, null, tint = c, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
+        Icon(BioIcons.Info, null, tint = p.ink(c), modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium, color = p.text, modifier = Modifier.weight(1f))
-        if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action, color = c) }
+        if (action != null && onAction != null) TextButton(onClick = onAction) { Text(action, color = p.ink(c)) }
     }
 }
 
@@ -216,41 +219,38 @@ fun agoShort(t: Instant?): String {
 }
 
 // =============================================================================================
-// Logo BioEtà «Anelli»: cuori concentrici come gli anelli di accrescimento (gli anni) con il nucleo pieno
-// (oggi). Stessa geometria dell'icona dell'app (res/drawable/ic_fg.xml), viewport 108, area utile 21..87.
+// Logo BioEtà: cuore pieno da cui nasce un germoglio. Stessa geometria dell'icona (res/drawable/ic_fg.xml),
+// viewport 108, forma contenuta tra ~35 e ~73.
 // =============================================================================================
 
-private const val RING_W = 56f
-private const val RING_H = 52f
-private const val RING_CX = 54f
-private const val RING_CY = 57.5f
+private const val LOGO_PATH = "M58.88,43.89 L60.06,43.81 L61.46,43.55 L62.79,43.13 L64.04,42.57 L64.84,42.12 L65.96,41.34 L67.00,40.44 L67.94,39.42 L68.79,38.30 L69.54,37.08 L70.17,35.79 L70.70,34.41 L71.11,32.97 L71.40,31.47 L71.56,29.92 L71.59,28.86 L70.02,28.98 L68.49,29.23 L67.02,29.61 L65.16,30.29 L63.85,30.93 L62.25,31.95 L61.15,32.83 L60.16,33.80 L59.29,34.87 L58.78,35.62 L57.92,37.24 L57.45,38.53 L57.13,39.90 L56.97,41.32 L56.96,42.42 L56.44,42.66 L56.03,43.10 L53.84,47.55 L53.56,48.53 L52.35,47.59 L51.14,46.89 L49.69,46.29 L48.34,45.93 L46.78,45.74 L45.38,45.76 L43.83,45.99 L42.49,46.38 L41.06,47.01 L39.86,47.75 L38.65,48.74 L37.70,49.77 L36.80,51.05 L36.15,52.29 L35.68,53.56 L35.34,55.08 L35.23,56.16 L35.23,57.29 L35.34,58.37 L35.55,59.42 L35.87,60.46 L36.38,61.65 L36.91,62.59 L37.53,63.47 L38.45,64.51 L52.44,78.50 L53.05,78.94 L53.67,79.12 L54.21,79.14 L54.63,79.05 L55.13,78.83 L55.47,78.58 L69.90,64.13 L70.90,62.86 L71.70,61.45 L72.29,59.94 L72.65,58.37 L72.77,57.02 L72.74,55.89 L72.57,54.61 L72.29,53.51 L71.84,52.29 L71.22,51.09 L70.59,50.15 L69.76,49.16 L68.56,48.07 L67.22,47.17 L65.76,46.47 L64.21,46.00 L62.61,45.76 L60.99,45.75 L59.39,45.99 L57.80,46.47 L58.78,44.45ZM61.59,40.29 L61.38,40.39 L61.07,40.42 L60.78,40.34 L60.54,40.15 L60.41,39.95 L60.35,39.65 L60.38,39.42 L60.52,39.14 L67.89,31.55 L68.16,31.40 L68.39,31.36 L68.62,31.39 L68.89,31.53 L69.09,31.77 L69.19,32.06 L69.16,32.37 L69.02,32.65Z"
 
-/** Disegna i tre anelli; [beat] 0..1 ingrandisce il nucleo (battito), [ripple] 0..1 allarga leggermente gli anelli. */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRings(
-    mono: Color?, beat: Float = 0f, ripple: Float = 0f, colors: Triple<Color, Color, Color>,
-) {
-    val k = size.width / 66f
-    fun heart(s: Float): Path {
-        val w = RING_W * s * k; val h = RING_H * s * k
-        val cx = (RING_CX - 21f) * k; val cy = (RING_CY - 21f) * k
-        return heartPath(w, h, cx - w / 2f, cy - h * 0.56f)
-    }
-    val sw = 3.8f * k
-    drawPath(heart(1f + 0.015f * ripple), mono ?: colors.first, style = Stroke(sw, join = StrokeJoin.Round))
-    drawPath(heart(0.6f + 0.02f * ripple), mono ?: colors.second, style = Stroke(sw, join = StrokeJoin.Round))
-    drawPath(heart(0.24f * (1f + 0.22f * beat)), mono ?: colors.third)
+private val logoPath: Path by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(LOGO_PATH).toPath().apply { fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd } }
+
+/** Disegna la forma del logo centrata, scalata di [scale] attorno al centro. */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLogoShape(color: Color, scale: Float = 1f, crop: Float = 46f) {
+    // crop = lato del riquadro (unità del viewport) attorno al centro 54,54 che riempie il Canvas
+    val k = size.width / crop
+    withTransform({
+        translate(size.width / 2f, size.height / 2f)
+        scale(k * scale, k * scale, Offset.Zero)
+        translate(-54f, -54f)
+    }) { drawPath(logoPath, color) }
 }
 
-private val RING_COLORS = Triple(Color(0xFFFF6F8A), Color(0xFF4FD1C5), Color(0xFFFFF1F3))
-
+/** Logo in versione icona: forma bianca su quadrato arrotondato verde‑acqua (o forma sola se [mono]). */
 @Composable
 fun BioLogo(modifier: Modifier = Modifier, size: Int = 40, mono: Color? = null) {
-    Canvas(modifier.size(size.dp)) { drawRings(mono, colors = RING_COLORS) }
+    Canvas(modifier.size(size.dp)) {
+        if (mono != null) { drawLogoShape(mono, crop = 48f); return@Canvas }
+        drawRoundRect(Brush.verticalGradient(listOf(Color(0xFF12A08E), Color(0xFF00796B))), cornerRadius = androidx.compose.ui.geometry.CornerRadius(this.size.width * 0.3f))
+        drawLogoShape(Color.White, crop = 72f)
+    }
 }
 
 /**
- * Il marchio vivo: il nucleo batte alla tua frequenza a riposo (doppio colpo «lub‑dub») e gli anelli
- * rispondono appena. Unico movimento continuo dell'app; fermo in anteprima e nei test.
+ * Il marchio vivo: il cuore batte alla tua frequenza a riposo (doppio colpo «lub‑dub»). Unico movimento
+ * continuo dell'app; fermo in anteprima e nei test.
  */
 @Composable
 fun BeatingRings(bpm: Double?, modifier: Modifier = Modifier, size: Int = 72, light: Boolean = false) {
@@ -264,12 +264,13 @@ fun BeatingRings(bpm: Double?, modifier: Modifier = Modifier, size: Int = 72, li
             label = "fase",
         ).value
     }
-    // lub (0–12%) e dub (18–30%) del ciclo, poi riposo
     fun bump(x: Float, a: Float, b: Float) = if (x < a || x > b) 0f else kotlin.math.sin(((x - a) / (b - a)) * Math.PI.toFloat())
     val beat = bump(t, 0f, 0.12f) + 0.6f * bump(t, 0.18f, 0.30f)
-    val ripple = bump(t, 0.04f, 0.5f)
-    val colors = if (light) Triple(Color(0xFFDE3F63), Color(0xFF0F9E92), Color(0xFFDE3F63)) else RING_COLORS
-    Canvas(modifier.size(size.dp)) { drawRings(null, beat, ripple, colors) }
+    val c = LocalPalette.current.brand
+    Canvas(modifier.size(size.dp)) {
+        drawCircle(c.copy(alpha = 0.14f + 0.06f * beat))
+        drawLogoShape(c, scale = 1f + 0.05f * beat, crop = 62f)
+    }
 }
 
 // =============================================================================================
@@ -282,7 +283,7 @@ fun BeatingRings(bpm: Double?, modifier: Modifier = Modifier, size: Int = 72, li
 fun Track(fraction: Float, color: Color, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
     val f = animatedValue(fraction.coerceIn(0f, 1f), 700)
-    Canvas(modifier.fillMaxWidth().height(8.dp)) {
+    Canvas(modifier.fillMaxWidth().height(10.dp)) {
         val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2, size.height / 2)
         drawRoundRect(p.field, cornerRadius = r)
         if (f > 0f) drawRoundRect(color, size = Size(maxOf(size.height, size.width * f), size.height), cornerRadius = r)
