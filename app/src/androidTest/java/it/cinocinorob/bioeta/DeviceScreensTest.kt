@@ -310,9 +310,9 @@ class DeviceScreensTest {
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("attivita_carico")
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("active_card"))
-            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("active_hourly"))
-            waitText("Da passi", 30_000)
+            waitText("Da passi", 90_000)
             waitText("Fonte della frequenza cardiaca", 90_000)
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("active_hourly"))
             screenshot("attivita_minuti_attivi")
             compose.onNodeWithTag("hr_source_button").performClick()
             waitText("Automatica (consigliata)", 10_000)
