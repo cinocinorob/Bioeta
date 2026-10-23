@@ -402,7 +402,7 @@ private fun MoveTile(vm: AppViewModel, chrono: Double?, onGoActivity: () -> Unit
             MoveStat("Passi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—", "obiettivo ${String.format(Locale.ITALY, "%,d", goal)}",
                 act?.let { it.steps / goal.toFloat() }, Tint.activity, Modifier.weight(1f)) { onOpenMetric("STEPS") }
             val load = dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.load
-            MoveStat("Carico", load?.f(0) ?: "—", target?.let { "obiettivo ${it.low.f(0)}–${it.high.f(0)}" } ?: "obiettivo in calibrazione",
+            MoveStat("Carico", load?.f(0) ?: "—", target?.let { "obiettivo ${it.low.f(0)}–${it.high.f(0)}" } ?: "in calibrazione",
                 if (load != null && target != null) (load / target.high).toFloat() else null, Tint.load, Modifier.weight(1f)) { onGoActivity() }
         }
         Text(
