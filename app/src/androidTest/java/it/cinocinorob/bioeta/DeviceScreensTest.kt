@@ -312,7 +312,8 @@ class DeviceScreensTest {
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("active_card"))
             waitText("Da passi", 90_000)
             waitText("Fonte della frequenza cardiaca", 90_000)
-            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("active_hourly"))
+            // La scheda è cliccabile: i suoi figli sono fusi nel nodo della scheda, quindi si scorre di poco a mano
+            compose.onNode(hasScrollableList()).performTouchInput { swipeUp(startY = centerY, endY = centerY - 500f, durationMillis = 400) }
             screenshot("attivita_minuti_attivi")
             compose.onNodeWithTag("hr_source_button").performClick()
             waitText("Automatica (consigliata)", 10_000)
