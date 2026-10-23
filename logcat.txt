@@ -1,0 +1,43 @@
+--------- beginning of main
+10-23 09:28:59.886  3800  3825 I TestRunner: run started: 1 tests
+10-23 09:28:59.887  3800  3825 I TestRunner: started: seedLaunchAndCapture(it.cinocinorob.bioeta.DeviceScreensTest)
+10-23 09:29:00.801  3800  3825 I BioEtaE2E: permessi concessi: 26
+10-23 09:29:01.469  3800  3825 I BioEtaE2E: inseriti 668 record
+10-23 09:29:05.637  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/01_benvenuto.png
+10-23 09:29:15.522  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/02_home.png
+10-23 09:29:18.312  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/03_home_radar.png
+10-23 09:29:21.070  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/04_home_rpe.png
+10-23 09:29:24.654  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/05_home_in_evidenza.png
+10-23 09:29:26.245  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/06_home_parametri_notte.png
+10-23 09:29:28.081  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/07_home_corpo_eta.png
+10-23 09:29:30.452  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/08_home_fine.png
+10-23 09:29:32.700  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/09_diario.png
+10-23 09:29:34.510  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/10_diario_domande.png
+10-23 09:29:37.197  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/11_diario_scelta_domande.png
+10-23 09:29:44.482  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/12_attivita.png
+10-23 09:29:46.002  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/13_attivita_carico.png
+10-23 09:29:47.482  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/14_attivita_minuti_attivi.png
+10-23 09:29:49.656  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/15_attivita_fonte_fc.png
+10-23 09:29:51.761  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/16_attivita_carico_percepito.png
+10-23 09:29:53.261  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/17_attivita_allenamenti.png
+10-23 09:29:54.934  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/18_fonti_sincronizzazione.png
+10-23 09:29:56.437  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/19_allenamenti_importati.png
+10-23 09:30:00.962  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/20_salute.png
+10-23 09:30:02.439  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/21_salute_recupero.png
+10-23 09:30:04.215  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/22_salute_regolarita.png
+10-23 09:30:06.399  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/23_salute_umore.png
+10-23 09:30:08.950  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/24_salute_scoperte_card.png
+10-23 09:30:14.404  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/25_scoperte.png
+10-23 09:30:15.856  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/26_scoperte_foresta.png
+10-23 09:30:17.259  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/27_scoperte_attesa.png
+10-23 09:30:21.895  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/28_eta_biologica.png
+10-23 09:30:23.469  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/29_eta_dettagli.png
+10-23 09:30:26.615  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/30_analisi.png
+10-23 09:30:31.094  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/31_dettaglio_fc_riposo.png
+10-23 09:30:34.757  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/32_profilo.png
+10-23 09:30:37.368  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/33_home_tema_scuro.png
+10-23 09:30:38.755  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/34_home_tema_scuro_parametri.png
+10-23 09:30:42.037  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/35_attivita_tema_scuro.png
+10-23 09:30:45.232  3800  3825 I BioEtaE2E: screenshot /data/local/tmp/bioeta/36_salute_tema_scuro.png
+10-23 09:30:46.212  3800  3825 I TestRunner: finished: seedLaunchAndCapture(it.cinocinorob.bioeta.DeviceScreensTest)
+10-23 09:30:46.231  3800  3825 I TestRunner: run finished: 1 tests, 0 failed, 0 ignored
