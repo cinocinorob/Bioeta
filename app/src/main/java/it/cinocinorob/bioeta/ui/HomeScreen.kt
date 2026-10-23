@@ -402,7 +402,7 @@ private fun MoveTile(vm: AppViewModel, chrono: Double?, onGoActivity: () -> Unit
             MoveStat("Passi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—", "obiettivo ${String.format(Locale.ITALY, "%,d", goal)}",
                 act?.let { it.steps / goal.toFloat() }, Tint.activity, Modifier.weight(1f)) { onOpenMetric("STEPS") }
             val load = dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.load
-            MoveStat("Carico", load?.f(0) ?: "—", target?.let { "obiettivo ${it.low.f(0)}–${it.high.f(0)}" } ?: "obiettivo dopo 14 gg",
+            MoveStat("Carico", load?.f(0) ?: "—", target?.let { "obiettivo ${it.low.f(0)}–${it.high.f(0)}" } ?: "obiettivo in calibrazione",
                 if (load != null && target != null) (load / target.high).toFloat() else null, Tint.load, Modifier.weight(1f)) { onGoActivity() }
         }
         Text(
@@ -434,7 +434,7 @@ private fun VitalTile(
     val z = e.z
     val (verdict, vc) = when {
         v == null -> "Nessun dato stanotte" to p.text3
-        z == null -> "Intervallo in costruzione" to p.text3
+        z == null -> "In calibrazione (${e.baselineNights}/7 notti)" to p.text3
         e.concerning -> (if (z > 0) "Più alta del solito" else "Più bassa del solito") to p.ink(Tint.warn)
         kotlin.math.abs(z) >= 2 -> (if (z > 0) "Sopra il tuo intervallo" else "Sotto il tuo intervallo") to p.ink(Tint.blue)
         else -> "Nella norma" to p.ink(Tint.good)

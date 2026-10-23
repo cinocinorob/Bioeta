@@ -77,7 +77,7 @@ data class Palette(
     val onBrand: Color = Color.White,
 ) {
     /** Contenitore pastello di un colore di dominio (Material 3 «tonal container»). */
-    fun tone(c: Color, strength: Float = 1f): Color = lerp(card, c, (if (dark) 0.20f else 0.13f) * strength)
+    fun tone(c: Color, strength: Float = 1f): Color = lerp(card, c, (if (dark) 0.15f else 0.13f) * strength)
     /** Cerchio dell'icona: pastello più intenso. */
     fun toneStrong(c: Color): Color = lerp(card, c, if (dark) 0.34f else 0.24f)
     /** Colore di testo/icona sopra il contenitore pastello: più scuro in chiaro, più chiaro in scuro. */

@@ -68,7 +68,7 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 fun zoneColor(z: Zone): Color = when (z) {
-    Zone.VERY_LIGHT -> Color(0xFF6C8987)
+    Zone.VERY_LIGHT -> Color(0xFF9AA0AC)
     Zone.LIGHT -> Tint.hrv
     Zone.MODERATE -> Tint.good
     Zone.VIGOROUS -> Tint.activity
