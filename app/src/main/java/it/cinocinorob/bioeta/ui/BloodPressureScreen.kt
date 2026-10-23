@@ -355,7 +355,7 @@ private fun BpEntryDialog(onDismiss: () -> Unit, onSave: (BpReading) -> Unit) {
             Button(
                 onClick = { onSave(BpReading(time = time!!, sys = s!!, dia = d!!, pulse = pu, arm = arm, note = note.trim())) },
                 enabled = s != null && d != null && err == null && time != null,
-                colors = ButtonDefaults.buttonColors(containerColor = Tint.bp),
+                colors = ButtonDefaults.buttonColors(),
             ) { Text("Salva", fontWeight = FontWeight.Bold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Annulla") } },

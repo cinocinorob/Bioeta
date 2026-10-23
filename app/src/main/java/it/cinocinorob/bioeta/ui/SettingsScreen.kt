@@ -76,7 +76,7 @@ fun SettingsScreen(
         item {
             HealthCard("Aspetto", BioIcons.Sparkle, Tint.brand) {
                 SegmentPill(ThemeMode.entries.map { it.label }, ThemeMode.entries.indexOf(vm.themeMode), onSelect = { vm.selectTheme(ThemeMode.entries[it]) })
-                Caption("Il tema scuro è quello predefinito di BioEtà. Le dimensioni del testo seguono le impostazioni di sistema.")
+                Caption("Con «Sistema» BioEtà segue il tema chiaro o scuro del telefono. Le dimensioni del testo seguono le impostazioni di sistema.")
             }
         }
         item {

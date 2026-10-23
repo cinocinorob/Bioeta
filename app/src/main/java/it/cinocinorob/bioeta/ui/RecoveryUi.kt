@@ -64,7 +64,7 @@ object RecoveryColors {
 }
 
 fun scoreColor(s: Int?): Color = when {
-    s == null -> Color(0xFF6C8987)
+    s == null -> Color(0xFF9AA0AC)
     s >= 85 -> Tint.good
     s >= 70 -> Tint.hrv
     s >= 50 -> Tint.warn

@@ -121,10 +121,36 @@ fun HomeScreen(
         item { ChangesNotice(vm) }
         if (vm.hasAnyHealthPermission && radarAlert) item { RadarCard(vm) }
 
-        // ---------------- Quadrante di oggi ----------------
-        item { HeroToday(vm, mood, onGoHealth, onGoActivity, onOpenJournal) }
-        if (vm.hasAnyHealthPermission && !radarAlert) item { RadarCard(vm) }
+        // ---------------- Cruscotto: oggi ----------------
+        item {
+            PairRow(
+                { m -> RecoveryTile(vm, mood, m, onGoHealth) },
+                { m -> SleepTile(vm, m) { onOpenMetric("SLEEP") } },
+            )
+        }
+        item { MoveTile(vm, chrono, onGoActivity, onOpenMetric) }
         item { RpePrompt(vm) }
+
+        // ---------------- Parametri della notte (stessa valutazione del radar: intervallo personale) ----------------
+        item { SectionHeader("Parametri della notte", "Salute", onGoHealth) }
+        val sig = vm.radar.signals.associateBy { it.spec.key }
+        val vitals = listOf(
+            Triple("rhr", Metric.RHR, BioIcons.Heart to Tint.heart),
+            Triple("hrv", Metric.HRV, BioIcons.Pulse to Tint.hrv),
+            Triple("resp", Metric.RESP, BioIcons.Wind to Tint.resp),
+            Triple("spo2", Metric.SPO2, BioIcons.Drop to Tint.spo2),
+            Triple("temp", Metric.SKIN_TEMP, BioIcons.Thermo to Tint.load),
+            Triple("shr", null, BioIcons.Moon to Tint.sleep),
+        ).filter { (k, _, _) -> sig[k]?.let { it.value != null || it.baselineNights > 0 } == true }
+        vitals.chunked(2).forEach { row ->
+            item {
+                PairRow(
+                    { m -> row[0].let { (k, metric, ic) -> VitalTile(vm, sig.getValue(k), metric, ic.first, ic.second, m) { onOpenMetric(metric?.name ?: "SLEEP") } } },
+                    { m -> if (row.size > 1) row[1].let { (k, metric, ic) -> VitalTile(vm, sig.getValue(k), metric, ic.first, ic.second, m) { onOpenMetric(metric?.name ?: "SLEEP") } } else Spacer(m) },
+                )
+            }
+        }
+        if (vm.hasAnyHealthPermission && !radarAlert) item { RadarCard(vm) }
 
         // ---------------- In evidenza: solo ciò che è cambiato davvero ----------------
         if (vm.hasAnyHealthPermission) {
@@ -132,8 +158,8 @@ fun HomeScreen(
             item { HighlightsSection(vm.highlights, onOpenMetric) }
         }
 
-        // ---------------- Età ----------------
-        item { SectionHeader("Età", "Dettagli", onGoAge) }
+        // ---------------- Corpo ed età ----------------
+        item { SectionHeader("Corpo ed età", "Dettagli", onGoAge) }
         item {
             val series = vm.phenoSeries
             val last = series.lastOrNull()
@@ -146,9 +172,9 @@ fun HomeScreen(
                         "Età biologica", last?.result?.phenoAge?.f(1), "anni", Tint.bio, BioIcons.Sparkle,
                         if (last != null) DataStatus.ESTIMATED else DataStatus.UNAVAILABLE,
                         when {
-                            last == null && series.isEmpty() -> "PhenoAge: servono 9 esami del sangue"
+                            last == null && series.isEmpty() -> "Servono 9 esami del sangue"
                             last == null -> "Dati incompleti nell'ultimo prelievo"
-                            else -> "PhenoAge · prelievo ${last.panel.date.itLong()}" + (chrono?.let { " · anagrafica ${it.f(1)}" } ?: "")
+                            else -> "Dal prelievo del ${last.panel.date.itLong()}" + (chrono?.let { " · anagrafica ${it.f(0)}" } ?: "")
                         },
                         it,
                         trend = if (last != null && prev != null) {
@@ -164,72 +190,40 @@ fun HomeScreen(
                         "Età cardio", raw?.let { r -> when { r < 20 -> "<20"; r > 80 -> ">80"; else -> r.f(0) } }, "anni", Tint.vo2, BioIcons.Gauge,
                         if (raw != null) DataStatus.ESTIMATED else DataStatus.UNAVAILABLE,
                         when {
-                            vo2 == null -> "Serve il VO₂max (dall'orologio o inserito nel profilo)"
-                            profile.vo2Manual != null -> "VO₂max ${vo2.f(1)} misurato (profilo) · FRIEND"
-                            else -> "VO₂max ${vo2.f(1)} stimato dall'orologio, media 30 gg"
+                            vo2 == null -> "Serve il VO₂max"
+                            profile.vo2Manual != null -> "Da VO₂max ${vo2.f(1)} misurato"
+                            else -> "Da VO₂max ${vo2.f(1)} dell'orologio"
                         },
                         it, onClick = { onOpenMetric("VO2") },
                     )
                 },
             )
         }
-
-        // ---------------- I tuoi numeri (recupero, sonno e carico sono già nel quadrante) ----------------
-        item { SectionHeader("I tuoi numeri", "Salute", onGoHealth) }
         item {
-            PairRow(
-                { m -> BaselineTile(vm, Metric.RHR, "FC a riposo", BioIcons.Heart, Tint.heart, m) { onOpenMetric("RHR") } },
-                { m -> BaselineTile(vm, Metric.HRV, "HRV notturna", BioIcons.Pulse, Tint.hrv, m) { onOpenMetric("HRV") } },
-            )
-        }
-        item {
-            val goal = Fitness.stepGoal(chrono)
-            val steps7 = vm.wearable[Metric.STEPS].orEmpty().filter { it.date.isAfter(today.minusDays(8)) }.map { it.value }
+            val w = vm.wearable[Metric.WEIGHT].orEmpty()
+            val bp = vm.bpSummary
             PairRow(
                 { m ->
-                    val n = t.night
                     MetricTile(
-                        "Sonno", n?.let { fmtHours(it.totalSleepMin / 60) }, null, Tint.sleep, BioIcons.Moon,
-                        if (n != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
-                        if (n != null) "Stanotte" else "Nessuna notte registrata",
-                        m, spark = vm.sleepNights.takeLast(14).map { it.totalSleepMin / 60 }, onClick = { onOpenMetric("SLEEP") },
+                        "Peso", w.lastOrNull()?.value?.f(1), "kg", Tint.body, BioIcons.Person,
+                        if (w.isNotEmpty()) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
+                        w.lastOrNull()?.let { "Ultima misura ${it.date.itLong()}" } ?: "Nessuna pesata in Connessione Salute",
+                        m, spark = w.takeLast(30).map { it.value }, onClick = { onOpenMetric("WEIGHT") },
                     )
                 },
                 { m ->
                     MetricTile(
-                        "Passi oggi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) }, null, Tint.activity, BioIcons.Bolt,
-                        if (act != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
-                        if (act != null) "Obiettivo ${String.format(Locale.ITALY, "%,d", goal)}" else "Nessun dato oggi",
-                        m, spark = steps7, onClick = { onOpenMetric("STEPS") },
-                    )
-                },
-            )
-        }
-        item {
-            PairRow(
-                { m ->
-                    val week = Fitness.weekActiveMinutes(vm.dayLoads, today)
-                    val est = dayAct?.estimatedShare ?: 0
-                    MetricTile(
-                        "Minuti attivi", dayAct?.activeMinutes?.toString(), "min", Tint.good, BioIcons.Bolt,
-                        when { dayAct == null -> DataStatus.UNAVAILABLE; dayAct.stale -> DataStatus.PARTIAL; est > 0 -> DataStatus.ESTIMATED; else -> DataStatus.MEASURED },
-                        if (dayAct == null) "Servono FC o allenamenti" else "Settimana $week/150",
-                        m, onClick = { onOpenMetric(DETAIL_ACTIVE) },
-                    )
-                },
-                { m ->
-                    val todays = vm.displaySessions.filter { it.start.atZone(ZoneId.systemDefault()).toLocalDate() == today }
-                    MetricTile(
-                        "Allenamenti oggi", if (vm.syncStatus.state == SyncState.NEVER && todays.isEmpty()) null else "${todays.size}", null, Tint.vo2, BioIcons.Gauge,
-                        when (vm.syncStatus.state) { SyncState.OK -> DataStatus.MEASURED; SyncState.NEVER, SyncState.NO_PERMISSION -> DataStatus.UNAVAILABLE; else -> DataStatus.PARTIAL },
-                        if (todays.isEmpty()) "Sincronizzati ${agoShort(vm.syncStatus.lastSync)}" else todays.joinToString(", ") { exerciseName(it.hcType, it.title) },
-                        m, onClick = onGoActivity,
+                        "Pressione", bp?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)}" }, "mmHg", Tint.bp, BioIcons.Heart,
+                        if (bp != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
+                        if (bp != null) "Media delle misure recenti" else "Tocca per registrare una misura",
+                        m, onClick = onGoBp,
                     )
                 },
             )
         }
 
-        // ---------------- Sezioni del giorno, in forma compatta ----------------
+        // ---------------- Benessere ----------------
+        item { SectionHeader("Benessere") }
         vm.bedtimeGuide?.let { g ->
             item {
                 CompactRow(BioIcons.Moon, Tint.sleep, "Stasera a letto entro ${Bedtime.fmt(g.bedtime)}",
@@ -238,7 +232,7 @@ fun HomeScreen(
         }
         item {
             val e = vm.journalFor(today)
-            HealthCard("Diario", BioIcons.Pencil, Tint.mood, onClick = onOpenJournal, modifier = Modifier.testTag("journal_card")) {
+            HealthCard("Umore e diario", BioIcons.Pencil, Tint.mood, onClick = onOpenJournal, modifier = Modifier.testTag("journal_card")) {
                 Text("Come ti senti oggi?", style = MaterialTheme.typography.labelLarge, color = p.text2)
                 ScalePicker(e.mood) { vm.saveJournal(e.copy(mood = it)) }
                 MoodStrip(vm)
@@ -249,9 +243,9 @@ fun HomeScreen(
                 val forToday = evening || ya >= yn
                 val (a, n) = if (forToday) ta to tn else ya to yn
                 if (n > 0) Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field)
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.tone(Tint.mood))
                         .clickable(onClick = if (forToday) onOpenJournal else onOpenJournalYesterday)
-                        .padding(horizontal = 14.dp, vertical = 12.dp).testTag("journal_yesterday"),
+                        .padding(horizontal = 16.dp, vertical = 14.dp).testTag("journal_yesterday"),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
@@ -263,17 +257,19 @@ fun HomeScreen(
                         }
                         Text(title, style = MaterialTheme.typography.titleSmall, color = p.text)
                         val st = vm.journalStreak
-                        val m = vm.journalReminderMin
+                        val mm = vm.journalReminderMin
                         Text(
                             when {
                                 st > 0 -> "Serie di $st ${if (st == 1) "giorno" else "giorni"}"
-                                !evening && vm.journalReminderOn -> "Promemoria alle %02d:%02d".format(m / 60, m % 60)
+                                !evening && vm.journalReminderOn -> "Promemoria alle %02d:%02d".format(mm / 60, mm % 60)
                                 else -> "Si compila la sera, in 30 secondi"
                             },
                             style = MaterialTheme.typography.bodySmall, color = p.text2,
                         )
                     }
-                    Text(if (a >= n) "Rivedi" else if (!evening && forToday && a == 0) "Apri" else "Rispondi", style = MaterialTheme.typography.labelLarge, color = p.brand)
+                    Box(Modifier.clip(RoundedCornerShape(50)).background(p.brand).padding(horizontal = 14.dp, vertical = 8.dp)) {
+                        Text(if (a >= n) "Rivedi" else if (!evening && forToday && a == 0) "Apri" else "Rispondi", style = MaterialTheme.typography.labelLarge, color = p.onBrand)
+                    }
                 }
             }
         }
@@ -281,13 +277,188 @@ fun HomeScreen(
 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickAction("Pressione", vm.bpSummary?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)}" } ?: "Registra", Tint.bp, BioIcons.Heart, onGoBp, Modifier.weight(1f))
-                QuickAction("Analisi", "${vm.panels.size} prelievi", Tint.blue, BioIcons.Drop, onGoLabs, Modifier.weight(1f))
-                QuickAction("Chiedi a Claude", "Consigli", Tint.sleep, BioIcons.Chat, { onAsk("") }, Modifier.weight(1f))
+                QuickAction("Analisi del sangue", "${vm.panels.size} prelievi", Tint.blood, BioIcons.Drop, onGoLabs, Modifier.weight(1f))
+                QuickAction("Chiedi a Claude", "Domande sui tuoi dati", Tint.sleep, BioIcons.Chat, { onAsk("") }, Modifier.weight(1f))
             }
         }
 
         item { Caption("Stime statistiche a scopo informativo, non diagnosi.") }
+    }
+}
+
+// =============================================================================================
+// Riquadri del cruscotto
+// =============================================================================================
+
+/** Riquadro grande tonale (contenitore pastello del colore di dominio). */
+@Composable
+private fun BigTile(
+    label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, modifier: Modifier, onClick: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val p = LocalPalette.current
+    Column(
+        modifier.clip(RoundedCornerShape(28.dp)).background(p.tone(tint, 1.4f)).clickable(onClick = onClick).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(30.dp).clip(CircleShape).background(tint), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = Color.White, modifier = Modifier.size(17.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
+        }
+        Spacer(Modifier.height(6.dp))
+        content()
+    }
+}
+
+@Composable
+private fun BigNumber(value: String, unit: String? = null, dim: Boolean = false) {
+    val p = LocalPalette.current
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 52.sp, lineHeight = 54.sp, fontFeatureSettings = TABULAR),
+            color = if (dim) p.text3 else p.text, maxLines = 1)
+        if (unit != null) Text(unit, style = MaterialTheme.typography.titleSmall, color = p.text2, modifier = Modifier.padding(start = 3.dp, bottom = 9.dp), maxLines = 1)
+    }
+}
+
+/** Recupero: punteggio, giudizio rispetto alle tue giornate e consiglio in poche parole. */
+@Composable
+private fun RecoveryTile(vm: AppViewModel, mood: Mood, m: Modifier, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    val t = vm.today
+    val score = t.readiness.score
+    val pct = vm.readinessPercentile
+    val (title, advice) = when {
+        score == null -> "In attesa" to "Servono alcune notti con l'orologio"
+        t.readiness.flags.isNotEmpty() -> gentleMessage(mood, true).first to "Leggi l'avviso in alto"
+        pct == null -> (if (score >= 75) "Buono" else if (score >= 50) "Discreto" else "Basso") to "Il confronto arriva dopo 14 giorni"
+        pct >= 70 -> "Meglio del solito" to "Buon giorno per spingere"
+        pct >= 30 -> "Nella tua media" to "Allenati come al solito"
+        else -> "Sotto il solito" to "Meglio un giorno leggero"
+    }
+    val tone = when { score == null -> Tint.brand; pct != null && pct < 30 -> Tint.warn; score < 50 -> Tint.warn; else -> Tint.brand }
+    BigTile("Recupero", BioIcons.Bolt, tone, m.testTag("hero"), onClick) {
+        BigNumber(score?.toString() ?: "—", if (score != null) "/100" else null, dim = score == null)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = p.text, maxLines = 1)
+        Text(advice, style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 2)
+        if (pct != null) Text("Meglio del $pct% dei tuoi giorni", style = MaterialTheme.typography.labelMedium, color = p.ink(tone), maxLines = 2)
+    }
+}
+
+@Composable
+private fun SleepTile(vm: AppViewModel, m: Modifier, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    val n = vm.today.night
+    val sc = vm.today.sleep?.score
+    BigTile("Sonno", BioIcons.Moon, Tint.sleep, m, onClick) {
+        if (n == null) {
+            BigNumber("—", dim = true)
+            Text("Nessuna notte", style = MaterialTheme.typography.titleMedium, color = p.text)
+            Text("L'orologio non ha registrato il sonno", style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 2)
+        } else {
+            val mins = n.totalSleepMin.toInt()
+            Row(verticalAlignment = Alignment.Bottom) {
+                BigNumber("${mins / 60}", "h")
+                Spacer(Modifier.width(4.dp))
+                BigNumber("%02d".format(mins % 60), "min")
+            }
+            Text(sc?.let { "Punteggio $it" } ?: "Stanotte", style = MaterialTheme.typography.titleMedium, color = p.text, maxLines = 1)
+            val z = java.time.ZoneId.systemDefault()
+            val fmt = DateTimeFormatter.ofPattern("HH:mm")
+            Text("${n.start.atZone(z).format(fmt)} – ${n.end.atZone(z).format(fmt)}", style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
+            vm.sleepPercentile?.let { Text("Meglio del $it% delle tue notti", style = MaterialTheme.typography.labelMedium, color = p.ink(Tint.sleep), maxLines = 2) }
+        }
+    }
+}
+
+/** Movimento di oggi: minuti attivi (settimana OMS), passi e carico, ciascuno con la sua barra. */
+@Composable
+private fun MoveTile(vm: AppViewModel, chrono: Double?, onGoActivity: () -> Unit, onOpenMetric: (String) -> Unit) {
+    val p = LocalPalette.current
+    val today = LocalDate.now()
+    val act = vm.todayActivity
+    val dayAct = vm.todayDayActivity
+    val goal = Fitness.stepGoal(chrono)
+    val week = Fitness.weekActiveMinutes(vm.dayLoads, today)
+    val target = vm.targetLoad
+    val todays = vm.displaySessions.filter { it.start.atZone(ZoneId.systemDefault()).toLocalDate() == today }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.tone(Tint.activity, 1.4f)).clickable(onClick = onGoActivity)
+            .padding(18.dp).testTag("move_tile"),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(30.dp).clip(CircleShape).background(Tint.activity), contentAlignment = Alignment.Center) {
+                Icon(BioIcons.Bolt, null, tint = Color.White, modifier = Modifier.size(17.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("Movimento di oggi", style = MaterialTheme.typography.titleSmall, color = p.text, modifier = Modifier.weight(1f))
+            if (dayAct?.stale == true) Text("non aggiornato", style = MaterialTheme.typography.labelMedium, color = p.ink(Tint.warn))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            MoveStat("Minuti attivi", dayAct?.activeMinutes?.toString() ?: "—", "settimana $week/150", week / 150f, Tint.good, Modifier.weight(1f)) { onOpenMetric(DETAIL_ACTIVE) }
+            MoveStat("Passi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—", "obiettivo ${String.format(Locale.ITALY, "%,d", goal)}",
+                act?.let { it.steps / goal.toFloat() }, Tint.activity, Modifier.weight(1f)) { onOpenMetric("STEPS") }
+            val load = dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.load
+            MoveStat("Carico", load?.f(0) ?: "—", target?.let { "obiettivo ${it.low.f(0)}–${it.high.f(0)}" } ?: "in calibrazione",
+                if (load != null && target != null) (load / target.high).toFloat() else null, Tint.load, Modifier.weight(1f)) { onGoActivity() }
+        }
+        Text(
+            if (todays.isEmpty()) "Allenamenti oggi: nessuno" else "Allenamenti oggi: " + todays.joinToString(", ") { exerciseName(it.hcType, it.title) },
+            style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun MoveStat(label: String, value: String, sub: String, fraction: Float?, c: Color, modifier: Modifier, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Column(modifier.clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = p.text2, maxLines = 1)
+        Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
+        Track(fraction ?: 0f, c)
+        Text(sub, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 1)
+    }
+}
+
+/** Parametro della notte: valore, posizione nel tuo intervallo abituale e giudizio in parole. */
+@Composable
+private fun VitalTile(
+    vm: AppViewModel, e: it.cinocinorob.bioeta.science.SignalEval, metric: Metric?,
+    icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, m: Modifier, onClick: () -> Unit,
+) {
+    val p = LocalPalette.current
+    val v = e.value
+    val z = e.z
+    val (verdict, vc) = when {
+        v == null -> "Nessun dato stanotte" to p.text3
+        z == null -> "In calibrazione (${e.baselineNights}/7 notti)" to p.text3
+        e.concerning -> (if (z > 0) "Più alta del solito" else "Più bassa del solito") to p.ink(Tint.warn)
+        kotlin.math.abs(z) >= 2 -> (if (z > 0) "Sopra il tuo intervallo" else "Sotto il tuo intervallo") to p.ink(Tint.blue)
+        else -> "Nella norma" to p.ink(Tint.good)
+    }
+    Column(
+        m.clip(RoundedCornerShape(24.dp)).background(p.card).clickable(onClick = onClick).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(28.dp).clip(CircleShape).background(p.toneStrong(tint)), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = p.ink(tint), modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(e.spec.label, style = MaterialTheme.typography.labelLarge, color = p.text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            val sign = if (e.spec.key == "temp" && (v ?: 0.0) >= 0) "+" else ""
+            Text(v?.let { sign + it.f(e.spec.decimals) } ?: "—", style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, fontFeatureSettings = TABULAR),
+                color = if (v == null) p.text3 else p.text, maxLines = 1)
+            if (v != null) Text(" ${e.spec.unit}", style = MaterialTheme.typography.labelMedium, color = p.text2, modifier = Modifier.padding(bottom = 5.dp), maxLines = 1)
+        }
+        if (v != null && e.low != null && e.high != null) RangeDot(v, e.low, e.high, tint, Modifier.fillMaxWidth())
+        Text(verdict, style = MaterialTheme.typography.labelLarge, color = vc, maxLines = 1)
+        e.median?.let { Text("di solito ${it.f(e.spec.decimals)} ${e.spec.unit}", style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1) }
     }
 }
 
@@ -342,91 +513,13 @@ private fun DataFreshnessRow(vm: AppViewModel, onOpenSync: () -> Unit) {
         else -> "Aggiornato ${agoShort(vm.lastRefresh)}" + (st.origins.takeIf { it.isNotEmpty() }?.let { " · " + it.joinToString(", ") } ?: "")
     }
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).clickable(onClick = onOpenSync).padding(vertical = 6.dp, horizontal = 4.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(p.card).clickable(onClick = onOpenSync).padding(vertical = 10.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.labelLarge, color = p.text2, maxLines = 1, modifier = Modifier.weight(1f))
-        Text("Fonti", style = MaterialTheme.typography.labelLarge, color = p.brand)
-    }
-}
-
-/** Quadrante: recupero, sonno e carico attorno al cuore che batte alla frequenza a riposo. */
-@Composable
-private fun HeroToday(vm: AppViewModel, mood: Mood, onGoHealth: () -> Unit, onGoActivity: () -> Unit, onOpenJournal: () -> Unit) {
-    val p = LocalPalette.current
-    val t = vm.today
-    val dayAct = vm.todayDayActivity
-    val score = t.readiness.score
-    // Un solo messaggio coerente: quando c'è il rango personale guida il testo (il punteggio assoluto tende a stare alto)
-    val pct = vm.readinessPercentile
-    val (title, msg) = when {
-        t.readiness.flags.isNotEmpty() || pct == null -> gentleMessage(mood, t.readiness.flags.isNotEmpty())
-        pct >= 70 -> "Meglio del solito" to "Sei più recuperato della maggior parte delle tue giornate: buon giorno per un allenamento impegnativo, se ti va."
-        pct >= 30 -> "Nella tua media" to "Recupero in linea con le tue giornate abituali: puoi allenarti come al solito."
-        else -> "Sotto il tuo solito" to "Il punteggio è ancora buono, ma più basso della maggior parte delle tue giornate: oggi meglio un'attività moderata e un buon sonno."
-    }
-    val ringColor = p.brand
-    // Contenitore tonale (Material 3): una velatura del colore dello stato di oggi
-    val tone = when { score == null -> Color.Transparent; score >= 75 -> Tint.good; score >= 50 -> Tint.warn; else -> Tint.bad }
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)).background(p.card).background(tone.copy(alpha = if (p.dark) 0.09f else 0.07f))
-            // Anelli di accrescimento attorno al marchio: l'unico elemento decorativo dell'app
-            .drawBehind {
-                val c = Offset(size.width - 58.dp.toPx(), 62.dp.toPx())
-                for (i in 1..7) drawCircle(ringColor.copy(alpha = 0.09f - i * 0.01f), radius = (40 + i * 26).dp.toPx(), center = c, style = Stroke(1.dp.toPx()))
-            }
-            .clickable(onClick = onGoHealth)
-            .padding(start = 20.dp, end = 16.dp, top = 18.dp, bottom = 16.dp)
-            .testTag("hero"),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f)) {
-                Text("Recupero di oggi", style = MaterialTheme.typography.labelLarge, color = p.text2)
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        score?.toString() ?: "—",
-                        style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 92.sp, lineHeight = 92.sp, letterSpacing = (-1).sp, fontFeatureSettings = TABULAR),
-                        color = if (score == null) p.text3 else p.text,
-                    )
-                    if (score != null) Text("/100", style = MaterialTheme.typography.titleMedium, color = p.text3, modifier = Modifier.padding(start = 4.dp, bottom = 14.dp))
-                }
-            }
-            BeatingRings(vm.restHrRef, size = 84, light = !p.dark)
-        }
-        Text(title, style = MaterialTheme.typography.titleLarge, color = p.text)
-        Text(msg, style = MaterialTheme.typography.bodyMedium, color = p.text2)
-        // Lettura personale: dove si colloca oggi rispetto alla tua storia (i punteggi assoluti saturano)
-        val parts = listOfNotNull(
-            vm.readinessPercentile?.let { "Meglio del $it% delle tue giornate" },
-            vm.sleepPercentile?.let { "Sonno meglio del $it% delle tue notti" },
-        )
-        parts.forEach { Text(it, style = MaterialTheme.typography.labelLarge, color = p.text) }
-        if (parts.isEmpty() && score != null) Text("Il confronto con le tue giornate compare dopo 14 giorni di dati.", style = MaterialTheme.typography.labelMedium, color = p.text3)
-        androidx.compose.material3.HorizontalDivider(color = p.sep, thickness = 1.dp, modifier = Modifier.padding(top = 4.dp))
-        val todayMood = vm.journalFor(LocalDate.now()).mood
-        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            HeroReadout("Sonno", t.sleep?.score?.toString() ?: "—", Tint.sleep, onGoHealth, Modifier.weight(1f))
-            androidx.compose.material3.VerticalDivider(color = p.sep)
-            HeroReadout("Carico", dayAct?.takeIf { it.quality != LoadQuality.UNAVAILABLE }?.load?.f(0) ?: "—", Tint.load, onGoActivity, Modifier.weight(1f))
-            androidx.compose.material3.VerticalDivider(color = p.sep)
-            HeroReadout("Umore", todayMood?.let { MOOD_LABELS[it - 1] } ?: "—", Tint.mood, onOpenJournal, Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun HeroReadout(label: String, value: String, c: Color, onClick: () -> Unit, modifier: Modifier) {
-    val p = LocalPalette.current
-    Column(modifier.clickable(onClick = onClick).padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 26.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(c))
-            Spacer(Modifier.width(5.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, color = p.text2, maxLines = 1)
-        }
+        Text("Fonti", style = MaterialTheme.typography.labelLarge, color = p.ink(p.brand))
     }
 }
 
@@ -434,12 +527,14 @@ private fun HeroReadout(label: String, value: String, c: Color, onClick: () -> U
 private fun QuickAction(title: String, value: String, tint: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier) {
     val p = LocalPalette.current
     Column(
-        modifier.clip(RoundedCornerShape(20.dp)).background(p.card).clickable(onClick = onClick).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier.clip(RoundedCornerShape(24.dp)).background(p.tone(tint)).clickable(onClick = onClick).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
-        Text(value, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
-        Text(title, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 1)
+        Box(Modifier.size(32.dp).clip(CircleShape).background(tint), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        }
+        Text(title, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
     }
 }
 
@@ -448,8 +543,8 @@ private fun QuickAction(title: String, value: String, tint: Color, icon: android
 private fun CompactRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, title: String, subtitle: String, onClick: () -> Unit) {
     val p = LocalPalette.current
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card)
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
+            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconBadge(icon, tint, 32)

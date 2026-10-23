@@ -150,7 +150,7 @@ fun FreeClaudeView(vm: AppViewModel, modifier: Modifier, initialQuestion: String
             Button(
                 onClick = { openInClaude(ctx, vm.freePrompt(question)) },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Tint.sleep),
+                colors = ButtonDefaults.buttonColors(),
             ) {
                 Icon(BioIcons.Sparkle, null, modifier = Modifier.size(18.dp))
                 Text("  Apri in Claude", fontWeight = FontWeight.ExtraBold)
@@ -181,7 +181,7 @@ fun FreeClaudeView(vm: AppViewModel, modifier: Modifier, initialQuestion: String
                 }, modifier = Modifier.weight(1f)) { Text("Incolla") }
                 Button(
                     onClick = { vm.checkPastedAnswer(pasted) }, enabled = pasted.isNotBlank() && !vm.checkingPaste,
-                    modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Tint.good),
+                    modifier = Modifier.weight(1f),
                 ) { Text("Verifica", fontWeight = FontWeight.Bold) }
             }
             if (vm.checkingPaste) Row(verticalAlignment = Alignment.CenterVertically) {

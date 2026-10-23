@@ -114,7 +114,7 @@ fun LabsScreen(
                     Button(
                         onClick = onImportReport,
                         enabled = !vm.importing,
-                        colors = ButtonDefaults.buttonColors(containerColor = Tint.blood),
+                        colors = ButtonDefaults.buttonColors(),
                         modifier = Modifier.weight(1f),
                     ) {
                         Icon(BioIcons.Doc, null, Modifier.size(18.dp)); Text("  Importa")

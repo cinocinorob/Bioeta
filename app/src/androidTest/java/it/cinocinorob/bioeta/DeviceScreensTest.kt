@@ -274,10 +274,10 @@ class DeviceScreensTest {
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("highlights"))
             screenshot("home_in_evidenza")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("I tuoi numeri"))
-            screenshot("home_eta_fisiologia")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Allenamenti oggi", substring = true))
-            screenshot("home_attivita")
+            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Parametri della notte"))
+            screenshot("home_parametri_notte")
+            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Corpo ed età"))
+            screenshot("home_corpo_eta")
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("discoveries_card"))
             screenshot("home_fine")
             // Diario in stile WHOOP: abitudini di ieri
@@ -380,11 +380,15 @@ class DeviceScreensTest {
             compose.onNodeWithTag("profile_button").performClick()
             Thread.sleep(1000)
             screenshot("profilo")
-            compose.onNodeWithText("Chiaro").performClick()
+            compose.onNodeWithText("Scuro").performClick()
             back()
-            screenshot("home_tema_chiaro")
+            screenshot("home_tema_scuro")
+            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Parametri della notte"))
+            screenshot("home_tema_scuro_parametri")
             tab("ACTIVITY")
-            screenshot("attivita_tema_chiaro")
+            screenshot("attivita_tema_scuro")
+            tab("HEALTH")
+            screenshot("salute_tema_scuro")
         }
         Unit
     }

@@ -256,9 +256,7 @@ private fun MainTabs(
                     }
                 },
                 navigationIcon = {
-                    Box(Modifier.padding(start = 12.dp, end = 4.dp).size(34.dp).clip(RoundedCornerShape(10.dp)).background(androidx.compose.ui.graphics.Color(0xFF0C1C20)), contentAlignment = Alignment.Center) {
-                        BioLogo(size = 30)
-                    }
+                    BioLogo(Modifier.padding(start = 14.dp, end = 4.dp), size = 34)
                 },
                 actions = {
                     if (tab == Tab.LABS) IconButton(onClick = { askClaude("") }) { Icon(BioIcons.Chat, "Chiedi a Claude") }
@@ -278,7 +276,7 @@ private fun MainTabs(
             )
         },
         bottomBar = {
-            NavigationBar(containerColor = pal.bg, tonalElevation = 0.dp, modifier = Modifier.drawBehind { drawLine(pal.sep, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
                         modifier = Modifier.testTag("tab_${t.name}"),
@@ -286,8 +284,8 @@ private fun MainTabs(
                         icon = { Icon(tabIcon(t), null) },
                         label = { Text(t.label, maxLines = 1) },
                         colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                            selectedIconColor = pal.brand, selectedTextColor = pal.text,
-                            indicatorColor = pal.brand.copy(alpha = 0.14f),
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer, selectedTextColor = pal.text,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                             unselectedIconColor = pal.text2, unselectedTextColor = pal.text2,
                         ),
                     )
@@ -403,7 +401,7 @@ fun WelcomeScreen(onAccept: () -> Unit) {
             .padding(horizontal = 24.dp, vertical = 48.dp).testTag("welcome"),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(18.dp),
     ) {
-        BeatingRings(60.0, size = 96, light = !p.dark)
+        BioLogo(size = 88)
         Text("Benvenuto in BioEtà", style = MaterialTheme.typography.headlineLarge, color = p.text)
         Text("Legge i dati del tuo orologio da Connessione Salute e le tue analisi del sangue, e li confronta con la tua normalità e con la letteratura scientifica.",
             style = MaterialTheme.typography.bodyLarge, color = p.text2)
@@ -412,7 +410,7 @@ fun WelcomeScreen(onAccept: () -> Unit) {
             "I tuoi dati restano sul telefono" to "Nessun account, nessun server, nessuna pubblicità. Connessione Salute è letta in sola lettura. Solo se usi l'assistente, la domanda e un riepilogo dei tuoi valori vengono inviati ad Anthropic con la tua chiave.",
             "Ogni numero ha un metodo" to "Formule, fonti e limiti sono spiegati nell'app (icona ⓘ) e nel documento dei metodi.",
         ).forEach { (t, b) ->
-            androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).padding(16.dp),
+            androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(18.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
                 Text(t, style = MaterialTheme.typography.titleMedium, color = p.text)
                 Text(b, style = MaterialTheme.typography.bodyMedium, color = p.text2)

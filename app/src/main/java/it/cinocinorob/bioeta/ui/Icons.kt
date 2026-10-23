@@ -49,5 +49,6 @@ object BioIcons {
     val Chat = filled("chat", "M4,4h16a2,2 0 0,1 2,2v10a2,2 0 0,1 -2,2H9l-5,4v-4H4a2,2 0 0,1 -2,-2V6a2,2 0 0,1 2,-2z")
     val Shield = filled("shield", "M12,2l8,3v6c0,5 -3.4,9.4 -8,11c-4.6,-1.6 -8,-6 -8,-11V5z")
     val Stethoscope = stroked("stetho", "M6,3v6a5,5 0 0,0 10,0V3M11,14v2a5,5 0 0,0 10,0v-2M21,14a2,2 0 1,0 0.01,0", 2.0f)
+    val Thermo = stroked("thermo", "M10,4a2,2 0 0,1 4,0v9.5a4,4 0 1,1 -4,0zM12,10v7")
     val Gear = stroked("gear", "M12,9a3,3 0 1,1 0,6a3,3 0 1,1 0,-6M12,2v3M12,19v3M2,12h3M19,12h3M4.9,4.9l2.1,2.1M17,17l2.1,2.1M4.9,19.1l2.1,-2.1M17,7l2.1,-2.1")
 }

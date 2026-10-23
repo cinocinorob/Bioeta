@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Sfondo scuro fin dall'avvio: niente lampo bianco prima del primo frame Compose. -->
-    <style name="Theme.BioEta" parent="android:Theme.Material.NoActionBar">
+    <!-- Sfondo del tema fin dall'avvio: niente lampo di colore diverso prima del primo frame Compose. -->
+    <style name="Theme.BioEta" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/bio_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
-    <color name="ic_bg">#0C1C20</color>
-    <color name="bio_bg">#0C1C20</color>
+    <color name="ic_bg">#00897B</color>
+    <color name="bio_bg">#F2F4F9</color>
 </resources>
