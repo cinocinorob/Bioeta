@@ -13,11 +13,18 @@ import kotlin.math.min
  * Funzioni pure, senza dipendenze Android, coperte da test unitari (ActivityEngineTest).
  *
  * 1) Serie minuto per minuto della FC:
- *    - i campioni sono raggruppati per minuto (media);
+ *    - riconciliazione delle fonti (come Vora o la «priorità delle app» di Connessione Salute): se più app
+ *      scrivono la FC (orologio, anello, telefono) NON si fa la media tra loro. Si usa una fonte principale
+ *      (quella scelta dall'utente o, in automatico, quella con più minuti misurati nel giorno) e le altre
+ *      servono solo a coprire i minuti in cui la principale non ha dati. Motivo: un anello misura di giorno
+ *      soprattutto a riposo; mediato con l'orologio durante una camminata abbassava la FC e faceva perdere
+ *      minuti attivi;
+ *    - i campioni sono raggruppati per minuto (media) separatamente per ogni fonte;
  *    - i minuti senza campione sono riempiti per interpolazione lineare SOLO se il buco tra due minuti
  *      misurati è ≤ MAX_GAP_MIN (5 min). Fitbit e altre app scrivono la FC con cadenza variabile:
  *      senza questo passaggio un'ora di corsa con un campione ogni 2–3 min risultava di pochi minuti.
- *      Buchi più lunghi restano "non coperti" (nessun valore inventato).
+ *      Buchi più lunghi restano "non coperti" (nessun valore inventato). L'interpolazione avviene dentro
+ *      una stessa fonte, mai tra un campione dell'orologio e uno dell'anello.
  *
  * 2) Intensità di ogni minuto (ACSM, Garber 2011, PMID 21694556) come % della riserva cardiaca (Karvonen):
  *    moderata 40–59%, vigorosa ≥ 60%. FCmax = 208 − 0,7·età (Tanaka 2001, PMID 11153730).
@@ -39,7 +46,7 @@ import kotlin.math.min
  *    Non è il carico muscolare né il consumo calorico.
  */
 
-const val ACTIVITY_ALGO_VERSION = 3
+const val ACTIVITY_ALGO_VERSION = 4
 
 enum class LoadQuality(val label: String) {
     UNAVAILABLE("Non disponibile"),
@@ -98,7 +105,20 @@ data class DayActivity(
     val quality: LoadQuality,
     /** Minuti classificati attivi dalla cadenza dei passi (non dalla FC). Già inclusi nei misurati. */
     val cadenceMinutes: Int = 0,
+    /** Minuti attivi equivalenti (vigorosi ×2) dovuti alla cadenza: parte dei misurati. */
+    val cadenceEq: Int = 0,
+    /** Minuti attivi equivalenti per ora locale (0–23), misurati + stimati: per la linea del giorno. */
+    val hourly: List<Int> = emptyList(),
+    /** App usata come fonte principale della FC nel giorno (nome del pacchetto), null se nessuna FC. */
+    val source: String? = null,
+    /** Quando è stato calcolato (secondi epoch): un giorno calcolato prima della fine non va riusato. */
+    val computedAt: Long = 0,
+    /** true = l'ultima lettura da Connessione Salute non è riuscita: valore precedente, non aggiornato. */
+    val stale: Boolean = false,
 ) {
+    /** Minuti attivi equivalenti dalla sola frequenza cardiaca. */
+    val hrEq: Int get() = moderateMeasured + 2 * vigorousMeasured - cadenceEq
+
     /** Minuti attivi equivalenti OMS (vigorosi ×2), misurati + stimati. */
     val activeMinutes: Int get() = moderateMeasured + moderateEstimated + 2 * (vigorousMeasured + vigorousEstimated)
     val estimatedShare: Int get() = moderateEstimated + 2 * vigorousEstimated
@@ -139,7 +159,35 @@ object ActivityEngine {
         return if (shorter <= 0) 0.0 else Duration.between(s, e).seconds / 60.0 / shorter
     }
 
-    /** Media per minuto (chiave = minuto epoch) con interpolazione dei buchi brevi. */
+    /** FC per minuto riconciliata tra le fonti. */
+    data class HrSeries(
+        val byMinute: Map<Long, Double>,
+        /** Fonte principale (pacchetto), null se non c'è FC. */
+        val primary: String?,
+        /** Minuti presi da ciascuna fonte nella serie finale. */
+        val minutesByOrigin: Map<String, Int>,
+    )
+
+    /**
+     * Riconciliazione delle fonti: serie per minuto di ciascuna app (con interpolazione interna), poi
+     * fonte principale = [prefer] se presente nei dati, altrimenti quella con più minuti; le altre fonti
+     * riempiono solo i minuti mancanti, in ordine di copertura.
+     */
+    fun reconcile(samples: List<HrSample>, prefer: String? = null, maxGapMin: Int = MAX_GAP_MIN): HrSeries {
+        val per = samples.groupBy { it.origin }.mapValues { (_, l) -> minuteSeries(l, maxGapMin) }.filterValues { it.isNotEmpty() }
+        if (per.isEmpty()) return HrSeries(emptyMap(), null, emptyMap())
+        val order = per.entries.sortedWith(compareByDescending<Map.Entry<String, Map<Long, Double>>> { it.key == prefer }.thenByDescending { it.value.size }).map { it.key }
+        val out = HashMap<Long, Double>(per.getValue(order.first()).size * 2)
+        val count = LinkedHashMap<String, Int>()
+        for (o in order) {
+            var n = 0
+            for ((k, v) in per.getValue(o)) if (!out.containsKey(k)) { out[k] = v; n++ }
+            if (n > 0) count[o] = n
+        }
+        return HrSeries(out, order.first(), count)
+    }
+
+    /** Media per minuto (chiave = minuto epoch) con interpolazione dei buchi brevi. Una sola fonte. */
     fun minuteSeries(samples: List<HrSample>, maxGapMin: Int = MAX_GAP_MIN): Map<Long, Double> {
         val raw = samples.filter { it.bpm in 25.0..240.0 }
             .groupBy { Math.floorDiv(it.time.epochSecond, 60L) }
@@ -175,6 +223,8 @@ object ActivityEngine {
     const val CADENCE_VIGOROUS = 130.0
     /** Si usa la cadenza solo da record di passi brevi: in un blocco lungo non si sa come sono distribuiti. */
     const val CADENCE_MAX_CHUNK_MIN = 10
+    /** Oltre questa cadenza il dato è implausibile (record sovrapposti della stessa app): minuto scartato. */
+    const val CADENCE_PLAUSIBLE_MAX = 250.0
 
     /** Cadenza per minuto (passi/min) dai record grezzi brevi; tra app diverse si prende il massimo. */
     fun cadenceByMinute(chunks: List<StepChunk>): Map<Long, Double> {
@@ -194,7 +244,7 @@ object ActivityEngine {
             }
         }
         val out = HashMap<Long, Double>()
-        for (m in perOrigin.values) for ((k, v) in m) out[k] = maxOf(out[k] ?: 0.0, v)
+        for (m in perOrigin.values) for ((k, v) in m) if (v <= CADENCE_PLAUSIBLE_MAX) out[k] = maxOf(out[k] ?: 0.0, v)
         return out
     }
 
@@ -207,11 +257,16 @@ object ActivityEngine {
         age: Double,
         male: Boolean,
         cadence: Map<Long, Double> = emptyMap(),
+        source: String? = null,
+        computedAt: Long = 0,
     ): DayActivity {
         val dayStartMin = Math.floorDiv(date.atStartOfDay(zone).toEpochSecond(), 60L)
         val dayEndMin = Math.floorDiv(date.plusDays(1).atStartOfDay(zone).toEpochSecond(), 60L)
         val maxHr = Fitness.hrMax(age)
-        var load = 0.0; var hrMin = 0; var modM = 0; var vigM = 0; var cadM = 0
+        var load = 0.0; var hrMin = 0; var modM = 0; var vigM = 0; var cadM = 0; var cadEq = 0
+        val hourly = IntArray(24)
+        fun hourOf(m: Long) = java.time.Instant.ofEpochSecond(m * 60).atZone(zone).hour
+        fun credit(m: Long, cls: Int) { if (cls > 0) hourly[hourOf(m)] += cls }
         val zones = Zone.entries.associateWith { 0 }.toMutableMap()
         // 0 = sotto la soglia moderata, 1 = moderato, 2 = vigoroso
         fun cadClass(c: Double?) = when {
@@ -230,14 +285,15 @@ object ActivityEngine {
             if (f >= Zone.LIGHT.lo) load += Fitness.trimpMinute(f, male)
             val hrClass = when { f >= Zone.VIGOROUS.lo -> 2; f >= Zone.MODERATE.lo -> 1; else -> 0 }
             val cc = cadClass(cadence[m])
-            when (maxOf(hrClass, cc)) { 2 -> vigM++; 1 -> modM++ }
-            if (cc > hrClass) cadM++
-            if (maxOf(hrClass, cc) > 0) active += m
+            val cls = maxOf(hrClass, cc)
+            when (cls) { 2 -> vigM++; 1 -> modM++ }
+            if (cc > hrClass) { cadM++; cadEq += cc - hrClass }
+            if (cls > 0) { active += m; credit(m, cls) }
         }
         // Minuti senza FC ma con cadenza da camminata svelta o corsa
         for ((m, c) in cadence) {
             if (m < dayStartMin || m >= dayEndMin || hrByMinute.containsKey(m)) continue
-            when (cadClass(c)) { 2 -> { vigM++; cadM++; active += m }; 1 -> { modM++; cadM++; active += m } }
+            when (val cc = cadClass(c)) { 2, 1 -> { if (cc == 2) vigM++ else modM++; cadM++; cadEq += cc; active += m; credit(m, cc) } }
         }
         // Minuti di allenamento senza FC né cadenza: unione degli intervalli, per intensità (la vigorosa prevale)
         val estimated = HashMap<Long, SessionIntensity>()
@@ -252,6 +308,7 @@ object ActivityEngine {
                 if (prev == null || (prev == SessionIntensity.MODERATE && inten == SessionIntensity.VIGOROUS)) estimated[m] = inten
             }
         }
+        for ((m, i) in estimated) credit(m, if (i == SessionIntensity.VIGOROUS) 2 else 1)
         val modE = estimated.values.count { it == SessionIntensity.MODERATE }
         val vigE = estimated.values.count { it == SessionIntensity.VIGOROUS }
         val quality = when {
@@ -259,7 +316,18 @@ object ActivityEngine {
             hrMin < COMPLETE_COVERAGE_MIN -> LoadQuality.PARTIAL
             else -> LoadQuality.COMPLETE
         }
-        return DayActivity(date, hrMin, modM, vigM, modE, vigE, load, zones, quality, cadM)
+        return DayActivity(date, hrMin, modM, vigM, modE, vigE, load, zones, quality, cadM, cadEq, hourly.toList(), source, computedAt)
+    }
+
+    /**
+     * Un giorno in cache si può riusare solo se è stato calcolato dopo la sua fine, lasciando tempo
+     * all'orologio di sincronizzare: +6 h se la FC copre la giornata, +48 h altrimenti (orologio poco
+     * indossato o sincronizzato tardi). I giorni con allenamenti si ricalcolano sempre.
+     */
+    fun cacheReusable(c: DayActivity, zone: ZoneId, hasSessions: Boolean): Boolean {
+        if (hasSessions || c.stale) return false
+        val end = c.date.plusDays(1).atStartOfDay(zone).toEpochSecond()
+        return (c.computedAt >= end + 6 * 3600 && c.hrMinutes >= COMPLETE_COVERAGE_MIN) || c.computedAt >= end + 48 * 3600
     }
 
     /** Minuti di FC (reale o interpolata) dentro una sessione: serve a dire se l'allenamento ha dati cardiaci. */

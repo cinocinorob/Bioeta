@@ -813,7 +813,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Allenamenti senza doppioni tra app diverse, dal più recente. */
     val displaySessions: List<Session> get() = ActivityEngine.dedupe(sessions)
 
-    /** Ultimi 28 giorni di attività (minuti attivi misurati/stimati, carico cardiaco), dal più vecchio. */
+    /** Ultimi 35 giorni di attività (minuti attivi misurati/stimati, carico cardiaco), dal più vecchio. */
     private val initialDays = workoutStore.loadDays()?.takeIf { it.version == ACTIVITY_ALGO_VERSION }
     var dayActivities by mutableStateOf(initialDays?.days ?: emptyList())
         private set
@@ -881,85 +881,149 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun zoneId() = java.time.ZoneId.systemDefault()
 
-    /** FC minuto per minuto di un giorno locale (con 10 min di margine per interpolare a cavallo della mezzanotte). */
-    private suspend fun hrMinutesFor(d: java.time.LocalDate): Pair<Map<Long, Double>, Boolean> {
-        val zone = zoneId()
-        val from = d.atStartOfDay(zone).toInstant().minusSeconds(600)
-        val to = d.plusDays(1).atStartOfDay(zone).toInstant().plusSeconds(600)
-        val t0 = java.time.Instant.now()
-        val samples = health.heartRate(from, to)
-        val failed = health.errors["Frequenza cardiaca"]?.at?.isBefore(t0) == false
-        return withContext(Dispatchers.Default) { ActivityEngine.minuteSeries(samples) } to failed
+    /** Fonte della FC per minuti attivi e carico (nome del pacchetto); null = scelta automatica. */
+    var hrSourcePref by mutableStateOf(settings.getString("hr_source", null))
+        private set
+
+    /** Fonti di FC trovate nell'ultima lettura: pacchetto → minuti di FC usati da quella fonte. */
+    var hrOriginsSeen by mutableStateOf<Map<String, Int>>(emptyMap())
+        private set
+
+    /** true se nell'ultimo aggiornamento almeno un giorno non è stato letto (si mostra il valore precedente). */
+    var activityReadFailed by mutableStateOf(false)
+        private set
+
+    fun setHrSource(pkg: String?) {
+        hrSourcePref = pkg
+        settings.edit().apply { if (pkg == null) remove("hr_source") else putString("hr_source", pkg) }.apply()
+        viewModelScope.launch { quietly { refreshFitness() } }
     }
 
-    /** Cadenza dei passi minuto per minuto di un giorno locale (fallback quando la FC è rada o assente). */
-    private suspend fun cadenceFor(d: java.time.LocalDate): Map<Long, Double> {
-        val zone = zoneId()
-        val chunks = health.stepChunksSafe(d.atStartOfDay(zone).toInstant(), d.plusDays(1).atStartOfDay(zone).toInstant())
-        return withContext(Dispatchers.Default) { ActivityEngine.cadenceByMinute(chunks) }
+    /** Dati grezzi di un intervallo di giorni; null = lettura non riuscita. */
+    private class RawRange(val hr: List<HrSample>?, val steps: List<it.cinocinorob.bioeta.science.StepChunk>?) {
+        val ok get() = hr != null && steps != null
     }
 
-    private fun computeDay(d: java.time.LocalDate, hr: Map<Long, Double>, rest: Double, cadence: Map<Long, Double> = emptyMap()): DayActivity {
+    /** Una lettura per FC e una per i passi su tutto l'intervallo (con 10 min di margine per interpolare). */
+    private suspend fun readRange(from: java.time.LocalDate, to: java.time.LocalDate): RawRange {
+        val zone = zoneId()
+        val a = from.atStartOfDay(zone).toInstant(); val b = to.plusDays(1).atStartOfDay(zone).toInstant()
+        val hr = health.heartRateOrNull(a.minusSeconds(600), b.plusSeconds(600))
+        val steps = if (hr == null) null else health.stepChunksOrNull(a, b)
+        return RawRange(hr, steps)
+    }
+
+    /** Calcolo di un giorno dai dati grezzi già letti. Restituisce anche i minuti per fonte. */
+    private fun computeFromRaw(d: java.time.LocalDate, raw: RawRange, rest: Double, now: Long): Pair<DayActivity, Map<String, Int>> {
+        val zone = zoneId()
+        val a = d.atStartOfDay(zone).toInstant().minusSeconds(600); val b = d.plusDays(1).atStartOfDay(zone).toInstant().plusSeconds(600)
+        val series = ActivityEngine.reconcile(raw.hr.orEmpty().filter { it.time >= a && it.time < b }, hrSourcePref)
+        val cad = ActivityEngine.cadenceByMinute(raw.steps.orEmpty().filter { it.end.isAfter(a) && it.start.isBefore(b) })
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
-        return ActivityEngine.day(d, zoneId(), hr, displaySessions, rest, age, profile.sex == Sex.M, cadence)
+        val day = ActivityEngine.day(d, zone, series.byMinute, displaySessions, rest, age, profile.sex == Sex.M, cad, series.primary, now)
+        return day to series.minutesByOrigin
     }
 
     /** Solo oggi: per mostrare subito minuti attivi e carico di oggi nella fase veloce. */
     private suspend fun refreshToday() {
         val today = java.time.LocalDate.now(zoneId())
-        val (hr, _) = hrMinutesFor(today)
-        val cad = cadenceFor(today)
+        val raw = readRange(today, today)
+        if (!raw.ok) {
+            // Lettura non riuscita: si tiene il valore già mostrato (segnato come non aggiornato), mai zero
+            activityReadFailed = true
+            dayActivities = dayActivities.map { if (it.date == today) it.copy(stale = true) else it }
+            return
+        }
         val rest = stableRest()
-        val day = withContext(Dispatchers.Default) { computeDay(today, hr, rest, cad) }
+        val (day, origins) = withContext(Dispatchers.Default) { computeFromRaw(today, raw, rest, java.time.Instant.now().epochSecond) }
+        if (origins.isNotEmpty()) hrOriginsSeen = (hrOriginsSeen.keys + origins.keys).associateWith { maxOf(hrOriginsSeen[it] ?: 0, origins[it] ?: 0) }
         dayActivities = (dayActivities.filter { it.date != today } + day).sortedBy { it.date }
     }
 
+    /**
+     * Storico dei minuti attivi e del carico ([ACTIVITY_DAYS] giorni).
+     * - Riuso della cache solo per giorni calcolati DOPO la loro fine (+6 h per la sincronizzazione
+     *   dell'orologio; +48 h se l'orologio era poco indossato): prima un giorno calcolato a metà giornata
+     *   poteva restare in cache per sempre senza i minuti del pomeriggio.
+     * - Letture a blocchi di 7 giorni (una per FC e una per i passi) invece di due per giorno: molte meno
+     *   richieste a Connessione Salute, che oltre un certo numero di richieste le rifiuta per un po'.
+     * - Se un blocco non si legge, quei giorni mantengono il valore precedente (segnato come non aggiornato)
+     *   invece di diventare zero.
+     */
     private suspend fun refreshFitness() {
         todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         fitnessLoading = true
         try {
             val rest = stableRest()
+            val zone = zoneId()
             val cache = withContext(Dispatchers.IO) { workoutStore.loadDays() }
-            val reuse = if (cache != null && cache.version == ACTIVITY_ALGO_VERSION && kotlin.math.abs(cache.rest - rest) < 2.0 && kotlin.math.abs(cache.age - age) < 1.0)
-                cache.days.associateBy { it.date } else emptyMap()
-            val today = java.time.LocalDate.now(zoneId())
-            val out = mutableListOf<DayActivity>()
-            val failed = mutableSetOf<java.time.LocalDate>()
+            val valid = cache != null && cache.version == ACTIVITY_ALGO_VERSION && kotlin.math.abs(cache.rest - rest) < 2.0 &&
+                kotlin.math.abs(cache.age - age) < 1.0 && cache.hrSource == hrSourcePref
+            val reuse = if (valid) cache!!.days.associateBy { it.date } else emptyMap()
+            val previous = (cache?.days.orEmpty() + dayActivities).associateBy { it.date }
+            val today = java.time.LocalDate.now(zone)
             val sessionDays = displaySessions.flatMap { s ->
-                val a = s.start.atZone(zoneId()).toLocalDate(); val b = s.end.atZone(zoneId()).toLocalDate()
+                val a = s.start.atZone(zone).toLocalDate(); val b = s.end.atZone(zone).toLocalDate()
                 generateSequence(a) { it.plusDays(1) }.takeWhile { !it.isAfter(b) }.toList()
             }.toSet()
-            for (k in 27 downTo 0) {
-                val d = today.minusDays(k.toLong())
-                val c = reuse[d]
-                // Cache solo per giorni conclusi e completi; i giorni con allenamenti si ricalcolano sempre
-                // (un allenamento sincronizzato in ritardo deve comparire nei minuti attivi).
-                if (c != null && k >= 2 && c.hrMinutes >= ActivityEngine.COMPLETE_COVERAGE_MIN && d !in sessionDays) { out += c; continue }
-                val (hr, err) = hrMinutesFor(d)
-                if (err) failed += d
-                val cad = cadenceFor(d)
-                out += withContext(Dispatchers.Default) { computeDay(d, hr, rest, cad) }
+            // Un allenamento sincronizzato in ritardo deve comparire: i giorni con allenamenti si ricalcolano sempre
+            fun reusable(d: java.time.LocalDate, c: DayActivity) = ActivityEngine.cacheReusable(c, zone, d in sessionDays)
+            val days = (ACTIVITY_DAYS - 1 downTo 0).map { today.minusDays(it.toLong()) }
+            val need = days.filter { d -> reuse[d]?.let { !reusable(d, it) } ?: true }
+            val blocks = mutableListOf<MutableList<java.time.LocalDate>>()
+            for (d in need) {
+                val last = blocks.lastOrNull()
+                if (last != null && last.last().plusDays(1) == d && last.size < 7) last += d else blocks += mutableListOf(d)
             }
+            val computed = HashMap<java.time.LocalDate, DayActivity>()
+            val origins = HashMap<String, Int>()
+            val recentSamples = mutableListOf<HrSample>()
+            val readDays = HashSet<java.time.LocalDate>()
+            val since = java.time.Instant.now().minus(java.time.Duration.ofDays(14))
+            val recentSessions = displaySessions.filter { it.start.isAfter(since) }
+            var failed = false
+            val now = java.time.Instant.now().epochSecond
+            for (blk in blocks) {
+                val raw = readRange(blk.first(), blk.last())
+                if (!raw.ok) { failed = true; continue }
+                withContext(Dispatchers.Default) {
+                    for (d in blk) {
+                        val (day, o) = computeFromRaw(d, raw, rest, now)
+                        computed[d] = day; readDays += d
+                        o.forEach { (k, v) -> origins.merge(k, v, Int::plus) }
+                    }
+                    recentSamples += raw.hr.orEmpty().filter { smp ->
+                        recentSessions.any { s -> !smp.time.isBefore(s.start.minusSeconds(300)) && smp.time.isBefore(s.end.plusSeconds(300)) }
+                    }
+                }
+            }
+            val out = days.mapNotNull { d -> computed[d] ?: reuse[d]?.takeIf { reusable(d, it) } ?: previous[d]?.copy(stale = true) }
             dayActivities = out
-            withContext(Dispatchers.IO) { workoutStore.saveDays(rest, age, out.filter { it.date !in failed }) }
-            refreshWorkoutStats()
+            activityReadFailed = failed
+            if (origins.isNotEmpty()) hrOriginsSeen = origins
+            withContext(Dispatchers.IO) { workoutStore.saveDays(rest, age, out, hrSourcePref) }
+            refreshWorkoutStats(recentSessions, recentSamples, readDays)
         } finally {
             fitnessLoading = false
         }
     }
 
-    /** FC media/massima, copertura, zone e carico per gli allenamenti degli ultimi 14 giorni. */
-    private suspend fun refreshWorkoutStats() {
+    /**
+     * FC media/massima, copertura, zone e carico degli allenamenti degli ultimi 14 giorni, dai campioni già
+     * letti per lo storico (nessuna lettura in più). Allenamenti di giorni non letti: statistiche precedenti.
+     */
+    private fun refreshWorkoutStats(sessions: List<Session>, samples: List<HrSample>, readDays: Set<java.time.LocalDate>) {
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         val male = profile.sex == Sex.M
         val rest = stableRest()
         val maxHr = Fitness.hrMax(age)
-        val since = java.time.Instant.now().minus(java.time.Duration.ofDays(14))
+        val zone = zoneId()
         val out = HashMap<String, WorkoutStats>()
-        for (s in displaySessions.filter { it.start.isAfter(since) }) {
-            val samples = health.heartRate(s.start.minusSeconds(300), s.end.plusSeconds(300))
-            val series = withContext(Dispatchers.Default) { ActivityEngine.minuteSeries(samples) }
+        for (s in sessions) {
+            if (s.start.atZone(zone).toLocalDate() !in readDays) { workoutStats[s.id]?.let { out[s.id] = it }; continue }
+            val near = samples.filter { !it.time.isBefore(s.start.minusSeconds(300)) && it.time.isBefore(s.end.plusSeconds(300)) }
+            val series = ActivityEngine.reconcile(near, hrSourcePref).byMinute
             val a = Math.floorDiv(s.start.epochSecond, 60L); val b = Math.floorDiv(s.end.epochSecond + 59, 60L)
             val inSession = series.filterKeys { it in a until b }
             val zones = Zone.entries.associateWith { 0 }.toMutableMap()
@@ -971,7 +1035,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             out[s.id] = WorkoutStats(
                 avgHr = inSession.values.takeIf { it.isNotEmpty() }?.average(),
-                maxHr = samples.filter { it.time >= s.start && it.time <= s.end }.maxOfOrNull { it.bpm },
+                maxHr = near.filter { it.time >= s.start && it.time <= s.end }.maxOfOrNull { it.bpm },
                 hrCoverage = if (b > a) inSession.size.toDouble() / (b - a) else 0.0,
                 load = if (inSession.isEmpty()) null else load, zoneMinutes = zones,
             )
@@ -1239,5 +1303,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         const val DAYS_WINDOW = 120L
         const val RECOVERY_WINDOW = 75L
+        /** Giorni di storico dei minuti attivi: 5 settimane, per confrontare la settimana con le 4 precedenti. */
+        const val ACTIVITY_DAYS = 35
     }
 }

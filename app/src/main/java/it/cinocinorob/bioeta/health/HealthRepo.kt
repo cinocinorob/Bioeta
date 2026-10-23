@@ -414,22 +414,34 @@ class HealthRepo(private val context: Context) {
     // Fitness: FC grezza, attività di oggi, allenamenti
     // ------------------------------------------------------------------
 
-    suspend fun heartRate(start: Instant, end: Instant): List<HrSample> {
+    suspend fun heartRate(start: Instant, end: Instant): List<HrSample> = heartRateOrNull(start, end) ?: emptyList()
+
+    /**
+     * FC grezza con l'app di origine di ogni campione. null = lettura NON riuscita (diverso da «nessun dato»:
+     * chi chiama deve tenere il valore precedente invece di mostrare zero).
+     * Connessione Salute può rifiutare una lettura (app passata in secondo piano, limite di richieste):
+     * si riprova due volte con pausa crescente.
+     */
+    suspend fun heartRateOrNull(start: Instant, end: Instant): List<HrSample>? {
         if (HealthPermission.getReadPermission(HeartRateRecord::class) !in granted()) return emptyList()
         return track("Frequenza cardiaca") {
-            // Connessione Salute a volte rifiuta la lettura se l'app passa in secondo piano
-            // durante una lettura lunga: un secondo tentativo, dopo una breve pausa, di solito riesce.
-            // Il helper readRecords() scorre tutte le pagine prima di restituire i campioni.
-            val recs = try {
-                readRecords(HeartRateRecord::class, start, end)
-            } catch (e: SecurityException) {
-                kotlinx.coroutines.delay(700)
-                readRecords(HeartRateRecord::class, start, end)
-            }
-            recs
-                .flatMap { r -> r.samples.map { HrSample(it.time, it.beatsPerMinute.toDouble()) } }
+            withRetry { readRecords(HeartRateRecord::class, start, end) }
+                .flatMap { r -> val o = r.metadata.dataOrigin.packageName; r.samples.map { HrSample(it.time, it.beatsPerMinute.toDouble(), o) } }
                 .filter { it.time >= start && it.time < end }
-        } ?: emptyList()
+        }
+    }
+
+    /** Record dei passi grezzi; null = lettura non riuscita. */
+    suspend fun stepChunksOrNull(start: Instant, end: Instant): List<StepChunk>? =
+        if (HealthPermission.getReadPermission(StepsRecord::class) !in granted()) emptyList()
+        else track("Passi (cadenza)") { withRetry { stepChunks(start, end) } }
+
+    private suspend fun <T> withRetry(block: suspend () -> T): T {
+        var wait = 800L
+        repeat(2) {
+            try { return block() } catch (e: kotlin.coroutines.cancellation.CancellationException) { throw e } catch (e: Exception) { kotlinx.coroutines.delay(wait); wait *= 3 }
+        }
+        return block()
     }
 
     data class TodayActivity(
@@ -708,6 +720,8 @@ class HealthRepo(private val context: Context) {
                 ReadRecordsRequest(
                     recordType = type,
                     timeRangeFilter = TimeRangeFilter.between(start, end),
+                    // Pagina massima consentita: meno chiamate, quindi meno rischio di superare il limite di richieste
+                    pageSize = 5000,
                     pageToken = token,
                 )
             )

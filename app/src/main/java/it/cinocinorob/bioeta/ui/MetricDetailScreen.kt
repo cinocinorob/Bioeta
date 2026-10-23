@@ -97,7 +97,7 @@ fun MetricDetailScreen(vm: AppViewModel, key: String, onBack: () -> Unit) {
                     HealthCard(title, if (key == DETAIL_LOAD) BioIcons.Pulse else BioIcons.Bolt, tint, trailing = RANGES[range].second) {
                         if (acts.isEmpty()) {
                             EmptyState(BioIcons.Pulse, "Ancora nessun calcolo",
-                                "Servono la frequenza cardiaca o gli allenamenti da Connessione Salute. Lo storico calcolato copre al massimo le ultime 4 settimane.", tint)
+                                "Servono la frequenza cardiaca o gli allenamenti da Connessione Salute. Lo storico calcolato copre al massimo le ultime 5 settimane.", tint)
                         } else if (key == DETAIL_LOAD) {
                             val ok = acts.filter { it.quality != LoadQuality.UNAVAILABLE }
                             if (ok.isEmpty()) InlineNotice("Nessun giorno con frequenza cardiaca nel periodo: il carico non è calcolabile.", NoticeKind.WARN)
@@ -105,7 +105,7 @@ fun MetricDetailScreen(vm: AppViewModel, key: String, onBack: () -> Unit) {
                                 Row(verticalAlignment = Alignment.Bottom) {
                                     BigValue(ok.map { it.load }.average().f(0), "al giorno", size = 34)
                                 }
-                                DayBars(loadBars(vm, minOf(days, 28)), Tint.load, "carico", band = vm.targetLoad?.let { it.low to it.high }, height = 180)
+                                DayBars(loadBars(vm, minOf(days, 35)), Tint.load, "carico", band = vm.targetLoad?.let { it.low to it.high }, height = 180)
                                 val partial = acts.count { it.quality == LoadQuality.PARTIAL }
                                 val missing = acts.count { it.quality == LoadQuality.UNAVAILABLE }
                                 Caption("Giorni completi ${acts.count { it.quality == LoadQuality.COMPLETE }}, parziali $partial (meno di 10 h di FC), senza FC $missing (esclusi dal grafico).")
@@ -118,10 +118,14 @@ fun MetricDetailScreen(vm: AppViewModel, key: String, onBack: () -> Unit) {
                                 listOf(ChartLayer(acts.map { it.date.toEpochDay().toDouble() to it.activeMinutes.toDouble() }, tint, LayerKind.AREA, emphasizeLast = true)),
                                 height = 190, unit = "min",
                             )
+                            Caption("Media ${(total.toDouble() / acts.size * 7).f(0)} min a settimana (obiettivo OMS 150–300).")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                StatChip("Da FC", "${total - est}", "min", Modifier.weight(1f))
+                                StatChip("Da FC", "${acts.sumOf { it.hrEq }}", "min", Modifier.weight(1f))
+                                StatChip("Da passi", "${acts.sumOf { it.cadenceEq }}", "min", Modifier.weight(1f))
                                 StatChip("Stimati", "$est", "min", Modifier.weight(1f))
                             }
+                            val stale = acts.count { it.stale }
+                            if (stale > 0) Caption("$stale giorni non aggiornati: l'ultima lettura da Connessione Salute non è riuscita, si mostra il valore precedente.", Tint.warn)
                             if (est > 0) Caption("I minuti stimati vengono da allenamenti registrati senza frequenza cardiaca: intensità attribuita dal tipo di attività, in modo prudente.")
                         }
                     }

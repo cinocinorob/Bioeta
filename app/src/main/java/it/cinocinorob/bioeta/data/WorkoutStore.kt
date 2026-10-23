@@ -115,7 +115,7 @@ class WorkoutStore(context: Context) {
 
     // ---------------- Cache dei giorni di attività (ricalcolabile, non nei backup) ----------------
 
-    data class DayCache(val version: Int, val rest: Double, val age: Double, val days: List<DayActivity>)
+    data class DayCache(val version: Int, val rest: Double, val age: Double, val days: List<DayActivity>, val hrSource: String? = null)
 
     fun loadDays(): DayCache? = runCatching {
         val o = JSONObject(actFile.readText())
@@ -129,18 +129,24 @@ class WorkoutStore(context: Context) {
                     d.getDouble("l"), Zone.entries.associateWith { z?.optInt(it.name, 0) ?: 0 },
                     runCatching { LoadQuality.valueOf(d.getString("q")) }.getOrDefault(LoadQuality.UNAVAILABLE),
                     d.optInt("cad", 0),
+                    d.optInt("ce", 0),
+                    d.optJSONArray("h")?.let { h -> (0 until h.length()).map { h.getInt(it) } } ?: emptyList(),
+                    d.optString("s", "").ifEmpty { null },
+                    d.optLong("t", 0L),
                 )
             },
+            o.optString("src", "").ifEmpty { null },
         )
     }.getOrNull()
 
-    fun saveDays(rest: Double, age: Double, days: List<DayActivity>) {
+    fun saveDays(rest: Double, age: Double, days: List<DayActivity>, hrSource: String? = null) {
         val arr = JSONArray()
         days.forEach { a ->
             val z = JSONObject(); a.zoneMinutes.forEach { (k, v) -> z.put(k.name, v) }
             arr.put(JSONObject().put("d", a.date.toString()).put("hr", a.hrMinutes).put("mm", a.moderateMeasured).put("vm", a.vigorousMeasured)
-                .put("me", a.moderateEstimated).put("ve", a.vigorousEstimated).put("l", a.load).put("q", a.quality.name).put("z", z).put("cad", a.cadenceMinutes))
+                .put("me", a.moderateEstimated).put("ve", a.vigorousEstimated).put("l", a.load).put("q", a.quality.name).put("z", z).put("cad", a.cadenceMinutes)
+                .put("ce", a.cadenceEq).put("h", JSONArray(a.hourly)).put("s", a.source ?: "").put("t", a.computedAt))
         }
-        actFile.writeText(JSONObject().put("v", ACTIVITY_ALGO_VERSION).put("rest", rest).put("age", age).put("days", arr).toString())
+        actFile.writeText(JSONObject().put("v", ACTIVITY_ALGO_VERSION).put("rest", rest).put("age", age).put("src", hrSource ?: "").put("days", arr).toString())
     }
 }

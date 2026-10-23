@@ -21,7 +21,8 @@ import kotlin.math.roundToInt
  * - Minuti attivi: moderati ×1, vigorosi ×2 (equivalenza OMS 2020; PMID 33239350), obiettivo 150/settimana.
  */
 
-data class HrSample(val time: Instant, val bpm: Double)
+/** Campione di FC; [origin] = app che l'ha scritto in Connessione Salute (serve a non mescolare fonti diverse). */
+data class HrSample(val time: Instant, val bpm: Double, val origin: String = "")
 
 enum class Zone(val label: String, val lo: Double, val short: String) {
     VERY_LIGHT("Molto leggera", 0.0, "Riposo"),
