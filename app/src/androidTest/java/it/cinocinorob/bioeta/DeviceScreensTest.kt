@@ -309,6 +309,16 @@ class DeviceScreensTest {
             screenshot("attivita")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("attivita_carico")
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("active_card"))
+            waitText("Da passi", 90_000)
+            waitText("Fonte della frequenza cardiaca", 90_000)
+            // La scheda è cliccabile: i suoi figli sono fusi nel nodo della scheda, quindi si scorre di poco a mano
+            compose.onNode(hasScrollableList()).performTouchInput { swipeUp(startY = centerY, endY = centerY - 500f, durationMillis = 400) }
+            screenshot("attivita_minuti_attivi")
+            compose.onNodeWithTag("hr_source_button").performClick()
+            waitText("Automatica (consigliata)", 10_000)
+            screenshot("attivita_fonte_fc")
+            compose.onNodeWithTag("hr_source_close").performClick()
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("rpe_card"))
             waitText("allenamenti votati", 10_000)
             screenshot("attivita_carico_percepito")

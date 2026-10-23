@@ -212,7 +212,7 @@ fun HomeScreen(
                     val est = dayAct?.estimatedShare ?: 0
                     MetricTile(
                         "Minuti attivi", dayAct?.activeMinutes?.toString(), "min", Tint.good, BioIcons.Bolt,
-                        when { dayAct == null -> DataStatus.UNAVAILABLE; est > 0 -> DataStatus.ESTIMATED; else -> DataStatus.MEASURED },
+                        when { dayAct == null -> DataStatus.UNAVAILABLE; dayAct.stale -> DataStatus.PARTIAL; est > 0 -> DataStatus.ESTIMATED; else -> DataStatus.MEASURED },
                         if (dayAct == null) "Servono FC o allenamenti" else "Settimana $week/150",
                         m, onClick = { onOpenMetric(DETAIL_ACTIVE) },
                     )

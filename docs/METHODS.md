@@ -60,14 +60,23 @@ mostrata come "Stimato".
 
 Inker LA et al., *N Engl J Med* 2021;385:1737-49, doi:10.1056/NEJMoa2102953. Equazione senza coefficiente razziale.
 
-## 4. Attività (versione 2) — `science/ActivityEngine.kt`
+## 4. Attività (versione 4) — `science/ActivityEngine.kt`
 
-- **FC per minuto**: media dei campioni nel minuto; buchi ≤ 5 minuti interpolati linearmente, buchi più lunghi
-  lasciati vuoti. Valori fuori 25–240 bpm scartati.
+- **Fonti multiple di FC** (riconciliazione, come Vora o la priorità delle app di Connessione Salute): non si fa
+  la media tra app diverse. Fonte principale = quella scelta dall'utente (Attività → Minuti attivi → Fonte) o, in
+  automatico, quella con più minuti di FC nel giorno; le altre coprono solo i minuti scoperti. Motivo: un anello
+  misura di giorno soprattutto a riposo e, mediato con l'orologio, abbassava la FC durante una camminata.
+- **FC per minuto**: per ciascuna fonte, media dei campioni nel minuto; buchi ≤ 5 minuti interpolati linearmente
+  dentro la stessa fonte, buchi più lunghi lasciati vuoti. Valori fuori 25–240 bpm scartati.
+- **Cadenza dei passi**: record ≤ 10 minuti, ripartiti per minuto; tra app diverse il massimo; oltre 250 passi/min
+  il minuto è scartato (record sovrapposti). Soglie 100 e 130 passi/min (CADENCE-Adults, Tudor-Locke 2019/2020);
+  oltre 60 anni solo la soglia moderata (Tudor-Locke 2021).
 - **Intensità**: % della riserva cardiaca (Karvonen) con FCmax = 208 − 0,7·età (Tanaka 2001, PMID 11153730);
   moderata 40–59%, vigorosa ≥ 60% (ACSM, Garber 2011, PMID 21694556).
 - **Minuti attivi OMS** (PMID 33239350) = moderati + 2 × vigorosi.
-  - *Misurati*: minuti con FC.
+  - *Misurati*: minuti con FC o con cadenza; per ogni minuto conta la classe più alta tra le due. La
+    scomposizione mostrata (da FC, da passi, stimati) somma sempre al totale; la parte «da passi» è solo
+    l'incremento che la cadenza aggiunge rispetto alla FC.
   - *Stimati*: minuti dentro un allenamento senza FC; intensità dal tipo di attività secondo il Compendio 2024
     (Herrmann 2024, PMID 38242596) in modo prudente (vigorosa solo per corsa, HIIT, sport di squadra, scale,
     arrampicata, combattimento; moderata per bici, nuoto, camminata, forza, ecc.; yoga/stretching e "altro" esclusi).
@@ -78,6 +87,11 @@ Inker LA et al., *N Engl J Med* 2021;385:1737-49, doi:10.1056/NEJMoa2102953. Equ
   muscolare né consumo calorico.
 - **Deduplicazione allenamenti**: stesso id → uno; app diverse con stessa categoria (o "altro") e sovrapposizione
   ≥ 50% della sessione più breve → si tiene la più lunga.
+- **Storico e cache**: 35 giorni. Un giorno in cache è riusato solo se calcolato dopo la sua fine (+6 h con FC
+  per ≥ 10 h, +48 h altrimenti) e senza allenamenti; prima un giorno calcolato a metà giornata poteva restare in
+  cache senza i minuti del pomeriggio. Letture a blocchi di 7 giorni (pagina da 5000 record, due nuovi tentativi
+  con pausa) per ridurre le richieste a Connessione Salute, che oltre un limite le rifiuta per un po'. Un blocco
+  non letto mantiene il valore precedente, segnato come non aggiornato, invece di diventare zero.
 - **Sincronizzazione idempotente** (`data/WorkoutStore.kt`): la finestra letta (90 giorni, 30 senza permesso
   storico) sostituisce interamente la stessa finestra in archivio.
 
