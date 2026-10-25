@@ -249,7 +249,7 @@ fun ActivityScreen(
                     Text("Ultimi 7 giorni rispetto ai 28: ${lt.ratio.f(2)}", style = MaterialTheme.typography.labelLarge, color = p.text, modifier = Modifier.weight(1f))
                     Pill(lt.state.label, when (lt.state) {
                         LoadTrendState.DETRAINING -> Tint.blue; LoadTrendState.STEADY -> Tint.good
-                        LoadTrendState.BUILDING -> Tint.activity; LoadTrendState.SPIKE -> Tint.warn; LoadTrendState.NA -> Tint.sleep
+                        LoadTrendState.BUILDING -> Tint.activity; LoadTrendState.SPIKE -> Tint.load; LoadTrendState.NA -> Tint.sleep
                     })
                 } else Caption("Il confronto tra ultimi 7 e 28 giorni compare dopo 14 giorni con l'orologio indossato.")
                 if (lt.ratio != null) Caption(lt.message)

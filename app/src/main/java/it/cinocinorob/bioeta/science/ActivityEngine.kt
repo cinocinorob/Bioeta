@@ -40,13 +40,18 @@ import kotlin.math.min
  *    - Ogni minuto è attribuito al giorno locale in cui cade: un'attività a cavallo della mezzanotte
  *      viene divisa tra i due giorni.
  *
+ * 3b) Brevi sforzi intensi (stima, ispirata a VILPA: Stamatakis 2022, doi:10.1038/s41591-022-02100-x): sequenze
+ *    di 1–2 minuti consecutivi vigorosi (FC ≥ 60% della riserva o cadenza ≥ 130 passi/min) FUORI dagli allenamenti
+ *    registrati. Nello studio originale gli sforzi sono riconosciuti dall'accelerometro con un modello dedicato:
+ *    qui è un'approssimazione, mostrata come stima.
+ *
  * 4) Carico cardiaco = TRIMP di Banister (Morton 1990, PMID 2246166) sommato sui minuti con FC e FCR ≥ 30%.
  *    È calcolato SOLO dalla FC: le stime da tipo di attività non entrano nel carico.
  *    Stato: NON DISPONIBILE senza minuti di FC; PARZIALE con meno di 10 h di copertura; altrimenti COMPLETO.
  *    Non è il carico muscolare né il consumo calorico.
  */
 
-const val ACTIVITY_ALGO_VERSION = 4
+const val ACTIVITY_ALGO_VERSION = 5
 
 enum class LoadQuality(val label: String) {
     UNAVAILABLE("Non disponibile"),
@@ -115,6 +120,9 @@ data class DayActivity(
     val computedAt: Long = 0,
     /** true = l'ultima lettura da Connessione Salute non è riuscita: valore precedente, non aggiornato. */
     val stale: Boolean = false,
+    /** Brevi sforzi intensi fuori dagli allenamenti (sequenze vigorose di 1–2 minuti): numero e minuti. */
+    val shortBouts: Int = 0,
+    val shortBoutMin: Int = 0,
 ) {
     /** Minuti attivi equivalenti dalla sola frequenza cardiaca. */
     val hrEq: Int get() = moderateMeasured + 2 * vigorousMeasured - cadenceEq
@@ -276,6 +284,7 @@ object ActivityEngine {
             else -> 0
         }
         val active = HashSet<Long>()
+        val vigorous = HashSet<Long>()
         for ((m, bpm) in hrByMinute) {
             if (m < dayStartMin || m >= dayEndMin) continue
             hrMin++
@@ -289,11 +298,12 @@ object ActivityEngine {
             when (cls) { 2 -> vigM++; 1 -> modM++ }
             if (cc > hrClass) { cadM++; cadEq += cc - hrClass }
             if (cls > 0) { active += m; credit(m, cls) }
+            if (cls == 2) vigorous += m
         }
         // Minuti senza FC ma con cadenza da camminata svelta o corsa
         for ((m, c) in cadence) {
             if (m < dayStartMin || m >= dayEndMin || hrByMinute.containsKey(m)) continue
-            when (val cc = cadClass(c)) { 2, 1 -> { if (cc == 2) vigM++ else modM++; cadM++; cadEq += cc; active += m; credit(m, cc) } }
+            when (val cc = cadClass(c)) { 2, 1 -> { if (cc == 2) { vigM++; vigorous += m } else modM++; cadM++; cadEq += cc; active += m; credit(m, cc) } }
         }
         // Minuti di allenamento senza FC né cadenza: unione degli intervalli, per intensità (la vigorosa prevale)
         val estimated = HashMap<Long, SessionIntensity>()
@@ -309,6 +319,22 @@ object ActivityEngine {
             }
         }
         for ((m, i) in estimated) credit(m, if (i == SessionIntensity.VIGOROUS) 2 else 1)
+        // Brevi sforzi: sequenze di minuti vigorosi consecutivi lunghe 1–2 minuti, nessuna dentro un allenamento
+        val inSession = HashSet<Long>()
+        for (s in dedupe(sessions)) {
+            val a = Math.floorDiv(s.start.epochSecond, 60L); val b = Math.floorDiv(s.end.epochSecond + 59, 60L)
+            for (m in a until b) inSession += m
+        }
+        var bouts = 0; var boutMin = 0
+        val vs = vigorous.sorted()
+        var i = 0
+        while (i < vs.size) {
+            var j = i
+            while (j + 1 < vs.size && vs[j + 1] == vs[j] + 1) j++
+            val len = j - i + 1
+            if (len <= 2 && (i..j).none { vs[it] in inSession }) { bouts++; boutMin += len }
+            i = j + 1
+        }
         val modE = estimated.values.count { it == SessionIntensity.MODERATE }
         val vigE = estimated.values.count { it == SessionIntensity.VIGOROUS }
         val quality = when {
@@ -316,7 +342,8 @@ object ActivityEngine {
             hrMin < COMPLETE_COVERAGE_MIN -> LoadQuality.PARTIAL
             else -> LoadQuality.COMPLETE
         }
-        return DayActivity(date, hrMin, modM, vigM, modE, vigE, load, zones, quality, cadM, cadEq, hourly.toList(), source, computedAt)
+        return DayActivity(date, hrMin, modM, vigM, modE, vigE, load, zones, quality, cadM, cadEq, hourly.toList(), source, computedAt,
+            shortBouts = bouts, shortBoutMin = boutMin)
     }
 
     /**

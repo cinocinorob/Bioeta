@@ -52,7 +52,7 @@ class RecoveryTest {
         val d = LocalDate.of(2026, 10, 10)
         val hist = (1..14).map { night(d.minusDays(it.toLong())) }
         val r = SleepScore.compute(night(d), hist, age = 45.0, zone = zone)
-        // 100·(0,30+0,15+0,15+0,15+0,05) + 85·(0,10+0,10) = 97 (baseline senza variabilità → z = 0)
+        // 100·(0,30+0,25+0,10+0,10+0,05) + 85·(0,05+0,15) = 97 (baseline senza variabilità → z = 0)
         assertEquals(97, r.score)
         assertEquals(100, r.contributors.first { it.key == "regularity" }.score)
     }

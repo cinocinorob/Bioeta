@@ -136,6 +136,13 @@ object Fitness {
     /** Obiettivo passi per età (Paluch 2022: beneficio fino a 6–8 mila sopra i 60 anni, 8–10 mila sotto). */
     fun stepGoal(age: Double?): Int = if ((age ?: 40.0) >= 60) 7000 else 9000
 
+    /**
+     * Soglia «salute»: circa 7.000 passi al giorno sono già associati a miglioramenti clinicamente rilevanti
+     * (meta-analisi Lancet Public Health 2025, 57 studi, doi:10.1016/S2468-2667(25)00164-1; flesso della curva
+     * tra 5.000 e 7.000). L'obiettivo per età resta quello di [stepGoal].
+     */
+    const val STEP_HEALTH = 7000
+
     fun zoneMinutes(samples: List<HrSample>, restHr: Double, age: Double): Map<Zone, Int> {
         val max = hrMax(age)
         val out = Zone.entries.associateWith { 0 }.toMutableMap()

@@ -274,6 +274,15 @@ class DeviceScreensTest {
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("highlights"))
             screenshot("home_in_evidenza")
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("longterm_card"))
+            screenshot("home_lungo_termine")
+            compose.onNodeWithTag("longterm_card").performClick()
+            waitText("Cosa dice la ricerca", 10_000)
+            screenshot("lungo_termine")
+            compose.onNodeWithTag("longterm_list").performTouchInput { swipeUp(durationMillis = 400) }
+            screenshot("lungo_termine_dettaglio")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Parametri della notte"))
             screenshot("home_parametri_notte")
             compose.onNodeWithTag("home_list").performScrollToNode(hasText("Corpo ed età"))

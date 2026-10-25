@@ -160,13 +160,19 @@ private fun f(x: Double, d: Int = 0) = String.format(java.util.Locale.ITALY, "%.
 
 object SleepScore {
 
+    /*
+     * Pesi (versione 2, ottobre 2026). Spostati verso ciò che l'orologio misura bene e che ha legami con gli esiti:
+     * durata e regolarità (la regolarità predice la mortalità più della durata: Windred 2024,
+     * doi:10.1093/sleep/zsad253). Ridotti i contributi che dipendono dal riconoscimento della veglia e delle fasi,
+     * il punto debole dei dispositivi da polso rispetto alla polisonnografia. Restano scelte progettuali.
+     */
     const val W_DURATION = 0.30
-    const val W_REGULARITY = 0.15
-    const val W_EFFICIENCY = 0.15
-    const val W_CONTINUITY = 0.15
+    const val W_REGULARITY = 0.25
+    const val W_EFFICIENCY = 0.10
+    const val W_CONTINUITY = 0.10
     const val W_LATENCY = 0.05
-    const val W_ARCHITECTURE = 0.10
-    const val W_HEART = 0.10
+    const val W_ARCHITECTURE = 0.05
+    const val W_HEART = 0.15
 
     /** Ore raccomandate: 7–9 adulti, 7–8 dai 65 anni (NSF, Hirshkowitz 2015). */
     fun targetRange(age: Double?): Pair<Double, Double> = if ((age ?: 40.0) >= 65) 7.0 to 8.0 else 7.0 to 9.0

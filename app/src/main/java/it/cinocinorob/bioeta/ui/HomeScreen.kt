@@ -74,6 +74,7 @@ fun HomeScreen(
     onOpenJournal: () -> Unit,
     onOpenDiscoveries: () -> Unit = {},
     onOpenJournalYesterday: () -> Unit = {},
+    onOpenLongTerm: () -> Unit = {},
     onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
     onRequestPermissions: () -> Unit,
@@ -130,6 +131,12 @@ fun HomeScreen(
         }
         item { MoveTile(vm, chrono, onGoActivity, onOpenMetric) }
         item { RpePrompt(vm) }
+
+        // ---------------- Salute a lungo termine: indicatori con soglie dalla letteratura ----------------
+        if (vm.hasAnyHealthPermission) {
+            item { SectionHeader("Salute a lungo termine", "Dettagli", onOpenLongTerm) }
+            item { LongTermCard(vm.longTerm, onOpenLongTerm) }
+        }
 
         // ---------------- Parametri della notte (stessa valutazione del radar: intervallo personale) ----------------
         item { SectionHeader("Parametri della notte", "Salute", onGoHealth) }

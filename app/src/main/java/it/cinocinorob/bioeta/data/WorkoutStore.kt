@@ -133,6 +133,8 @@ class WorkoutStore(context: Context) {
                     d.optJSONArray("h")?.let { h -> (0 until h.length()).map { h.getInt(it) } } ?: emptyList(),
                     d.optString("s", "").ifEmpty { null },
                     d.optLong("t", 0L),
+                    shortBouts = d.optInt("sb", 0),
+                    shortBoutMin = d.optInt("sm", 0),
                 )
             },
             o.optString("src", "").ifEmpty { null },
@@ -145,7 +147,8 @@ class WorkoutStore(context: Context) {
             val z = JSONObject(); a.zoneMinutes.forEach { (k, v) -> z.put(k.name, v) }
             arr.put(JSONObject().put("d", a.date.toString()).put("hr", a.hrMinutes).put("mm", a.moderateMeasured).put("vm", a.vigorousMeasured)
                 .put("me", a.moderateEstimated).put("ve", a.vigorousEstimated).put("l", a.load).put("q", a.quality.name).put("z", z).put("cad", a.cadenceMinutes)
-                .put("ce", a.cadenceEq).put("h", JSONArray(a.hourly)).put("s", a.source ?: "").put("t", a.computedAt))
+                .put("ce", a.cadenceEq).put("h", JSONArray(a.hourly)).put("s", a.source ?: "").put("t", a.computedAt)
+                .put("sb", a.shortBouts).put("sm", a.shortBoutMin))
         }
         actFile.writeText(JSONObject().put("v", ACTIVITY_ALGO_VERSION).put("rest", rest).put("age", age).put("src", hrSource ?: "").put("days", arr).toString())
     }
