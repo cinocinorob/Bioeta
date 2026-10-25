@@ -7,6 +7,13 @@ un'implementazione indipendente in Python delle equazioni pubblicate).
 
 ## Registro delle modifiche agli algoritmi
 
+- **Ottobre 2026 — sonno v2**: pesi durata 0,30, regolarità 0,25 (era 0,15), efficienza 0,10 (0,15), continuità 0,10
+  (0,15), addormentamento 0,05, profondo/REM 0,05 (0,10), FC notturna 0,15 (0,10). Più peso a ciò che l'orologio
+  misura bene e che è legato agli esiti; meno a veglia e fasi, il punto debole dei dispositivi da polso.
+- **Ottobre 2026 — carico 7/28 giorni**: lo stato «Picco» diventa «Molto sopra il solito», senza affermazioni sul
+  rischio di infortunio (il rapporto non ha valore predittivo dimostrato: doi:10.1007/s40279-020-01378-6).
+- **Ottobre 2026 — attività v5**: brevi sforzi intensi (vedi «Salute a lungo termine»).
+
 | Data | Algoritmo | Versione | Modifica | Effetto |
 |---|---|---|---|---|
 | 2026-10-17 | PhenoAge | 2 | Costante di conversione corretta da 0,09165 a **0,090165** (valore della formula pubblicata dagli autori) | Le PhenoAge calcolate prima risultavano più alte di ~1,2–1,7 anni nell'intervallo 40–70 anni. Lo storico viene ricalcolato automaticamente dai valori grezzi salvati. |
@@ -94,6 +101,24 @@ Inker LA et al., *N Engl J Med* 2021;385:1737-49, doi:10.1056/NEJMoa2102953. Equ
   non letto mantiene il valore precedente, segnato come non aggiornato, invece di diventare zero.
 - **Sincronizzazione idempotente** (`data/WorkoutStore.kt`): la finestra letta (90 giorni, 30 senza permesso
   storico) sostituisce interamente la stessa finestra in archivio.
+
+## Salute a lungo termine (versione 1) — `science/LongTerm.kt`
+
+Indicatori con soglie dalla letteratura (associazioni osservazionali; non stime di rischio individuale):
+
+| Indicatore | Periodo | Zona buona | Migliorabile | Da curare | Fonte |
+|---|---|---|---|---|---|
+| VO₂max | media 30 gg (o valore misurato) | ≥ mediana FRIEND per età/sesso | fino a −1 MET | oltre −1 MET | RR 0,86 per MET, doi:10.1016/j.jshs.2024.100986 |
+| Passi | media 30 gg | ≥ 7.000 | 5.000–6.999 | < 5.000 | doi:10.1016/S2468-2667(25)00164-1 |
+| Minuti attivi | media settimanale 4 settimane | ≥ 150 | 75–149 | < 75 | OMS 2020, PMID 33239350 |
+| Sonno | SRI 28 gg + durata media | SRI ≥ 81 e 7–9 h | altrimenti | SRI < 73,8 o < 6 h | doi:10.1093/sleep/zsad253 |
+| FC a riposo | media 30 gg | < 60 bpm | 60–80 | > 80 | doi:10.1503/cmaj.150535 |
+| Brevi sforzi intensi (stima) | media 4 settimane | ≥ 3 al giorno | < 3 (mai «da curare») | — | doi:10.1038/s41591-022-02100-x |
+
+Servono almeno 14 giorni di dati (7 per la FC a riposo). I minuti attivi sono un totale settimanale: concentrarli
+in pochi giorni non penalizza. I brevi sforzi sono sequenze vigorose di 1–2 minuti fuori dagli allenamenti, da FC
+(≥ 60% della riserva) o cadenza (≥ 130 passi/min): un'approssimazione del metodo accelerometrico dello studio
+originale; l'associazione si attenua escludendo chi era già malato (doi:10.1186/s12966-026-01876-2).
 
 ## 5. Recupero e sonno
 

@@ -1170,6 +1170,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Orari di sonno degli ultimi 28 giorni e regolarità (SRI) degli ultimi 7. */
     val sleepTiming: SleepTiming? get() = SleepTimingCalc.compute(sleepNights, java.time.LocalDate.now(), zoneId())
+    /** «Salute a lungo termine»: indicatori con soglie dalla letteratura (science/LongTerm.kt). */
+    val longTerm: List<Pillar>
+        get() {
+            fun s(m: Metric) = wearable[m].orEmpty().map { DailyValue(it.date, it.value) }
+            return LongTerm.compute(LongTermInputs(
+                today = java.time.LocalDate.now(), age = profile.ageAt(java.time.LocalDate.now()), male = profile.sex == Sex.M,
+                vo2 = s(Metric.VO2), vo2Manual = profile.vo2Manual, steps = s(Metric.STEPS), rhr = s(Metric.RHR),
+                days = dayActivities, nights = sleepNights, zone = zoneId(),
+            ))
+        }
+
     val sleepRegularity: Double? get() = SleepScore.sleepRegularityIndex(sleepNights, java.time.LocalDate.now(), zoneId())
 
     // ---------------- Scoperte: abitudini ↔ esiti (vedi science/Associations.kt) ----------------

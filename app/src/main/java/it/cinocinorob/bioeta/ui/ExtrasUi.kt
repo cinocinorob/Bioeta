@@ -175,7 +175,7 @@ fun LoadTrendCard(vm: AppViewModel) {
     val t = vm.loadTrend
     val c = when (t.state) {
         LoadTrendState.DETRAINING -> Tint.blue; LoadTrendState.STEADY -> Tint.good
-        LoadTrendState.BUILDING -> Tint.activity; LoadTrendState.SPIKE -> Tint.warn; LoadTrendState.NA -> Tint.sleep
+        LoadTrendState.BUILDING -> Tint.activity; LoadTrendState.SPIKE -> Tint.load; LoadTrendState.NA -> Tint.sleep
     }
     HealthCard("Andamento del carico", BioIcons.Gauge, Tint.vo2,
         info = "Carico medio degli ultimi 7 giorni diviso per quello degli ultimi 28 (stessa idea del rapporto acuto:cronico di Gabbett 2016, PMID 26758673). È una descrizione di quanto stai cambiando il carico, non una previsione di infortunio: un legame causale non è dimostrato (Impellizzeri 2020, PMID 32502973). Servono almeno 14 giorni con l'orologio indossato.") {

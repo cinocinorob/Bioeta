@@ -132,7 +132,7 @@ object Vitals {
 // Andamento del carico (7 vs 28 giorni) — solo descrittivo
 // =============================================================================================
 
-enum class LoadTrendState(val label: String) { DETRAINING("In calo"), STEADY("Stabile"), BUILDING("In crescita"), SPIKE("Picco"), NA("In calibrazione") }
+enum class LoadTrendState(val label: String) { DETRAINING("In calo"), STEADY("Stabile"), BUILDING("In crescita"), SPIKE("Molto sopra il solito"), NA("In calibrazione") }
 
 data class LoadTrend(val acute: Double, val chronic: Double, val ratio: Double?, val state: LoadTrendState, val message: String)
 
@@ -155,7 +155,9 @@ object LoadTrendCalc {
             r < 0.8 -> LoadTrendState.DETRAINING to "Questa settimana ti muovi meno del solito: va bene per recuperare, ma se dura a lungo la forma cala."
             r <= 1.3 -> LoadTrendState.STEADY to "Carico in linea con le ultime 4 settimane."
             r <= 1.5 -> LoadTrendState.BUILDING to "Stai aumentando il carico: ok se il recupero resta buono."
-            else -> LoadTrendState.SPIKE to "Aumento brusco rispetto al tuo abituale: gli aumenti rapidi sono quelli che più spesso precedono sovraccarichi. Valuta un giorno leggero."
+            // Nessuna affermazione sul rischio di infortunio: il rapporto non ha valore predittivo dimostrato
+            // (Impellizzeri 2020, doi:10.1007/s40279-020-01378-6). Si descrive il cambiamento e si rimanda alle sensazioni.
+            else -> LoadTrendState.SPIKE to "Questa settimana hai fatto molto più del tuo solito. Il rapporto da solo non dice se c'è un rischio: conta come ti senti e come recuperi."
         }
         return LoadTrend(acute, chronic, r, st, msg)
     }
