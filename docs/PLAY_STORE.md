@@ -62,6 +62,7 @@ BioEtà è uno strumento di benessere e automonitoraggio, non un dispositivo med
 | VO₂max | Età cardiorespiratoria |
 | Frequenza respiratoria, SpO₂, temperatura cutanea | Parametri della notte |
 | Peso, grasso corporeo, massa magra | Andamento della composizione corporea |
+| Nutrizione e idratazione (READ_NUTRITION, READ_HYDRATION) | Sezione Alimentazione: medie dei nutrienti rispetto ai riferimenti, dispendio stimato da apporto e peso, orari dei pasti nelle Scoperte. Facoltativi |
 | Storico (READ_HEALTH_DATA_HISTORY) | Baseline personali dai dati precedenti all'installazione |
 | Background (READ_HEALTH_DATA_IN_BACKGROUND) | Aggiornamento orario di widget e dati, se l'utente lo attiva |
 

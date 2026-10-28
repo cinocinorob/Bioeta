@@ -75,6 +75,7 @@ fun HomeScreen(
     onOpenDiscoveries: () -> Unit = {},
     onOpenJournalYesterday: () -> Unit = {},
     onOpenLongTerm: () -> Unit = {},
+    onOpenNutrition: () -> Unit = {},
     onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
     onRequestPermissions: () -> Unit,
@@ -131,6 +132,7 @@ fun HomeScreen(
         }
         item { MoveTile(vm, chrono, onGoActivity, onOpenMetric) }
         item { RpePrompt(vm) }
+        if (vm.hasAnyHealthPermission) item { NutritionCard(vm, onOpenNutrition, onRequestPermissions) }
 
         // ---------------- Salute a lungo termine: indicatori con soglie dalla letteratura ----------------
         if (vm.hasAnyHealthPermission) {

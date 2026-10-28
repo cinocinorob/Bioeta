@@ -132,6 +132,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // Allenamenti e minuti attivi/carico di oggi già nella fase veloce
                     quietly { syncSessions() }
                     quietly { refreshToday() }
+                    quietly { refreshNutrition() }
                     quietly { updateLedger() }
                     saveSnapshot()
                     updateWidget()
@@ -1170,6 +1171,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Orari di sonno degli ultimi 28 giorni e regolarità (SRI) degli ultimi 7. */
     val sleepTiming: SleepTiming? get() = SleepTimingCalc.compute(sleepNights, java.time.LocalDate.now(), zoneId())
+    // ---------------- Nutrizione (dalle app dei pasti via Connessione Salute) ----------------
+
+    private var nutritionRaw by mutableStateOf<HealthRepo.NutritionRead?>(null)
+
+    /** true se almeno uno dei permessi della nutrizione è concesso. */
+    val nutritionGranted: Boolean get() = granted.any { it in health.nutritionPermissions }
+
+    private suspend fun refreshNutrition() {
+        val r = health.readNutrition(Nutrition.WINDOW.toLong() + 7) ?: return
+        nutritionRaw = r
+    }
+
+    val nutrition: NutritionSummary?
+        get() {
+            val r = nutritionRaw ?: return null
+            if (!r.permitted) return null
+            return Nutrition.summarize(
+                r.meals, r.drinks, wearable[Metric.WEIGHT].orEmpty().map { DailyValue(it.date, it.value) }, sleepNights,
+                r.totalKcal, java.time.LocalDate.now(), zoneId(), profile.sex == Sex.M, health::originLabel,
+            )
+        }
+
+    /** Giorni di nutrizione per le Scoperte (una sola app per giorno). */
+    private val nutritionDays: List<NutritionDay>
+        get() = nutritionRaw?.let { Nutrition.days(it.meals, it.drinks, zoneId()) }.orEmpty()
+
     /** «Salute a lungo termine»: indicatori con soglie dalla letteratura (science/LongTerm.kt). */
     val longTerm: List<Pillar>
         get() {
@@ -1194,7 +1221,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Calcolo in background (bootstrap e permutazioni): ripetuto solo se cambiano i dati. */
     fun refreshDiscoveries() {
         val today = java.time.LocalDate.now()
-        val key = listOf(journal, wearable, sleepNights, dayActivities, sessions, today, experiments)
+        val key = listOf(journal, wearable, sleepNights, dayActivities, sessions, today, experiments, nutritionRaw?.meals?.size, nutritionRaw?.meals?.lastOrNull())
         if (key == discKey && discoveries != null) return
         discKey = key
         val (exp, out) = discoveryInputs(today)
@@ -1261,6 +1288,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (bed.size >= 10) {
             val med = Associations.median(bed.map { it.second })
             exps += Exposure("auto:late", "A letto tardi (≥ 45 min oltre il solito)", bed.filter { it.second >= med + 45 }.map { it.first }.toSet(), bed.map { it.first }.toSet(), auto = true)
+        }
+        // Dai pasti registrati (solo giorni completi): pasto vicino al sonno, caffeina pomeridiana, fibre alte
+        val nd = nutritionDays.filter { it.complete && it.date in window }
+        if (nd.size >= 10) {
+            val nightBy = sleepNights.associateBy { it.date }
+            val gap = nd.mapNotNull { d -> Nutrition.mealToSleep(d, nightBy[d.date.plusDays(1)], z)?.let { d.date to it } }
+            if (gap.size >= 10) exps += Exposure("auto:latemeal", "Ultimo pasto a meno di 3 h dal sonno", gap.filter { it.second < 3.0 }.map { it.first }.toSet(), gap.map { it.first }.toSet(), auto = true)
+            val cafDays = nd.filter { it.caffeineMg != null }
+            if (cafDays.size >= 10) exps += Exposure("auto:cafpm", "Caffeina dopo le 14 (dai pasti)", cafDays.filter { (it.lastCaffeine?.hour ?: 0) >= 14 }.map { it.date }.toSet(), cafDays.map { it.date }.toSet(), auto = true)
+            val fib = nd.filter { it.fiber != null }
+            if (fib.size >= 10) exps += Exposure("auto:fiber", "Fibre ≥ 25 g", fib.filter { it.fiber!! >= 25 }.map { it.date }.toSet(), fib.map { it.date }.toSet(), auto = true)
         }
         fun w(m: Metric) = wearable[m].orEmpty().associate { it.date to it.value }
         val outcomes = linkedMapOf<OutcomeKind, Map<java.time.LocalDate, Double>>(

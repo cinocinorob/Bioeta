@@ -120,6 +120,24 @@ in pochi giorni non penalizza. I brevi sforzi sono sequenze vigorose di 1–2 mi
 (≥ 60% della riserva) o cadenza (≥ 130 passi/min): un'approssimazione del metodo accelerometrico dello studio
 originale; l'associazione si attenua escludendo chi era già malato (doi:10.1186/s12966-026-01876-2).
 
+## Alimentazione (versione 1) — `science/Nutrition.kt`
+
+Dati letti da Connessione Salute (NutritionRecord, HydrationRecord); BioEtà non registra pasti.
+- Una sola app per giorno (quella con più kcal) per non sommare due volte gli stessi pasti; idem per l'acqua.
+- Giorno completo = ≥ 2 registrazioni e ≥ 1.000 kcal (scelta progettuale); medie solo sui giorni completi degli
+  ultimi 28, con almeno 7 giorni.
+- Riferimenti: proteine ≥ 0,83 g/kg (EFSA), 1,2–1,6 g/kg con allenamento (oltre ~1,6 nessun guadagno ulteriore di
+  massa magra: doi:10.1136/bjsports-2017-097608); fibre ≥ 25 g (beneficio massimo osservato 25–29 g:
+  doi:10.1016/S0140-6736(18)31809-9); grassi saturi < 10% dell'energia, sodio < 2.000 mg (OMS); potassio ≥ 3.500 mg;
+  caffeina ≤ 400 mg (EFSA 2015); acqua da bevande ≈ 2,0 L uomini / 1,6 L donne (EFSA, 80% di 2,5/2,0 L). Zuccheri:
+  solo informativi (le app non distinguono gli zuccheri aggiunti).
+- Dispendio stimato: media kcal registrate − pendenza del peso (regressione lineare, kg/giorno) × 7.700 kcal/kg;
+  intervallo ± 1,96 × errore standard della pendenza × 7.700. Servono ≥ 14 giorni completi e ≥ 4 pesate su ≥ 14 giorni.
+  Confrontato con la media del dispendio totale dell'orologio (errori individuali ampi: doi:10.1007/s40279-024-02077-2).
+- Scoperte: «ultimo pasto a meno di 3 h dal sonno», «caffeina dopo le 14 (dai pasti)», «fibre ≥ 25 g»; esiti della
+  notte successiva. Sull'orario della cena la letteratura è ancora scarsa (nel 2026 esiste solo il protocollo di una
+  revisione sistematica, doi:10.11124/JBIES-25-00257): per questo è trattato solo come confronto personale.
+
 ## 5. Recupero e sonno
 
 Recupero: z-score di ln(RMSSD) e FC a riposo rispetto alla baseline personale (giorni D−61…D−1), media del giorno e

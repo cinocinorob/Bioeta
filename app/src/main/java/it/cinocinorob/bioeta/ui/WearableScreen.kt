@@ -140,9 +140,9 @@ fun WearableScreen(
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Caption("Ultimi 7 giorni rispetto alla tua baseline (giorni 8–67 precedenti)")
+                    Caption("Ultima settimana rispetto al tuo solito (i due mesi precedenti)")
                     if (HealthRepo.HISTORY_PERMISSION !in vm.granted) {
-                        Caption("Senza il permesso per i dati storici, BioEtà legge al massimo gli ultimi 30 giorni; la baseline potrebbe essere incompleta.", Tint.warn)
+                        Caption("Senza il permesso per i dati storici, BioEtà legge al massimo gli ultimi 30 giorni; il confronto con il tuo solito potrebbe essere incompleto.", Tint.warn)
                     }
                 }
                 TextButton(onClick = { vm.refreshHealth(force = true) }) { Text("Aggiorna", color = Tint.blue) }
@@ -158,7 +158,7 @@ fun WearableScreen(
 
         item {
             HealthCard("Come leggere questi dati", BioIcons.Info, Tint.blue, info = "Questi indicatori non vengono convertiti in \"anni\": non esiste un modello pubblico e validato che lo faccia. Il confronto con la propria baseline è più informativo delle norme di popolazione, perché HRV e FC a riposo variano molto tra persone. Peso, grasso corporeo e massa magra sono letti da Connessione Salute se una fonte li sincronizza; le stime da bioimpedenza oscillano e vanno interpretate come tendenze, non misure esatte. Deviazioni di una settimana possono riflettere sonno, carico, stress o infezioni; contano di più le tendenze di mesi. La banda colorata nel grafico è la baseline ± 1 DS.") {
-                Caption("Ultimi 7 giorni confrontati con la tua baseline personale. Tocca ⓘ per i dettagli.")
+                Caption("Ultima settimana confrontata con il tuo solito. Tocca ⓘ per i dettagli.")
             }
         }
     }
@@ -252,7 +252,7 @@ private fun MetricCard(s: MetricSummary, onClick: () -> Unit) {
         }
         val z = s.z
         if (z != null) Body(interpret(z, m))
-        else Caption("Baseline in costruzione: servono ≥14 giorni nel periodo di riferimento e ≥3 negli ultimi 7.")
+        else Caption("Confronto in costruzione: servono almeno 14 giorni di storico e 3 giorni nell'ultima settimana.")
         s.slopePer30d?.let { Caption("Tendenza su ${s.points.size} giorni: ${it.fs(m.decimals)} ${m.unit} ogni 30 giorni") }
     }
 }
@@ -264,11 +264,11 @@ private fun verdict(z: Double, m: Metric): Int {
 }
 
 private fun interpret(z: Double, m: Metric): String {
-    if (abs(z) < 0.5) return "In linea con la tua baseline (${z.fs(1)} DS)."
+    if (abs(z) < 0.5) return "In linea con il tuo solito."
     val dir = if (z > 0) "sopra" else "sotto"
     val v = when (verdict(z, m)) { 1 -> ", in direzione favorevole"; -1 -> ", in direzione sfavorevole"; else -> "" }
-    val strength = if (abs(z) >= 1.5) "Nettamente" else "Moderatamente"
-    return "$strength $dir la baseline (${z.fs(1)} DS)$v."
+    val strength = if (abs(z) >= 1.5) "Nettamente" else "Un po'"
+    return "$strength $dir il tuo solito$v."
 }
 
 private fun rolling7(points: List<DailyPoint>): List<Pair<Double, Double>> {
