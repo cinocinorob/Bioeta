@@ -10,6 +10,8 @@ import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HydrationRecord
+import it.cinocinorob.bioeta.science.Drink
+import it.cinocinorob.bioeta.science.Meal
 import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
@@ -430,8 +432,8 @@ class HealthRepo(private val context: Context) {
     // ------------------------------------------------------------------
 
     data class NutritionRead(
-        val meals: List<it.cinocinorob.bioeta.science.Meal>,
-        val drinks: List<it.cinocinorob.bioeta.science.Drink>,
+        val meals: List<Meal>,
+        val drinks: List<Drink>,
         /** Dispendio totale (kcal) scritto dall'orologio per giorno, giornata in corso esclusa. */
         val totalKcal: Map<LocalDate, Double>,
         val permitted: Boolean,
@@ -448,7 +450,7 @@ class HealthRepo(private val context: Context) {
         if (!canMeals && !canWater) return NutritionRead(emptyList(), emptyList(), emptyMap(), false)
         return track("Nutrizione") {
             val meals = if (!canMeals) emptyList() else withRetry { readRecords(NutritionRecord::class, start, end) }.map { r ->
-                it.cinocinorob.bioeta.science.Meal(
+                Meal(
                     r.startTime, r.metadata.dataOrigin.packageName, r.mealType,
                     r.energy?.inKilocalories, r.protein?.inGrams, r.totalCarbohydrate?.inGrams, r.totalFat?.inGrams,
                     r.saturatedFat?.inGrams, r.dietaryFiber?.inGrams, r.sugar?.inGrams,
@@ -456,7 +458,7 @@ class HealthRepo(private val context: Context) {
                 )
             }
             val drinks = if (!canWater) emptyList() else withRetry { readRecords(HydrationRecord::class, start, end) }.map {
-                it.cinocinorob.bioeta.science.Drink(it.startTime, it.metadata.dataOrigin.packageName, it.volume.inLiters)
+                Drink(it.startTime, it.metadata.dataOrigin.packageName, it.volume.inLiters)
             }
             val tot = if (HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class) !in g) emptyMap() else runCatching {
                 client.aggregateGroupByPeriod(
