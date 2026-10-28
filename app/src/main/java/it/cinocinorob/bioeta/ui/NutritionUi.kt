@@ -77,7 +77,7 @@ fun NutritionCard(vm: AppViewModel, onOpen: () -> Unit, onConnect: () -> Unit) {
                     StatChip("Proteine", today?.let { "%.0f".format(it.protein) } ?: "—", "g", Modifier.weight(1f))
                     StatChip("Fibre", today?.fiber?.let { "%.0f".format(it) } ?: "—", "g", Modifier.weight(1f))
                 }
-                val shown = s.targets.filter { it.key == "protein" || it.key == "fiber" || it.key == "sodium" }.filter { it.status != NutStatus.NA }
+                val shown = s.targets.filter { it.key == "protein" || it.key == "fiber" }.filter { it.status != NutStatus.NA }
                 if (shown.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     shown.forEach { t -> Pill("${t.label}: ${t.status.label.lowercase()}", nutColor(t.status)) }
                 }
@@ -208,10 +208,10 @@ private fun EnergyCard(s: NutritionSummary) {
         }
         Text("Dispendio stimato", style = MaterialTheme.typography.labelLarge, color = p.text2)
         BigValue(kcal(e.kcal), "kcal/giorno", size = 34)
-        Caption("Intervallo probabile ${kcal(e.low)}–${kcal(e.high)} kcal.")
+        if (e.high - e.low >= 50) Caption("Intervallo probabile ${kcal(e.low)}–${kcal(e.high)} kcal.")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Mangiate", kcal(e.intake), "kcal", Modifier.weight(1f))
-            StatChip("Peso", (if (e.weightPerWeek >= 0) "+" else "−") + "%.2f".format(kotlin.math.abs(e.weightPerWeek)).replace('.', ','), "kg/sett", Modifier.weight(1f))
+            StatChip("Peso/sett.", (if (e.weightPerWeek >= 0) "+" else "−") + "%.1f".format(kotlin.math.abs(e.weightPerWeek)).replace('.', ','), "kg", Modifier.weight(1f))
             StatChip("Orologio", e.watchKcal?.let { kcal(it) } ?: "—", "kcal", Modifier.weight(1f))
         }
         val bal = e.intake - e.kcal
@@ -229,9 +229,10 @@ private fun TimingCard(vm: AppViewModel, s: NutritionSummary, onOpenDiscoveries:
     HealthCard("Orari", BioIcons.Moon, Tint.sleep, modifier = Modifier.testTag("nutrition_timing")) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Ultimo pasto", s.lastMealMedian?.let { Nutrition.fmtTime(it) } ?: "—", "", Modifier.weight(1f))
-            StatChip("Prima del sonno", s.mealToSleepH?.let { "%.1f".format(it).replace('.', ',') } ?: "—", "h", Modifier.weight(1f))
-            StatChip("Ultima caffeina", s.lastCaffeineMedian?.let { Nutrition.fmtTime(it) } ?: "—", "", Modifier.weight(1f))
+            StatChip("Al sonno", s.mealToSleepH?.let { "%.1f".format(it).replace('.', ',') } ?: "—", "h", Modifier.weight(1f))
+            StatChip("Caffeina", s.lastCaffeineMedian?.let { Nutrition.fmtTime(it) } ?: "—", "", Modifier.weight(1f))
         }
+        Caption("Orari tipici (mediana) dell'ultimo pasto e dell'ultima caffeina; «al sonno» = ore tra ultimo pasto e addormentamento.")
         val cut = vm.bedtimeGuide?.caffeineCutoff
         val lc = s.lastCaffeineMedian
         if (cut != null && lc != null) Caption(
