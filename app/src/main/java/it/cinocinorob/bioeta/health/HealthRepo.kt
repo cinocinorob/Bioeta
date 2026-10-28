@@ -9,6 +9,8 @@ import androidx.health.connect.client.records.LeanBodyMassRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.HydrationRecord
+import androidx.health.connect.client.records.NutritionRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.Record
@@ -222,9 +224,18 @@ class HealthRepo(private val context: Context) {
             androidx.health.connect.client.HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
     }.getOrDefault(false)
 
+    /**
+     * Permessi della nutrizione: facoltativi (servono solo a chi usa un'app per i pasti), quindi chiesti insieme agli
+     * altri ma esclusi dal controllo «permessi mancanti».
+     */
+    val nutritionPermissions: Set<String> = setOf(
+        HealthPermission.getReadPermission(NutritionRecord::class),
+        HealthPermission.getReadPermission(HydrationRecord::class),
+    )
+
     /** Permessi da chiedere: quelli di lettura più, se supportati, lettura in background e temperatura cutanea. */
     fun permissionsToRequest(): Set<String> {
-        var out = permissions
+        var out = permissions + nutritionPermissions
         if (backgroundReadAvailable()) out = out + BACKGROUND_PERMISSION
         if (skinTempAvailable()) out = out + SKIN_TEMP_PERMISSION
         return out
@@ -414,6 +425,52 @@ class HealthRepo(private val context: Context) {
     // Fitness: FC grezza, attività di oggi, allenamenti
     // ------------------------------------------------------------------
 
+    // ------------------------------------------------------------------
+    // Nutrizione
+    // ------------------------------------------------------------------
+
+    data class NutritionRead(
+        val meals: List<it.cinocinorob.bioeta.science.Meal>,
+        val drinks: List<it.cinocinorob.bioeta.science.Drink>,
+        /** Dispendio totale (kcal) scritto dall'orologio per giorno, giornata in corso esclusa. */
+        val totalKcal: Map<LocalDate, Double>,
+        val permitted: Boolean,
+    )
+
+    /** Pasti, bevande e dispendio totale degli ultimi [days] giorni. null = lettura non riuscita. */
+    suspend fun readNutrition(days: Long): NutritionRead? {
+        val g = granted()
+        val zone = ZoneId.systemDefault()
+        val end = Instant.now()
+        val start = LocalDate.now(zone).minusDays(days).atStartOfDay(zone).toInstant()
+        val canMeals = HealthPermission.getReadPermission(NutritionRecord::class) in g
+        val canWater = HealthPermission.getReadPermission(HydrationRecord::class) in g
+        if (!canMeals && !canWater) return NutritionRead(emptyList(), emptyList(), emptyMap(), false)
+        return track("Nutrizione") {
+            val meals = if (!canMeals) emptyList() else withRetry { readRecords(NutritionRecord::class, start, end) }.map { r ->
+                it.cinocinorob.bioeta.science.Meal(
+                    r.startTime, r.metadata.dataOrigin.packageName, r.mealType,
+                    r.energy?.inKilocalories, r.protein?.inGrams, r.totalCarbohydrate?.inGrams, r.totalFat?.inGrams,
+                    r.saturatedFat?.inGrams, r.dietaryFiber?.inGrams, r.sugar?.inGrams,
+                    r.sodium?.inMilligrams, r.potassium?.inMilligrams, r.caffeine?.inMilligrams,
+                )
+            }
+            val drinks = if (!canWater) emptyList() else withRetry { readRecords(HydrationRecord::class, start, end) }.map {
+                it.cinocinorob.bioeta.science.Drink(it.startTime, it.metadata.dataOrigin.packageName, it.volume.inLiters)
+            }
+            val tot = if (HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class) !in g) emptyMap() else runCatching {
+                client.aggregateGroupByPeriod(
+                    AggregateGroupByPeriodRequest(
+                        metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+                        timeRangeFilter = TimeRangeFilter.between(LocalDateTime.ofInstant(start, zone), LocalDate.now(zone).atStartOfDay()),
+                        timeRangeSlicer = Period.ofDays(1),
+                    )
+                ).mapNotNull { b -> b.result[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories?.takeIf { it > 0 }?.let { b.startTime.toLocalDate() to it } }.toMap()
+            }.getOrDefault(emptyMap())
+            NutritionRead(meals, drinks, tot, true)
+        }
+    }
+
     suspend fun heartRate(start: Instant, end: Instant): List<HrSample> = heartRateOrNull(start, end) ?: emptyList()
 
     /**
@@ -580,6 +637,8 @@ class HealthRepo(private val context: Context) {
             row("FC a riposo", RestingHeartRateRecord::class, listOf("FC a riposo")) { it.time },
             row("HRV", HeartRateVariabilityRmssdRecord::class, listOf("HRV")) { it.time },
             row("Allenamenti", ExerciseSessionRecord::class, listOf("Allenamenti")) { it.endTime },
+            row("Pasti (nutrizione)", NutritionRecord::class, listOf("Nutrizione")) { it.endTime },
+            row("Acqua", HydrationRecord::class, listOf("Nutrizione")) { it.endTime },
             row("Calorie totali", TotalCaloriesBurnedRecord::class, listOf("Calorie e distanza")) { it.endTime },
             row("Calorie attive", ActiveCaloriesBurnedRecord::class, listOf("Calorie e distanza")) { it.endTime },
             row("Distanza", DistanceRecord::class, listOf("Calorie e distanza")) { it.endTime },

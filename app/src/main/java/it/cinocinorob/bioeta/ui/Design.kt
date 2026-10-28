@@ -122,6 +122,7 @@ object Tint {
     val warn = Color(0xFFC77700)
     val bp = Color(0xFFC2398A)
     val mood = Color(0xFFD99400)     // umore
+    val food = Color(0xFF5E9E2F)     // nutrizione
 }
 
 val LocalPalette = staticCompositionLocalOf { LightPalette }

@@ -20,6 +20,11 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
+import androidx.health.connect.client.records.HydrationRecord
+import androidx.health.connect.client.records.MealType
+import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.units.Energy
+import androidx.health.connect.client.units.Volume
 import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RespiratoryRateRecord
@@ -93,11 +98,11 @@ class DeviceScreensTest {
     private val readPerms = listOf(
         "READ_STEPS", "READ_RESTING_HEART_RATE", "READ_HEART_RATE_VARIABILITY", "READ_SLEEP", "READ_VO2_MAX", "READ_WEIGHT",
         "READ_BODY_FAT", "READ_LEAN_BODY_MASS", "READ_OXYGEN_SATURATION", "READ_RESPIRATORY_RATE", "READ_HEART_RATE",
-        "READ_EXERCISE", "READ_ACTIVE_CALORIES_BURNED", "READ_DISTANCE", "READ_TOTAL_CALORIES_BURNED", "READ_HEALTH_DATA_HISTORY",
+        "READ_EXERCISE", "READ_ACTIVE_CALORIES_BURNED", "READ_DISTANCE", "READ_TOTAL_CALORIES_BURNED", "READ_HEALTH_DATA_HISTORY", "READ_NUTRITION", "READ_HYDRATION",
     )
     private val writePerms = listOf(
         "WRITE_STEPS", "WRITE_HEART_RATE", "WRITE_RESTING_HEART_RATE", "WRITE_HEART_RATE_VARIABILITY", "WRITE_SLEEP",
-        "WRITE_EXERCISE", "WRITE_VO2_MAX", "WRITE_WEIGHT", "WRITE_RESPIRATORY_RATE", "WRITE_OXYGEN_SATURATION",
+        "WRITE_EXERCISE", "WRITE_VO2_MAX", "WRITE_WEIGHT", "WRITE_RESPIRATORY_RATE", "WRITE_OXYGEN_SATURATION", "WRITE_NUTRITION", "WRITE_HYDRATION",
     )
 
     private fun grantAll() {
@@ -183,6 +188,26 @@ class DeviceScreensTest {
         }
         val v = today.minusDays(3).atTime(9, 0).atZone(zone).toInstant()
         records += Vo2MaxRecord(time = v, zoneOffset = offset(v), vo2MillilitersPerMinuteKilogram = 44.5, measurementMethod = Vo2MaxRecord.MEASUREMENT_METHOD_OTHER, metadata = meta)
+
+        // Pasti di 21 giorni (come un diario alimentare): colazione con caffè, pranzo, cena (tardi un giorno su tre),
+        // caffè pomeridiano un giorno su due; acqua 1,8 L
+        for (k in 1..21) {
+            val d = today.minusDays(k.toLong())
+            fun meal(h: Int, m: Int, type: Int, kcal: Double, prot: Double, carb: Double, fat: Double, sat: Double, fib: Double, na: Double, caf: Double) {
+                val s = d.atTime(h, m).atZone(zone).toInstant(); val e = s.plusSeconds(1200)
+                records += NutritionRecord(startTime = s, startZoneOffset = offset(s), endTime = e, endZoneOffset = offset(e),
+                    energy = Energy.kilocalories(kcal), protein = Mass.grams(prot), totalCarbohydrate = Mass.grams(carb), totalFat = Mass.grams(fat),
+                    saturatedFat = Mass.grams(sat), dietaryFiber = Mass.grams(fib), sugar = Mass.grams(carb * 0.25), sodium = Mass.milligrams(na),
+                    potassium = Mass.milligrams(kcal * 1.4), caffeine = if (caf > 0) Mass.milligrams(caf) else null, mealType = type, metadata = meta)
+            }
+            meal(7, 30, MealType.MEAL_TYPE_BREAKFAST, 450.0, 22.0, 55.0, 14.0, 5.0, 6.0, 350.0, 80.0)
+            meal(13, 0, MealType.MEAL_TYPE_LUNCH, 800.0, 38.0, 90.0, 28.0, 8.0, 9.0, 900.0, 0.0)
+            if (k % 2 == 0) meal(16, 30, MealType.MEAL_TYPE_SNACK, 60.0, 1.0, 8.0, 2.0, 1.0, 0.0, 20.0, 70.0)
+            if (k % 3 == 0) meal(22, 15, MealType.MEAL_TYPE_DINNER, 850.0, 40.0, 85.0, 34.0, 11.0, 7.0, 1100.0, 0.0)
+            else meal(20, 0, MealType.MEAL_TYPE_DINNER, 750.0, 42.0, 70.0, 26.0, 7.0, 10.0, 800.0, 0.0)
+            val wS = d.atTime(10, 0).atZone(zone).toInstant()
+            records += HydrationRecord(startTime = wS, startZoneOffset = offset(wS), endTime = wS.plusSeconds(60), endZoneOffset = offset(wS), volume = Volume.liters(1.8), metadata = meta)
+        }
 
         records.chunked(500).forEach { client.insertRecords(it) }
         Log.i("BioEtaE2E", "inseriti ${records.size} record")
@@ -274,6 +299,20 @@ class DeviceScreensTest {
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("highlights"))
             screenshot("home_in_evidenza")
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("nutrition_card"))
+            waitText("giorni completi", 30_000)
+            screenshot("home_alimentazione")
+            compose.onNodeWithTag("nutrition_card").performClick()
+            waitText("Rispetto ai riferimenti", 10_000)
+            screenshot("alimentazione")
+            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_targets"))
+            screenshot("alimentazione_riferimenti")
+            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_energy"))
+            screenshot("alimentazione_bilancio")
+            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_timing"))
+            screenshot("alimentazione_orari")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("longterm_card"))
             screenshot("home_lungo_termine")
             compose.onNodeWithTag("longterm_card").performClick()

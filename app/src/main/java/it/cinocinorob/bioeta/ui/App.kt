@@ -83,6 +83,7 @@ private const val R_METRIC = "metric:"
 private const val R_DISC = "discoveries"
 private const val R_JOURNAL_Y = "journal_y"
 private const val R_LONG = "longterm"
+private const val R_NUT = "nutrition"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,6 +149,7 @@ fun App(
             top == R_JOURNAL_Y -> JournalScreen(vm, onBack = pop, onOpenDiscoveries = { push(R_DISC) }, initialDay = java.time.LocalDate.now().minusDays(1))
             top == R_DISC -> DiscoveriesScreen(vm, onBack = pop, onOpenJournal = { push(R_JOURNAL) })
             top == R_LONG -> LongTermScreen(vm, onBack = pop)
+            top == R_NUT -> NutritionScreen(vm, onBack = pop, onOpenDiscoveries = { push(R_DISC) }, onConnect = onRequestPermissions)
             top == R_DIAG -> DiagnosticsScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions)
             top == R_SYNC -> SyncScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions, onOpenDiagnostics = { push(R_DIAG) })
             top == R_CLAUDE -> SubScaffold("Chiedi a Claude", pop) { m ->
@@ -312,6 +314,7 @@ private fun MainTabs(
                         onOpenDiscoveries = { push(R_DISC) },
                         onOpenJournalYesterday = { push(R_JOURNAL_Y) },
                         onOpenLongTerm = { push(R_LONG) },
+                        onOpenNutrition = { push(R_NUT) },
                         onGoBp = { push(R_BP) },
                         onAsk = askClaude,
                         onRequestPermissions = onRequestPermissions,
