@@ -379,6 +379,13 @@ class DeviceScreensTest {
             compose.onNodeWithText("allenamenti importati", substring = true).performClick()
             waitText("Allenamenti importati")
             screenshot("fonti_sincronizzazione")
+            // Diagnostica: cosa funziona con i dati che arrivano
+            compose.onNodeWithText("Diagnostica").performClick()
+            waitText("Cosa funziona con i tuoi dati", 30_000)
+            Thread.sleep(1500)
+            screenshot("diagnostica")
+            back()
+            waitText("Allenamenti importati")
             // Verifica: entrambi gli allenamenti della mattina sono stati importati
             compose.onNode(hasScrollableList()).performScrollToNode(hasText("Corsa"))
             compose.onNode(hasScrollableList()).performScrollToNode(hasText("Bici"))
