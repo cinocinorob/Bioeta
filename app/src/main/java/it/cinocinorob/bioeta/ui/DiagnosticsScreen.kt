@@ -61,7 +61,8 @@ fun DiagnosticsScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions
                 }
                 HealthCard("Stato", BioIcons.Heart, Tint.heart) {
                     Body("Connessione Salute: $status")
-                    Body("Permessi concessi: ${vm.granted.size} di ${vm.health.permissions.size}")
+                    val asked = vm.health.permissions + vm.health.nutritionPermissions
+                    Body("Permessi concessi: ${asked.count { it in vm.granted }} di ${asked.size}")
                     val lw = vm.lastWearable
                     Body("Ultimo dato dall'orologio: " + (lw?.let { agoText(it) } ?: "nessuno"))
                     if (lw == null || Duration.between(lw, Instant.now()).toHours() >= 14) {
