@@ -132,7 +132,7 @@ fun WearableScreen(
         if (vm.hcAvailable && !vm.hasAnyHealthPermission) item {
             HealthCard("Collega Connessione Salute", BioIcons.Heart, Tint.heart) {
                 Body("Lettura (mai scrittura) di FC a riposo, HRV, sonno, passi, VO₂max, peso, percentuale di grasso corporeo, massa magra, SpO₂ e frequenza respiratoria. I dati restano sul telefono, salvo uso esplicito dell’assistente online.")
-                Caption("Verifica che l'app Fitbit condivida i dati con Connessione Salute: Impostazioni → Connessione Salute → App → Fitbit.")
+                Caption("Verifica che l'app Google Health (ex Fitbit) condivida i dati: Google Health → Impostazioni → Connessione Salute.")
                 Button(onClick = onRequestPermissions) { Text("Concedi accesso") }
             }
         }

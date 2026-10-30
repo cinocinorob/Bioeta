@@ -13,7 +13,19 @@ import java.time.ZoneId
  * quelli troncati (allenamenti del mattino spariti, notte accorciata) finché la lettura completa non li
  * ripristinava: per questo gli stessi giorni mostravano numeri diversi a ogni apertura.
  */
+/** Intervallo di una sessione di sonno, per attribuire le misure notturne al giorno del risveglio. */
+data class SleepWindow(val start: Instant, val end: Instant)
+
 object ReadWindow {
+    /**
+     * Giorno a cui appartiene una misura notturna (HRV, respirazione, SpO2): la data di risveglio della sessione di
+     * sonno che la contiene (con 1 h di margine); altrimenti la data locale dell'istante.
+     */
+    fun nightDate(t: Instant, sleeps: List<SleepWindow>, zone: ZoneId): LocalDate {
+        val s = sleeps.firstOrNull { !t.isBefore(it.start.minus(Duration.ofHours(1))) && !t.isAfter(it.end.plus(Duration.ofHours(1))) }
+        return (s?.end ?: t).atZone(zone).toLocalDate()
+    }
+
     /** Limite di Connessione Salute senza il permesso per i dati storici. */
     val NO_HISTORY_LIMIT: Duration = Duration.ofDays(30)
 

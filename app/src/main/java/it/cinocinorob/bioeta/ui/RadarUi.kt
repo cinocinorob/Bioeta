@@ -47,7 +47,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val RADAR_INFO =
-    "Ogni mattina BioEtà confronta i parametri della notte (FC a riposo e nel sonno, HRV, respirazione, SpO₂ e, se il tuo orologio la scrive in Connessione Salute, temperatura cutanea) con il tuo intervallo abituale: mediana e deviazione robusta delle notti da 30 a 3 giorni prima, così una malattia che cresce da due notti non sposta il riferimento.\n\n" +
+    "Ogni mattina BioEtà confronta i parametri della notte (FC a riposo e nel sonno, HRV, respirazione e, se il tuo orologio le scrive in Connessione Salute, SpO₂ e temperatura cutanea; Google Health, l'app del Pixel Watch, non scrive la SpO₂) con il tuo intervallo abituale: mediana e deviazione robusta delle notti da 30 a 3 giorni prima, così una malattia che cresce da due notti non sposta il riferimento.\n\n" +
         "• Segni lievi: due parametri fuori intervallo nella direzione tipica di un malessere, oppure FC alta per due notti di fila.\n" +
         "• Segni marcati: tre o più parametri, oppure FC alta per due notti insieme a un altro parametro.\n\n" +
         "Su cosa si basa: in uno studio prospettico su 3.318 persone con smartwatch (Alavi 2022) un sistema simile, basato sulla FC notturna, ha dato un avviso in 67 degli 84 infetti da SARS‑CoV‑2 (80%), con segnali che precedevano i sintomi di 3 giorni (mediana). Gli stessi avvisi scattavano anche con altre infezioni respiratorie, stress, alcol e viaggi. Oura usa un approccio analogo (Symptom Radar) senza pubblicarne soglie e prestazioni.\n\n" +

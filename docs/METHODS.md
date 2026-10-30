@@ -7,6 +7,10 @@ un'implementazione indipendente in Python delle equazioni pubblicate).
 
 ## Registro delle modifiche agli algoritmi
 
+- **Ottobre 2026 — misure notturne**: HRV, respirazione e SpO₂ sono attribuite al giorno del risveglio della sessione
+  di sonno che le contiene (± 1 h), non alla data di calendario dell'istante: un'app che le data a inizio sonno
+  (prima di mezzanotte) le spostava sul giorno precedente rispetto a sonno e FC a riposo.
+
 - **Ottobre 2026 — sonno v2**: pesi durata 0,30, regolarità 0,25 (era 0,15), efficienza 0,10 (0,15), continuità 0,10
   (0,15), addormentamento 0,05, profondo/REM 0,05 (0,10), FC notturna 0,15 (0,10). Più peso a ciò che l'orologio
   misura bene e che è legato agli esiti; meno a veglia e fasi, il punto debole dei dispositivi da polso.
