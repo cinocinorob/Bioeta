@@ -1,0 +1,51 @@
+--------- beginning of main
+10-30 23:45:09.798  3473  3608 I TestRunner: run started: 1 tests
+10-30 23:45:09.799  3473  3608 I TestRunner: started: seedLaunchAndCapture(it.cinocinorob.bioeta.DeviceScreensTest)
+10-30 23:45:10.941  3473  3608 I BioEtaE2E: permessi concessi: 30
+10-30 23:45:15.226  3473  3608 I BioEtaE2E: inseriti 775 record
+10-30 23:45:20.647  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/01_benvenuto.png
+10-30 23:45:35.194  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/02_home.png
+10-30 23:45:39.107  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/03_home_radar.png
+10-30 23:45:43.450  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/04_home_rpe.png
+10-30 23:45:48.145  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/05_home_in_evidenza.png
+10-30 23:45:50.459  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/06_home_alimentazione.png
+10-30 23:45:52.819  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/07_alimentazione.png
+10-30 23:45:54.565  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/08_alimentazione_riferimenti.png
+10-30 23:45:56.533  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/09_alimentazione_bilancio.png
+10-30 23:45:58.158  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/10_alimentazione_orari.png
+10-30 23:46:01.355  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/11_home_lungo_termine.png
+10-30 23:46:03.122  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/12_lungo_termine.png
+10-30 23:46:08.051  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/14_home_parametri_notte.png
+10-30 23:46:10.195  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/15_home_corpo_eta.png
+10-30 23:46:12.810  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/16_home_fine.png
+10-30 23:46:14.892  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/17_diario.png
+10-30 23:46:16.610  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/18_diario_domande.png
+10-30 23:46:19.278  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/19_diario_scelta_domande.png
+10-30 23:46:26.439  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/20_attivita.png
+10-30 23:46:28.032  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/21_attivita_carico.png
+10-30 23:46:29.591  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/22_attivita_minuti_attivi.png
+10-30 23:46:31.879  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/23_attivita_fonte_fc.png
+10-30 23:46:34.201  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/24_attivita_carico_percepito.png
+10-30 23:46:35.777  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/25_attivita_allenamenti.png
+10-30 23:46:37.494  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/26_fonti_sincronizzazione.png
+10-30 23:46:40.845  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/27_diagnostica.png
+10-30 23:46:43.575  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/28_allenamenti_importati.png
+10-30 23:46:48.040  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/29_salute.png
+10-30 23:46:49.568  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/30_salute_recupero.png
+10-30 23:46:51.461  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/31_salute_regolarita.png
+10-30 23:46:53.795  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/32_salute_umore.png
+10-30 23:46:56.593  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/33_salute_scoperte_card.png
+10-30 23:47:02.196  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/34_scoperte.png
+10-30 23:47:03.749  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/35_scoperte_foresta.png
+10-30 23:47:05.355  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/36_scoperte_attesa.png
+10-30 23:47:10.079  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/37_eta_biologica.png
+10-30 23:47:11.768  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/38_eta_dettagli.png
+10-30 23:47:15.045  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/39_analisi.png
+10-30 23:47:19.735  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/40_dettaglio_fc_riposo.png
+10-30 23:47:23.457  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/41_profilo.png
+10-30 23:47:26.218  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/42_home_tema_scuro.png
+10-30 23:47:27.996  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/43_home_tema_scuro_parametri.png
+10-30 23:47:31.275  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/44_attivita_tema_scuro.png
+10-30 23:47:34.588  3473  3608 I BioEtaE2E: screenshot /data/local/tmp/bioeta/45_salute_tema_scuro.png
+10-30 23:47:35.630  3473  3608 I TestRunner: finished: seedLaunchAndCapture(it.cinocinorob.bioeta.DeviceScreensTest)
+10-30 23:47:35.648  3473  3608 I TestRunner: run finished: 1 tests, 0 failed, 0 ignored
