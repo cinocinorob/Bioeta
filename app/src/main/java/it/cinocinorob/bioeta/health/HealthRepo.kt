@@ -10,6 +10,7 @@ import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HydrationRecord
+import it.cinocinorob.bioeta.data.SleepWindow
 import it.cinocinorob.bioeta.science.Drink
 import it.cinocinorob.bioeta.science.Meal
 import androidx.health.connect.client.records.NutritionRecord
@@ -263,13 +264,20 @@ class HealthRepo(private val context: Context) {
 
         fun has(k: KClass<out Record>) = HealthPermission.getReadPermission(k) in granted
 
+        // Le misure notturne (HRV, respirazione, SpO2) appartengono al giorno del risveglio: un'app può datarle a inizio
+        // sonno (es. 23:40), e raggrupparle per data di calendario le sposterebbe sul giorno prima rispetto a sonno e
+        // FC a riposo. Se l'istante cade dentro una sessione di sonno (± 1 h) si usa la data di fine della sessione.
+        val sleepWindows = if (has(SleepSessionRecord::class)) (track("Sonno (riepilogo)") {
+            readRecords(SleepSessionRecord::class, start.minus(Duration.ofDays(1)), end).map { SleepWindow(it.startTime, it.endTime) }
+        } ?: emptyList()) else emptyList()
+        fun night(t: Instant) = ReadWindow.nightDate(t, sleepWindows, zone)
         if (has(RestingHeartRateRecord::class)) track("FC a riposo") {
             out[Metric.RHR] = dailyMean(readRecords(RestingHeartRateRecord::class, start, end)
                 .map { it.time to it.beatsPerMinute.toDouble() }, zone)
         }
         if (has(HeartRateVariabilityRmssdRecord::class)) track("HRV") {
-            out[Metric.HRV] = dailyMean(readRecords(HeartRateVariabilityRmssdRecord::class, start, end)
-                .map { it.time to it.heartRateVariabilityMillis }, zone)
+            out[Metric.HRV] = byDateMean(readRecords(HeartRateVariabilityRmssdRecord::class, start, end)
+                .map { night(it.time) to it.heartRateVariabilityMillis })
         }
         if (has(Vo2MaxRecord::class)) track("VO2max") {
             out[Metric.VO2] = dailyMean(readRecords(Vo2MaxRecord::class, start, end)
@@ -288,12 +296,12 @@ class HealthRepo(private val context: Context) {
                 .map { it.time to it.mass.inKilograms }, zone)
         }
         if (has(OxygenSaturationRecord::class)) track("SpO2") {
-            out[Metric.SPO2] = dailyMean(readRecords(OxygenSaturationRecord::class, start, end)
-                .map { it.time to it.percentage.value }, zone)
+            out[Metric.SPO2] = byDateMean(readRecords(OxygenSaturationRecord::class, start, end)
+                .map { night(it.time) to it.percentage.value })
         }
         if (has(RespiratoryRateRecord::class)) track("Respirazione") {
-            out[Metric.RESP] = dailyMean(readRecords(RespiratoryRateRecord::class, start, end)
-                .map { it.time to it.rate }, zone)
+            out[Metric.RESP] = byDateMean(readRecords(RespiratoryRateRecord::class, start, end)
+                .map { night(it.time) to it.rate })
         }
         if (SKIN_TEMP_PERMISSION in granted && skinTempAvailable()) track("Temperatura cutanea") {
             // Scarto medio della notte rispetto alla baseline del dispositivo; attribuito al giorno del risveglio
@@ -792,6 +800,9 @@ class HealthRepo(private val context: Context) {
         return out
     }
 
+    private fun byDateMean(samples: List<Pair<LocalDate, Double>>): List<DailyPoint> =
+        samples.groupBy { it.first }.map { (d, l) -> DailyPoint(d, l.map { it.second }.average()) }.sortedBy { it.date }
+
     private fun dailyMean(samples: List<Pair<Instant, Double>>, zone: ZoneId): List<DailyPoint> =
         samples.groupBy { it.first.atZone(zone).toLocalDate() }
             .map { (d, l) -> DailyPoint(d, l.map { it.second }.average()) }
@@ -829,7 +840,7 @@ class HealthRepo(private val context: Context) {
         }
 
         val KNOWN_APPS = mapOf(
-            "com.fitbit.FitbitMobile" to "Fitbit / Google Health",
+            "com.fitbit.FitbitMobile" to "Google Health (Fitbit)",
             "com.google.android.apps.fitness" to "Google Fit",
             "com.google.android.apps.wearables.maestro.companion" to "Pixel Watch",
             "com.sec.android.app.shealth" to "Samsung Health",

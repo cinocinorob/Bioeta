@@ -141,7 +141,7 @@ fun SyncScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions: () ->
             }
             item {
                 HealthCard("Altre app e dispositivi", BioIcons.Info, Tint.blue) {
-                    SourceLine("Fitbit / Google Health (Pixel Watch)", "Tramite Connessione Salute, se nell'app è attiva la condivisione dei dati. Nessuna connessione diretta al cloud Fitbit.")
+                    SourceLine("Google Health, ex Fitbit (Pixel Watch)", "Tramite Connessione Salute, se nell'app è attiva la condivisione dei dati. Nessuna connessione diretta al cloud: i dati non escono dal telefono. La SpO₂ non viene scritta da Google Health.")
                     SourceLine("Huawei Health", "Funziona solo se l'app Huawei Health scrive i dati in Connessione Salute sul tuo telefono: verificalo nella diagnostica. L'accesso diretto (Huawei Health Kit) non è integrato: richiede la registrazione come sviluppatore Huawei.")
                     SourceLine("WHOOP", "Funziona solo se l'app WHOOP scrive in Connessione Salute. L'API WHOOP non è integrata: richiede un'autorizzazione OAuth e invio dei dati via Internet, contrari all'impostazione locale di BioEtà.")
                     SourceLine("Samsung Health, Oura, altre", "Qualsiasi app che scrive in Connessione Salute viene letta automaticamente, nei limiti dei permessi concessi.")

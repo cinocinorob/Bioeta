@@ -51,4 +51,18 @@ class ReadWindowTest {
         assertEquals(0, start.atZone(rome).hour)
         assertEquals(LocalDate.of(2026, 10, 23), start.atZone(rome).toLocalDate())
     }
+
+    @org.junit.Test fun nightlyMeasuresBelongToWakeDay() {
+        val wake = LocalDate.of(2026, 10, 30)
+        val sleep = it.cinocinorob.bioeta.data.SleepWindow(
+            wake.minusDays(1).atTime(23, 10).atZone(rome).toInstant(), wake.atTime(6, 50).atZone(rome).toInstant())
+        // HRV datata a inizio sonno (23:40 del giorno prima) → giorno del risveglio
+        assertEquals(wake, ReadWindow.nightDate(wake.minusDays(1).atTime(23, 40).atZone(rome).toInstant(), listOf(sleep), rome))
+        // datata poco prima di coricarsi (margine di 1 h)
+        assertEquals(wake, ReadWindow.nightDate(wake.minusDays(1).atTime(22, 30).atZone(rome).toInstant(), listOf(sleep), rome))
+        // misura diurna, lontana dal sonno → data di calendario
+        assertEquals(wake.minusDays(1), ReadWindow.nightDate(wake.minusDays(1).atTime(15, 0).atZone(rome).toInstant(), listOf(sleep), rome))
+        // senza sessioni di sonno → data di calendario
+        assertEquals(wake.minusDays(1), ReadWindow.nightDate(wake.minusDays(1).atTime(23, 40).atZone(rome).toInstant(), emptyList(), rome))
+    }
 }

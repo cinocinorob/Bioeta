@@ -234,7 +234,7 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
         HealthCard("Sonno", BioIcons.Moon, Tint.sleep, trailing = today.night?.date?.itLong()) {
             val n = today.night
             if (n == null) {
-                Caption("Nessuna notte registrata oggi. Indossa l'orologio a letto e verifica che Fitbit condivida il sonno con Connessione Salute.")
+                Caption("Nessuna notte registrata oggi. Indossa l'orologio a letto e verifica che Google Health (ex Fitbit) condivida il sonno con Connessione Salute.")
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
                     val h = n.totalSleepMin / 60

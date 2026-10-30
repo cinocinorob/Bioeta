@@ -43,7 +43,7 @@ import java.time.LocalDate
 import java.util.Locale
 
 private const val NUT_INFO =
-    "BioEtà non registra i pasti: li legge da Connessione Salute, dove li scrivono app come MyFitnessPal, Cronometer, Samsung Health, Yazio o Fitbit (se ci registri il cibo). Se due app scrivono gli stessi pasti, per ogni giorno si usa solo quella con più calorie, così niente doppi conteggi.\n\n" +
+    "BioEtà non registra i pasti: li legge da Connessione Salute, dove li scrivono app come MyFitnessPal, Cronometer, Samsung Health, Yazio o Google Health, ex Fitbit (se ci registri il cibo). Se due app scrivono gli stessi pasti, per ogni giorno si usa solo quella con più calorie, così niente doppi conteggi.\n\n" +
         "Le medie usano solo i giorni «completi» (almeno 2 registrazioni e 1.000 kcal): un giorno registrato a metà le renderebbe fuorvianti.\n\n" +
         "Riferimenti: proteine ≥ 0,83 g/kg (EFSA), fino a circa 1,6 g/kg se ti alleni con i pesi (Morton 2018); fibre 25–29 g o più (Reynolds 2019, Lancet); grassi saturi < 10% dell'energia e sodio < 2.000 mg (OMS); potassio ≥ 3.500 mg; caffeina ≤ 400 mg (EFSA); acqua da bevande circa 2,0 L negli uomini e 1,6 L nelle donne (EFSA).\n\n" +
         "Limiti: chi registra i pasti tende a sottostimare quanto mangia; il sale aggiunto in cucina di solito manca. Sono indicazioni per la salute generale, non un piano alimentare."
@@ -66,7 +66,7 @@ fun NutritionCard(vm: AppViewModel, onOpen: () -> Unit, onConnect: () -> Unit) {
     HealthCard("Alimentazione", BioIcons.Food, Tint.food, onClick = onOpen, info = NUT_INFO, modifier = Modifier.testTag("nutrition_card")) {
         when {
             !vm.nutritionGranted -> {
-                Caption("Collega l'app con cui registri i pasti (MyFitnessPal, Cronometer, Samsung Health, Yazio, Fitbit…): BioEtà legge pasti e acqua da Connessione Salute e li confronta con i riferimenti scientifici.")
+                Caption("Collega l'app con cui registri i pasti (MyFitnessPal, Cronometer, Samsung Health, Yazio, Google Health…): BioEtà legge pasti e acqua da Connessione Salute e li confronta con i riferimenti scientifici.")
                 androidx.compose.material3.FilledTonalButton(onClick = onConnect) { Text("Consenti lettura dei pasti") }
             }
             s == null || s.days.isEmpty() -> Caption("Nessun pasto in Connessione Salute negli ultimi 4 settimane. Nell'app dei pasti attiva la condivisione con Connessione Salute.")

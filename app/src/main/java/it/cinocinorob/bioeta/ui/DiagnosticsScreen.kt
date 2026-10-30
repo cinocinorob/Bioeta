@@ -65,14 +65,14 @@ fun DiagnosticsScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions
                     val lw = vm.lastWearable
                     Body("Ultimo dato dall'orologio: " + (lw?.let { agoText(it) } ?: "nessuno"))
                     if (lw == null || Duration.between(lw, Instant.now()).toHours() >= 14) {
-                        Caption("L'app dell'orologio non scrive in Connessione Salute da troppo tempo: BioEtà non può vedere il sonno di stanotte finché Fitbit/Google Health non sincronizza.")
+                        Caption("L'app dell'orologio non scrive in Connessione Salute da troppo tempo: BioEtà non può vedere il sonno di stanotte finché Google Health (ex Fitbit) non sincronizza.")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = onRequestPermissions) { Text("Concedi permessi") }
                         OutlinedButton(onClick = { vm.runDiagnostics(); vm.refreshHealth(force = true) }) { Text("Riprova") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalButton(onClick = { openWatchApp(ctx) }) { Text("Apri Fitbit") }
+                        FilledTonalButton(onClick = { openWatchApp(ctx) }) { Text("Apri Google Health") }
                         FilledTonalButton(onClick = {
                             runCatching { ctx.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)) }
                         }) { Text("Connessione Salute") }
@@ -80,12 +80,14 @@ fun DiagnosticsScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions
                 }
             }
             if (vm.diagnosing) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            if (rows != null) item { FeatureReadiness(rows) }
             if (rows != null) items(rows, key = { it.label }) { r -> DiagRowCard(r) }
             item {
                 HealthCard("Se mancano dati dell'orologio", BioIcons.Info, Tint.blue) {
-                    Body("BioEtà legge solo ciò che un'altra app scrive in Connessione Salute. Per il Pixel Watch è l'app Google Health (o Fitbit, nelle versioni precedenti):")
-                    Caption("Se l'ultimo dato è di ieri mattina, l'orologio non ha sincronizzato: apri Fitbit/Google Health, trascina in basso per sincronizzare e attendi qualche minuto. Per evitarlo: Impostazioni Android → App → Fitbit → Batteria → «Senza restrizioni».")
-                    Caption("1. Apri l'app Google Health → Connessioni → App partner.\n2. «Sincronizza le tue app per la salute» → Configura.\n3. Scegli i dati da condividere (passi, sonno, frequenza cardiaca, HRV, allenamenti, calorie…) e consenti anche i dati storici.\n4. Quando compare «Sincronizzato», torna qui e tocca Riprova.")
+                    Body("BioEtà legge solo ciò che un'altra app scrive in Connessione Salute. Per il Pixel Watch è l'app Google Health (dal 19 maggio 2026 è il nuovo nome dell'app Fitbit):")
+                    Caption("Se l'ultimo dato è di ieri mattina, l'orologio non ha sincronizzato: apri Google Health, trascina in basso per sincronizzare e attendi qualche minuto. Per evitarlo: Impostazioni Android → App → Google Health → Batteria → «Senza restrizioni».")
+                    Caption("1. Apri Google Health → Impostazioni → Connessione Salute.\n2. Attiva la sincronizzazione e consenti tutte le categorie, compresi i dati storici e, se registri i pasti lì, «Nutrizione».\n3. Torna qui e tocca Riprova.")
+                    Caption("Secondo la pagina di supporto di Google Health, l'app scrive in Connessione Salute frequenza cardiaca, FC a riposo, HRV, sonno con fasi, respirazione, temperatura cutanea, VO₂max, passi, allenamenti, calorie totali, pasti, acqua, peso e grasso corporeo. La SpO₂ e le calorie attive invece le legge soltanto: con il Pixel Watch è normale che qui risultino vuote.")
                     Caption("Se nella tabella un dato ha il permesso ma 0 elementi, il problema è la sincronizzazione dall'orologio. Se compare un errore, mandamelo: indica un problema di lettura dell'app.")
                 }
             }
@@ -100,6 +102,8 @@ private fun DiagRowCard(r: it.cinocinorob.bioeta.health.HealthRepo.DiagRow) {
     val (dot, state) = when {
         !r.granted -> Tint.bad to "Permesso non concesso"
         r.error != null -> Tint.bad to "Errore di lettura"
+        (r.count7d ?: 0) == 0 && r.label in NOT_WRITTEN_BY_GOOGLE_HEALTH -> p.text3 to "Nessun dato: Google Health (Fitbit) non scrive questo dato in Connessione Salute. Arriva solo da altri dispositivi."
+        (r.count7d ?: 0) == 0 && r.label in OPTIONAL_ROWS -> p.text3 to "Nessun dato negli ultimi 7 giorni (facoltativo)"
         (r.count7d ?: 0) == 0 -> Tint.warn to "Nessun dato negli ultimi 7 giorni"
         r.latest != null && Duration.between(r.latest, Instant.now()).toHours() >= 30 -> Tint.warn to "${r.count7d}${if (r.capped) "+" else ""} dati, ma nessuno recente"
         else -> Tint.good to "${r.count7d}${if (r.capped) "+" else ""} dati negli ultimi 7 giorni"
@@ -123,6 +127,53 @@ private fun DiagRowCard(r: it.cinocinorob.bioeta.health.HealthRepo.DiagRow) {
         if (r.error == null && r.pastError != null) {
             Text("Errore precedente (${agoText(r.pastError.at)}), la lettura ora riesce: ${r.pastError.message}",
                 style = MaterialTheme.typography.bodySmall, color = p.text2)
+        }
+    }
+}
+
+/** Dati che l'app Google Health (ex Fitbit) legge ma non scrive in Connessione Salute (pagina di supporto Google, 2026). */
+private val NOT_WRITTEN_BY_GOOGLE_HEALTH = setOf("SpO2", "Calorie attive")
+
+/** Dati che dipendono da abitudini o accessori (bilancia, diario alimentare): la loro assenza non è un problema. */
+private val OPTIONAL_ROWS = setOf("Pasti (nutrizione)", "Acqua", "Peso", "Grasso corporeo", "Massa magra", "VO2max", "Allenamenti", "Distanza")
+
+/** Per ogni funzione dell'app: quali dati servono e se arrivano. Risponde a «cosa funziona con il mio orologio?». */
+@Composable
+private fun FeatureReadiness(rows: List<it.cinocinorob.bioeta.health.HealthRepo.DiagRow>) {
+    val p = LocalPalette.current
+    val ok = rows.associate { it.label to (it.granted && it.error == null && (it.count7d ?: 0) > 0) }
+    fun has(l: String) = ok[l] == true
+    data class F(val name: String, val needs: List<String>, val minimum: Int = needs.size)
+    val features = listOf(
+        F("Recupero", listOf("HRV", "FC a riposo", "Sonno"), 2),
+        F("Sonno e regolarità", listOf("Sonno")),
+        F("Radar malessere", listOf("FC a riposo", "HRV", "Respirazione", "SpO2"), 2),
+        F("Minuti attivi e carico", listOf("Frequenza cardiaca", "Passi"), 1),
+        F("Età cardio e forma", listOf("VO2max")),
+        F("Bilancio energetico", listOf("Pasti (nutrizione)", "Peso"), 2),
+        F("Alimentazione", listOf("Pasti (nutrizione)")),
+    )
+    HealthCard("Cosa funziona con i tuoi dati", BioIcons.Shield, Tint.brand) {
+        features.forEach { f ->
+            val have = f.needs.filter { has(it) }
+            val works = have.size >= f.minimum
+            val partial = !works && have.isNotEmpty()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(when { works -> Tint.good; partial -> Tint.warn; else -> p.text3 }))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(f.name, style = MaterialTheme.typography.titleSmall, color = p.text)
+                    val missing = f.needs - have.toSet()
+                    Text(
+                        when {
+                            works && missing.isEmpty() -> "Tutti i dati arrivano"
+                            works -> "Funziona; mancano: ${missing.joinToString(", ")}"
+                            else -> "Mancano: ${missing.joinToString(", ")}"
+                        },
+                        style = MaterialTheme.typography.bodySmall, color = p.text2,
+                    )
+                }
+            }
         }
     }
 }
