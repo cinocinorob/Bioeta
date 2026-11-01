@@ -375,8 +375,8 @@ class DeviceScreensTest {
             screenshot("attivita_allenamenti")
 
             // Fonti e sincronizzazione: entrambi gli allenamenti devono essere stati importati
-            compose.onNode(hasScrollableList()).performScrollToNode(hasText("allenamenti importati", substring = true))
-            compose.onNodeWithText("allenamenti importati", substring = true).performClick()
+            compose.onNode(hasScrollableList()).performScrollToNode(hasText("Allenamenti recenti"))
+            compose.onNodeWithText("Tutti").performClick()
             waitText("Allenamenti importati")
             screenshot("fonti_sincronizzazione")
             // Diagnostica: cosa funziona con i dati che arrivano
