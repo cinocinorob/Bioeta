@@ -154,6 +154,22 @@ come PDF esportati dall'app ECG di Google Health / Fitbit (condivisione verso Bi
   Per la diagnosi le linee guida ESC 2024 richiedono la revisione del tracciato da parte di un medico.
 - I file restano nella memoria privata dell'app e sono inclusi nel backup (Base64).
 
+## Pressione arteriosa (versione 2) — `science/BloodPressure.kt`
+
+- Fonti: misure inserite a mano e misure scritte in Connessione Salute da altre app (bracciali Omron, Withings…),
+  in sola lettura; i duplicati (stesso minuto e stessi valori) contano una volta. Le misure dal polso sono segnalate.
+- Soglie domiciliari ESC 2024: < 120/70 non elevata, 120–134 o 70–84 elevata, ≥ 135/85 ipertensione; conta il valore
+  peggiore tra sistolica e diastolica. Le fasce ≥ 160/100 e ≥ 180/110 riprendono le soglie ambulatoriali (non esistono
+  equivalenti domiciliari validate): la classificazione è quindi prudente.
+- Protocollo ESH 2023: finestra di 7 giorni che termina all'ultima misura, primo giorno escluso se ne restano almeno 3;
+  valutazione completa con ≥ 3 giorni e ≥ 12 misure. Sotto questa soglia la categoria è **provvisoria** e il livello
+  massimo è «attenzione» (salvo valori ≥ 180/110); l'esito «non elevata» non viene presentato come positivo.
+- La schermata mostra le date della finestra; se l'ultima misura ha più di 30 giorni invita a ripetere il protocollo.
+- Differenza tra le braccia: coppie di misure su braccia diverse a ≤ 15 minuti; stima con ≥ 3 coppie. Una differenza
+  sistolica ≥ 10 mmHg si associa a rischio cardiovascolare più alto (ESC 2024): si consiglia di misurare il braccio con
+  i valori più alti.
+- Trend: pendenza OLS su 90 giorni con ≥ 10 misure distribuite su ≥ 21 giorni.
+
 ## 5. Recupero e sonno
 
 Recupero: z-score di ln(RMSSD) e FC a riposo rispetto alla baseline personale (giorni D−61…D−1), media del giorno e

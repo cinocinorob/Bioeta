@@ -133,6 +133,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     quietly { syncSessions() }
                     quietly { refreshToday() }
                     quietly { refreshNutrition() }
+                    quietly { refreshBp() }
                     quietly { updateLedger() }
                     saveSnapshot()
                     updateWidget()
@@ -469,7 +470,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     steps7d = rec(Metric.STEPS),
                     vo2 = vo2,
                     phenoDelta = last?.let { it.result.phenoAge - it.age },
-                    bp = bpSummary?.takeIf { java.time.Duration.between(bpReadings.last().time, java.time.LocalDateTime.now()).toDays() <= 60 },
+                    bp = bpSummary?.takeIf { java.time.Duration.between(bpAll.last().time, java.time.LocalDateTime.now()).toDays() <= 60 },
                 )
             )
         }
@@ -868,7 +869,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         autoBackupNow()
     }
 
-    val bpSummary: BpSummary? get() = BloodPressure.summarize(bpReadings)
+    /** Misure lette da Connessione Salute (es. bracciali Omron, Withings): sola lettura, non salvate in locale. */
+    var bpFromHealth by mutableStateOf<List<BpReading>>(emptyList())
+        private set
+
+    /** Tutte le misure: inserite a mano + da Connessione Salute, senza doppioni (stesso minuto e stessi valori). */
+    val bpAll: List<BpReading>
+        get() = (bpReadings + bpFromHealth).distinctBy { Triple(it.time.withSecond(0).withNano(0), it.sys, it.dia) }.sortedBy { it.time }
+
+    private suspend fun refreshBp() {
+        health.readBloodPressure(365)?.let { bpFromHealth = it }
+    }
+
+    val bpSummary: BpSummary? get() = BloodPressure.summarize(bpAll)
 
 
     // ---------------- Fitness ----------------

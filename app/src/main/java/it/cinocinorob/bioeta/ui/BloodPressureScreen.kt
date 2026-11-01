@@ -67,11 +67,17 @@ import java.util.Locale
 fun bpColor(c: BpCategory): Color = when (c) {
     BpCategory.NON_ELEVATED -> Tint.good
     BpCategory.ELEVATED -> Tint.warn
-    BpCategory.HYPERTENSION -> Color(0xFFF07A4A)
+    BpCategory.HYPERTENSION -> Tint.load
     BpCategory.HIGH, BpCategory.SEVERE -> Tint.bad
 }
 
 private val TIME_FMT = DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale.ITALIAN)
+
+private const val BP_INFO =
+    "Soglie per la misura a domicilio (linee guida ESC 2024): non elevata sotto 120/70, elevata 120–134 o 70–84, nel range dell'ipertensione da 135/85 (a casa equivale ai 140/90 dello studio medico). Conta il valore peggiore tra sistolica e diastolica.\n\n" +
+        "Protocollo (ESH 2023): 3–7 giorni, 2 misure al mattino e 2 alla sera a 1 minuto di distanza, seduto da 5 minuti, schiena appoggiata, bracciale all'altezza del cuore. La media esclude il primo giorno. Con meno misure la categoria è provvisoria.\n\n" +
+        "Le fasce «marcatamente elevata» (≥ 160/100) e «molto elevata» (≥ 180/110) usano le soglie dello studio medico, perché per la misura a casa non ne esistono di specifiche: a casa i valori sono di norma più bassi, quindi la classificazione è prudente.\n\n" +
+        "Le misure scritte in Connessione Salute da altre app (es. bracciali Omron o Withings) compaiono qui in automatico; quelle dal polso sono meno precise. La valutazione è informativa: la diagnosi di ipertensione è del medico."
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,7 +86,7 @@ fun BloodPressureScreen(vm: AppViewModel, onBack: () -> Unit, onAsk: (String) ->
     var adding by remember { mutableStateOf(false) }
     var toDelete by remember { mutableStateOf<BpReading?>(null) }
     var range by remember { mutableStateOf(30) }
-    val readings = vm.bpReadings
+    val readings = vm.bpAll
     val summary = vm.bpSummary
     val bpInsight = vm.insights.firstOrNull { it.id == "bp" }
 
@@ -89,9 +95,9 @@ fun BloodPressureScreen(vm: AppViewModel, onBack: () -> Unit, onAsk: (String) ->
         topBar = {
             TopAppBar(
                 title = { },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(BioIcons.Back, "Indietro", tint = Tint.blue) } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(BioIcons.Back, "Indietro") } },
                 actions = {
-                    TextButton(onClick = { adding = true }) { Text("Aggiungi", color = Tint.bp, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { adding = true }) { Text("Aggiungi", color = p.ink(p.brand), fontWeight = FontWeight.SemiBold) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
             )
@@ -113,17 +119,27 @@ fun BloodPressureScreen(vm: AppViewModel, onBack: () -> Unit, onAsk: (String) ->
 
             if (summary != null) item {
                 val c = bpColor(summary.category)
-                HealthCard("Media degli ultimi 7 giorni", BioIcons.Heart, Tint.bp) {
+                val dfmt = DateTimeFormatter.ofPattern("d MMM", Locale.ITALIAN)
+                val ageDays = java.time.temporal.ChronoUnit.DAYS.between(summary.to, LocalDate.now())
+                HealthCard(
+                    if (ageDays <= 1) "Media degli ultimi ${summary.days} giorni" else "Media dal ${summary.from.format(dfmt)} al ${summary.to.format(dfmt)}",
+                    BioIcons.Heart, Tint.bp, info = BP_INFO,
+                ) {
+                    if (ageDays > 30) InlineNotice("Le ultime misure hanno $ageDays giorni: per sapere com'è la pressione adesso ripeti 7 giorni di misure, mattino e sera.", NoticeKind.WARN)
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text("${summary.meanSys.f(0)}/${summary.meanDia.f(0)}", style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 52.sp, fontFeatureSettings = TABULAR), color = p.text)
                         Text(" mmHg", fontSize = 16.sp, color = p.text2, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
                     }
-                    Pill(summary.category.label, c)
+                    Pill(if (summary.provisional) "${summary.category.short} · provvisorio" else summary.category.label, c)
                     BpScale(summary.meanSys, summary.meanDia)
                     Caption("${summary.n} misure in ${summary.days} giorni" +
                         (summary.meanPulse?.let { " · polso medio ${it.f(0)} bpm" } ?: "") +
                         (summary.sdSys?.let { " · variabilità sistolica ±${it.f(0)}" } ?: ""))
-                    if (!summary.protocolComplete) Caption("Valutazione parziale: servono almeno 3 giorni e 12 misure (primo giorno escluso, come da protocollo ESH).", Tint.warn)
+                    if (!summary.protocolComplete) Caption("Valutazione provvisoria: servono almeno 3 giorni e 12 misure, mattino e sera (primo giorno escluso, protocollo ESH). Una misura singola dice poco: la pressione varia di 10–20 mmHg nella stessa giornata.", Tint.warn)
+                    summary.interArm?.let { d ->
+                        if (d >= 10) InlineNotice("Tra le braccia c'è in media una differenza di ${d.f(0)} mmHg di sistolica. Misura sempre il braccio ${summary.higherArm ?: "con i valori più alti"} e parlane con il medico: una differenza di 10 mmHg o più è associata a rischio cardiovascolare più alto.", NoticeKind.WARN)
+                        else Caption("Differenza tra le braccia: ${d.f(0)} mmHg di sistolica (normale sotto i 10).")
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         summary.morning?.let { MiniStat("Mattino", "${it.first.f(0)}/${it.second.f(0)}", Modifier.weight(1f)) }
                         summary.evening?.let { MiniStat("Sera", "${it.first.f(0)}/${it.second.f(0)}", Modifier.weight(1f)) }
@@ -164,10 +180,10 @@ fun BloodPressureScreen(vm: AppViewModel, onBack: () -> Unit, onAsk: (String) ->
                             val c = bpColor(BloodPressure.classify(r.sys.toDouble(), r.dia.toDouble()))
                             GroupRow(
                                 title = "${r.sys}/${r.dia} mmHg" + (r.pulse?.let { " · $it bpm" } ?: ""),
-                                subtitle = TIME_FMT.format(r.time) + (if (r.arm.isNotBlank()) " · braccio ${r.arm}" else "") + (if (r.note.isNotBlank()) " · ${r.note}" else ""),
+                                subtitle = TIME_FMT.format(r.time) + (if (r.arm.isNotBlank()) " · braccio ${r.arm}" else "") + (if (r.note.isNotBlank()) " · ${r.note}" else "") + (if (r.source.isNotEmpty()) " · da ${r.source}" else ""),
                                 leading = { Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(c)) },
                                 showDivider = i < rev.lastIndex,
-                                onClick = { toDelete = r },
+                                onClick = { if (r.source.isEmpty()) toDelete = r },
                             )
                         }
                     }
@@ -212,7 +228,7 @@ fun BpScale(sys: Double, dia: Double) {
     val bands = listOf(
         Triple("< 120/70", Tint.good, 0f),
         Triple("120–134", Tint.warn, 0.33f),
-        Triple("≥ 135/85", Color(0xFFF07A4A), 0.62f),
+        Triple("≥ 135/85", Tint.load, 0.62f),
         Triple("≥ 160/100", Tint.bad, 0.84f),
     )
     // posizione: categoria peggiore tra sistolica e diastolica, interpolata nella fascia
@@ -367,7 +383,7 @@ private fun BpEntryDialog(onDismiss: () -> Unit, onSave: (BpReading) -> Unit) {
 fun BpMini(vm: AppViewModel, onOpen: () -> Unit) {
     val p = LocalPalette.current
     val s = vm.bpSummary
-    val last = vm.bpReadings.lastOrNull()
+    val last = vm.bpAll.lastOrNull()
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card).clickable(onClick = onOpen).padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,

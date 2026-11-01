@@ -61,7 +61,7 @@ fun DiagnosticsScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions
                 }
                 HealthCard("Stato", BioIcons.Heart, Tint.heart) {
                     Body("Connessione Salute: $status")
-                    val asked = vm.health.permissions + vm.health.nutritionPermissions
+                    val asked = vm.health.permissions + vm.health.optionalPermissions
                     Body("Permessi concessi: ${asked.count { it in vm.granted }} di ${asked.size}")
                     val lw = vm.lastWearable
                     Body("Ultimo dato dall'orologio: " + (lw?.let { agoText(it) } ?: "nessuno"))
@@ -136,7 +136,7 @@ private fun DiagRowCard(r: it.cinocinorob.bioeta.health.HealthRepo.DiagRow) {
 private val NOT_WRITTEN_BY_GOOGLE_HEALTH = setOf("SpO2", "Calorie attive")
 
 /** Dati che dipendono da abitudini o accessori (bilancia, diario alimentare): la loro assenza non è un problema. */
-private val OPTIONAL_ROWS = setOf("Pasti (nutrizione)", "Acqua", "Peso", "Grasso corporeo", "Massa magra", "VO2max", "Allenamenti", "Distanza")
+private val OPTIONAL_ROWS = setOf("Pasti (nutrizione)", "Acqua", "Pressione", "Peso", "Grasso corporeo", "Massa magra", "VO2max", "Allenamenti", "Distanza")
 
 /** Per ogni funzione dell'app: quali dati servono e se arrivano. Risponde a «cosa funziona con il mio orologio?». */
 @Composable

@@ -198,7 +198,7 @@ fun TimelineCard(vm: AppViewModel) {
             add(Ev(w.start.atZone(zone).toLocalTime(), exerciseName(w.hcType, w.title), "${w.minutes.f(0)} min" +
                 (vm.workoutStats[w.id]?.avgHr?.let { " · FC media ${it.f(0)}" } ?: ""), Pillar.load[1]))
         }
-        vm.bpReadings.filter { it.time.toLocalDate() == today }.forEach { r ->
+        vm.bpAll.filter { it.time.toLocalDate() == today }.forEach { r ->
             add(Ev(r.time.toLocalTime(), "Pressione", "${r.sys}/${r.dia} mmHg", Tint.bp))
         }
     }.sortedBy { it.time }
