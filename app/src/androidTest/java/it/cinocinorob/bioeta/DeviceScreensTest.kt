@@ -278,7 +278,7 @@ class DeviceScreensTest {
             compose.waitUntil(20_000) { compose.onAllNodesWithTag("welcome_accept").fetchSemanticsNodes().isNotEmpty() }
             screenshot("benvenuto")
             compose.onNodeWithTag("welcome_accept").performScrollTo().performClick()
-            waitText("Aggiornato", 90_000)
+            waitText("Meglio del", 90_000)
             Thread.sleep(6000) // fase completa: storico, carico, statistiche allenamenti
             screenshot("home")
             // Radar malessere: si apre al tocco con i parametri della notte e il loro intervallo
@@ -396,6 +396,11 @@ class DeviceScreensTest {
 
             tab("HEALTH")
             screenshot("salute")
+            compose.onNodeWithText("ECG").performClick()
+            waitText("Nessun ECG in archivio", 10_000)
+            screenshot("ecg_vuoto")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("ECG").fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("salute_recupero")
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("regularity_card"))

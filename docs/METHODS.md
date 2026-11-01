@@ -142,6 +142,18 @@ Dati letti da Connessione Salute (NutritionRecord, HydrationRecord); BioEtà non
   notte successiva. Sull'orario della cena la letteratura è ancora scarsa (nel 2026 esiste solo il protocollo di una
   revisione sistematica, doi:10.11124/JBIES-25-00257): per questo è trattato solo come confronto personale.
 
+## Archivio ECG (versione 1) — `science/Ecg.kt`
+
+Connessione Salute non contiene ECG e l'API Fitbit che li esponeva è stata dismessa (settembre 2026). Gli ECG arrivano
+come PDF esportati dall'app ECG di Google Health / Fitbit (condivisione verso BioEtà o import manuale).
+- BioEtà **non interpreta il tracciato**: riconoscere la fibrillazione atriale da un ECG a una derivazione è la funzione
+  di un dispositivo medico validato. Si leggono dal testo del PDF il risultato già calcolato dall'app ECG (ritmo
+  sinusale, fibrillazione atriale, non conclusivo, frequenza alta/bassa), la frequenza media e la data; se il risultato
+  non è leggibile lo indica l'utente.
+- Riepilogo: registrazioni, risultati con segni di fibrillazione atriale e non conclusivi negli ultimi 12 mesi.
+  Per la diagnosi le linee guida ESC 2024 richiedono la revisione del tracciato da parte di un medico.
+- I file restano nella memoria privata dell'app e sono inclusi nel backup (Base64).
+
 ## 5. Recupero e sonno
 
 Recupero: z-score di ln(RMSSD) e FC a riposo rispetto alla baseline personale (giorni D−61…D−1), media del giorno e

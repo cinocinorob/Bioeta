@@ -84,6 +84,7 @@ private const val R_DISC = "discoveries"
 private const val R_JOURNAL_Y = "journal_y"
 private const val R_LONG = "longterm"
 private const val R_NUT = "nutrition"
+private const val R_ECG = "ecg"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,6 +97,7 @@ fun App(
     onImport: () -> Unit,
     onImportReport: () -> Unit,
     onPickBackupFolder: () -> Unit,
+    onImportEcg: () -> Unit = {},
 ) {
     // Primo avvio: avvertenza su scopo e limiti (requisito delle norme Google Play per le app di salute)
     if (!vm.welcomeAccepted && !startOnPrivacy) { WelcomeScreen(onAccept = { vm.acceptWelcome() }); return }
@@ -109,6 +111,11 @@ fun App(
     val askClaude: (String) -> Unit = { q -> pendingQuestion = q.ifBlank { null }; stackStr = (stack.filter { it != R_CLAUDE } + R_CLAUDE).joinToString("|") }
     val snackbar = remember { SnackbarHostState() }
     val draft = vm.importDraft
+
+    // ECG appena arrivato da «Condividi»: si apre l'archivio
+    LaunchedEffect(vm.openEcgRequest) {
+        if (vm.openEcgRequest) { vm.openEcgRequest = false; if (stack.lastOrNull() != R_ECG) push(R_ECG) }
+    }
 
     LaunchedEffect(vm.message) {
         val m = vm.message
@@ -149,6 +156,7 @@ fun App(
             top == R_JOURNAL_Y -> JournalScreen(vm, onBack = pop, onOpenDiscoveries = { push(R_DISC) }, initialDay = java.time.LocalDate.now().minusDays(1))
             top == R_DISC -> DiscoveriesScreen(vm, onBack = pop, onOpenJournal = { push(R_JOURNAL) })
             top == R_LONG -> LongTermScreen(vm, onBack = pop)
+            top == R_ECG -> EcgScreen(vm, onBack = pop, onImport = onImportEcg)
             top == R_NUT -> NutritionScreen(vm, onBack = pop, onOpenDiscoveries = { push(R_DISC) }, onConnect = onRequestPermissions)
             top == R_DIAG -> DiagnosticsScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions)
             top == R_SYNC -> SyncScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions, onOpenDiagnostics = { push(R_DIAG) })
@@ -264,7 +272,6 @@ private fun MainTabs(
                 },
                 actions = {
                     if (tab == Tab.LABS) IconButton(onClick = { askClaude("") }) { Icon(BioIcons.Chat, "Chiedi a Claude") }
-                    IconButton(onClick = { vm.refreshHealth(force = true) }) { Icon(BioIcons.Refresh, "Aggiorna i dati") }
                     Box(
                         Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape).testTag("profile_button")
                             .background(MaterialTheme.colorScheme.primaryContainer)
@@ -297,7 +304,22 @@ private fun MainTabs(
             }
         },
     ) { pad ->
-        val m = Modifier.padding(pad)
+        val m = Modifier
+        // Trascina in basso per aggiornare: sostituisce il pulsante e le scritte «Aggiornato …»
+        var pulling by remember { mutableStateOf(false) }
+        androidx.compose.runtime.LaunchedEffect(pulling) {
+            if (pulling) {
+                kotlinx.coroutines.delay(700)
+                var t = 0
+                while (vm.loading && t < 25) { kotlinx.coroutines.delay(200); t++ }
+                pulling = false
+            }
+        }
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = pulling,
+            onRefresh = { pulling = true; vm.refreshHealth(force = true) },
+            modifier = Modifier.padding(pad).fillMaxSize(),
+        ) {
         CompositionLocalProvider(LocalHideHeader provides true) {
             androidx.compose.animation.Crossfade(targetState = tab, label = "tab") { current ->
                 when (current) {
@@ -324,6 +346,7 @@ private fun MainTabs(
                         vm, m, onRequestPermissions,
                         onOpenJournal = { push(R_JOURNAL) }, onOpenBp = { push(R_BP) }, onOpenMetric = { push(R_METRIC + it) },
                         onOpenDiscoveries = { push(R_DISC) },
+                        onOpenEcg = { push(R_ECG) },
                     )
                     Tab.AGE -> AgeScreen(
                         vm, m,
@@ -347,6 +370,7 @@ private fun MainTabs(
                     )
                 }
             }
+        }
         }
     }
 }

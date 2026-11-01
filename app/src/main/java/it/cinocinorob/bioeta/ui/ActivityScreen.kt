@@ -160,7 +160,6 @@ fun ActivityScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { LargeHeader("Attività", "Movimento e allenamento") }
-        if (vm.fitnessLoading || vm.syncing) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.activity) }
         if (age == null) item {
             InlineNotice("Senza data di nascita la FC massima è stimata con 40 anni: inseriscila nel Profilo per zone e carico corretti.", NoticeKind.WARN)
         }
@@ -168,50 +167,8 @@ fun ActivityScreen(
             InlineNotice("Concedi frequenza cardiaca, allenamenti, calorie e distanza per completare la scheda.", NoticeKind.WARN, "Concedi", onRequestPermissions)
         }
 
-        // ---------- Sincronizzazione allenamenti ----------
-        item {
-            val st = vm.syncStatus
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).clickable(onClick = onOpenSync).padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(BioIcons.Refresh, null, tint = p.brand, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("${st.sessionsInWindow} allenamenti importati · ${st.state.label.lowercase()}", style = MaterialTheme.typography.titleSmall, color = p.text)
-                    Text("Ultima sincronizzazione ${agoShort(st.lastSync)}" + (st.origins.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { " · " + it.joinToString(", ") } ?: ""),
-                        style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
-                }
-                TextButton(onClick = { vm.syncNow() }, enabled = !vm.syncing && !vm.loading) { Text("Sincronizza", color = LocalPalette.current.brand) }
-            }
-        }
-
-        // ---------- Sintesi: numero + traccia (gli anelli sono riservati al marchio) ----------
-        item {
-            val days7 = (0L..6L).map { today.minusDays(it) }
-            val workoutDays = vm.displaySessions.map { it.start.atZone(ZoneId.systemDefault()).toLocalDate() }.toSet()
-            HealthCard(modifier = Modifier.testTag("activity_summary")) {
-                SummaryRow("Passi oggi", act?.let { String.format(Locale.ITALY, "%,d", it.steps) } ?: "—",
-                    "obiettivo ${String.format(Locale.ITALY, "%,d", goal)}", act?.let { it.steps / goal.toFloat() }, Tint.activity) { onOpenMetric("STEPS") }
-                SummaryRow("Minuti attivi della settimana", "$week", "obiettivo OMS 150", week / 150f, Tint.good) { onOpenMetric(DETAIL_ACTIVE) }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(7.dp).clip(CircleShape).background(Tint.vo2))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Giorni con allenamento negli ultimi 7", style = MaterialTheme.typography.labelLarge, color = p.text2, modifier = Modifier.weight(1f))
-                        Text("${days7.count { it in workoutDays }}", style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.Bold, fontSize = 22.sp), color = p.text)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        days7.reversed().forEach { d ->
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(if (d in workoutDays) Tint.vo2 else p.field))
-                                Text(d.format(java.time.format.DateTimeFormatter.ofPattern("EEEEE", Locale.ITALIAN)).uppercase(), style = MaterialTheme.typography.labelSmall, color = p.text3)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // ---------- Oggi: stesso riquadro della Home ----------
+        item { MoveTile(vm, age, onGoActivity = { onOpenMetric(DETAIL_ACTIVE) }, onOpenMetric = onOpenMetric) }
 
         // ---------- Carico ----------
         item {

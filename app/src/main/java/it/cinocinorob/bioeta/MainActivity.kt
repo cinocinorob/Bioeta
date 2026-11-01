@@ -34,6 +34,26 @@ class MainActivity : ComponentActivity() {
             if (uri != null) vm.importReport(uri)
         }
 
+    private val ecgLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) vm.importEcg(uri)
+        }
+
+    /** PDF o immagine condivisi con BioEtà (es. «Esporta PDF» dell'app ECG): smistati tra ECG e referti. */
+    private fun handleShare(i: android.content.Intent?) {
+        if (i?.action != android.content.Intent.ACTION_SEND) return
+        @Suppress("DEPRECATION")
+        val uri = (if (android.os.Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(android.content.Intent.EXTRA_STREAM, android.net.Uri::class.java)
+            else i.getParcelableExtra(android.content.Intent.EXTRA_STREAM)) ?: return
+        vm.importShared(uri)
+        i.action = null
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handleShare(intent)
+    }
+
     private val backupFolderLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             if (uri != null) vm.setBackupFolder(uri)
@@ -44,6 +64,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         it.cinocinorob.bioeta.data.BackgroundSyncWorker.schedule(applicationContext)
         it.cinocinorob.bioeta.data.JournalReminder.schedule(applicationContext)
+        if (savedInstanceState == null) handleShare(intent)
         val openJournal = intent?.getStringExtra("open") == "journal"
         val action = intent?.action
         val openPrivacy = action == "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" ||
@@ -71,6 +92,7 @@ class MainActivity : ComponentActivity() {
                     onImport = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
                     onImportReport = { reportLauncher.launch(arrayOf("application/pdf", "image/*")) },
                     onPickBackupFolder = { backupFolderLauncher.launch(null) },
+                    onImportEcg = { ecgLauncher.launch(arrayOf("application/pdf", "image/*")) },
                 )
             }
         }
