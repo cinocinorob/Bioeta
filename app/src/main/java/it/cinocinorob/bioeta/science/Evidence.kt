@@ -116,13 +116,15 @@ object InsightEngine {
         // ---------------- Pressione arteriosa (misure domiciliari) ----------------
         i.bp?.let { b ->
             val lvl = when (b.category) {
-                BpCategory.SEVERE, BpCategory.HIGH -> Level.ALERT
-                BpCategory.HYPERTENSION -> Level.ALERT
+                BpCategory.SEVERE -> Level.ALERT
+                // con poche misure il quadro non è ancora una valutazione: attenzione, non allarme
+                BpCategory.HIGH, BpCategory.HYPERTENSION -> if (b.provisional) Level.ATTENTION else Level.ALERT
                 BpCategory.ELEVATED -> Level.ATTENTION
-                BpCategory.NON_ELEVATED -> Level.POSITIVE
+                BpCategory.NON_ELEVATED -> if (b.provisional) Level.ATTENTION else Level.POSITIVE
             }
             val txt = "Media domiciliare ${n(b.meanSys)}/${n(b.meanDia)} mmHg su ${b.n} misure in ${b.days} giorni: ${b.category.label.lowercase()} secondo le soglie domiciliari ESC 2024 (< 120/70 non elevata, 120–134/70–84 elevata, ≥ 135/85 ipertensione). " +
-                (if (!b.protocolComplete) "Per una valutazione affidabile servono almeno 3 giorni con 2 misure mattino e sera. " else "") +
+                (if (!b.protocolComplete) "Valutazione provvisoria: per una valutazione affidabile servono almeno 3 giorni con 2 misure mattino e sera (primo giorno escluso). " else "") +
+                (b.interArm?.let { if (it >= 10) "Tra le braccia c'è in media una differenza di ${n(it)} mmHg di sistolica: misura sempre il braccio ${b.higherArm ?: "con i valori più alti"} e parlane con il medico (una differenza ≥ 10 mmHg è associata a rischio cardiovascolare più alto). " else "" } ?: "") +
                 when (b.category) {
                     BpCategory.SEVERE -> "Valori molto elevati: ricontrolla a breve e contatta il medico; con dolore toracico, mancanza di fiato, disturbi neurologici o cefalea intensa chiama il 112."
                     BpCategory.HIGH, BpCategory.HYPERTENSION -> "Valori da discutere con il medico, che valuterà conferma diagnostica e rischio cardiovascolare."

@@ -9,8 +9,10 @@ import androidx.health.connect.client.records.LeanBodyMassRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.BloodPressureRecord
 import androidx.health.connect.client.records.HydrationRecord
 import it.cinocinorob.bioeta.data.SleepWindow
+import it.cinocinorob.bioeta.science.BpReading
 import it.cinocinorob.bioeta.science.Drink
 import it.cinocinorob.bioeta.science.Meal
 import androidx.health.connect.client.records.NutritionRecord
@@ -236,9 +238,15 @@ class HealthRepo(private val context: Context) {
         HealthPermission.getReadPermission(HydrationRecord::class),
     )
 
+    /** Pressione da Connessione Salute (Omron, Withings, Samsung Health…): facoltativa come la nutrizione. */
+    val bpPermission: String = HealthPermission.getReadPermission(BloodPressureRecord::class)
+
+    /** Tutti i permessi facoltativi. */
+    val optionalPermissions: Set<String> get() = nutritionPermissions + bpPermission
+
     /** Permessi da chiedere: quelli di lettura più, se supportati, lettura in background e temperatura cutanea. */
     fun permissionsToRequest(): Set<String> {
-        var out = permissions + nutritionPermissions
+        var out = permissions + optionalPermissions
         if (backgroundReadAvailable()) out = out + BACKGROUND_PERMISSION
         if (skinTempAvailable()) out = out + SKIN_TEMP_PERMISSION
         return out
@@ -481,6 +489,31 @@ class HealthRepo(private val context: Context) {
         }
     }
 
+    /** Misure di pressione scritte da altre app (sola lettura). null = lettura non riuscita. */
+    suspend fun readBloodPressure(days: Long): List<BpReading>? {
+        if (bpPermission !in granted()) return emptyList()
+        val zone = ZoneId.systemDefault()
+        val end = Instant.now()
+        val start = queryStart(days, granted(), end)
+        return track("Pressione") {
+            readRecords(BloodPressureRecord::class, start, end).map { r ->
+                val arm = when (r.measurementLocation) {
+                    BloodPressureRecord.MEASUREMENT_LOCATION_LEFT_UPPER_ARM -> "sinistro"
+                    BloodPressureRecord.MEASUREMENT_LOCATION_RIGHT_UPPER_ARM -> "destro"
+                    else -> ""
+                }
+                val wrist = r.measurementLocation == BloodPressureRecord.MEASUREMENT_LOCATION_LEFT_WRIST ||
+                    r.measurementLocation == BloodPressureRecord.MEASUREMENT_LOCATION_RIGHT_WRIST
+                BpReading(
+                    id = "hc:" + r.metadata.id,
+                    time = java.time.LocalDateTime.ofInstant(r.time, zone).withSecond(0).withNano(0),
+                    sys = r.systolic.inMillimetersOfMercury.toInt(), dia = r.diastolic.inMillimetersOfMercury.toInt(),
+                    arm = arm, note = if (wrist) "polso" else "", source = appLabel(r.metadata.dataOrigin.packageName),
+                )
+            }
+        }
+    }
+
     suspend fun heartRate(start: Instant, end: Instant): List<HrSample> = heartRateOrNull(start, end) ?: emptyList()
 
     /**
@@ -649,6 +682,7 @@ class HealthRepo(private val context: Context) {
             row("Allenamenti", ExerciseSessionRecord::class, listOf("Allenamenti")) { it.endTime },
             row("Pasti (nutrizione)", NutritionRecord::class, listOf("Nutrizione")) { it.endTime },
             row("Acqua", HydrationRecord::class, listOf("Nutrizione")) { it.endTime },
+            row("Pressione", BloodPressureRecord::class, listOf("Pressione")) { it.time },
             row("Calorie totali", TotalCaloriesBurnedRecord::class, listOf("Calorie e distanza")) { it.endTime },
             row("Calorie attive", ActiveCaloriesBurnedRecord::class, listOf("Calorie e distanza")) { it.endTime },
             row("Distanza", DistanceRecord::class, listOf("Calorie e distanza")) { it.endTime },

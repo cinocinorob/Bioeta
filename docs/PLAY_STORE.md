@@ -63,6 +63,7 @@ BioEtà è uno strumento di benessere e automonitoraggio, non un dispositivo med
 | Frequenza respiratoria, SpO₂, temperatura cutanea | Parametri della notte |
 | Peso, grasso corporeo, massa magra | Andamento della composizione corporea |
 | Nutrizione e idratazione (READ_NUTRITION, READ_HYDRATION) | Sezione Alimentazione: medie dei nutrienti rispetto ai riferimenti, dispendio stimato da apporto e peso, orari dei pasti nelle Scoperte. Facoltativi |
+| Pressione arteriosa (READ_BLOOD_PRESSURE) | Sezione Pressione: misure scritte da bracciali connessi, media domiciliare secondo il protocollo ESH. Facoltativo |
 | Storico (READ_HEALTH_DATA_HISTORY) | Baseline personali dai dati precedenti all'installazione |
 | Background (READ_HEALTH_DATA_IN_BACKGROUND) | Aggiornamento orario di widget e dati, se l'utente lo attiva |
 
