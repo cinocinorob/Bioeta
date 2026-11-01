@@ -201,16 +201,12 @@ fun RecoverySection(vm: AppViewModel, onRequestPermissions: () -> Unit) {
             }
         }
         // Punteggi di oggi: numero e, soprattutto, posizione rispetto alla tua storia
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card).padding(vertical = 18.dp, horizontal = 4.dp)
-                .height(androidx.compose.foundation.layout.IntrinsicSize.Min).testTag("scores_card"),
-        ) {
-            ScoreColumn("Sonno", today.sleep?.score, today.sleep?.band ?: "Nessuna notte", vm.sleepPercentile, "notti",
-                today.night?.let { n -> today.sleep?.let { ScoreReliability.sleep(it, n) } }, Tint.sleep, Modifier.weight(1f))
-            androidx.compose.material3.VerticalDivider(color = p.sep)
-            ScoreColumn("Recupero", today.readiness.score,
-                when { today.readiness.calibrating -> "In calibrazione"; today.readiness.provisional -> today.readiness.band + ", provvisorio"; else -> today.readiness.band },
-                vm.readinessPercentile, "giornate", ScoreReliability.readiness(today.readiness), Tint.hrv, Modifier.weight(1f))
+        // Stessi riquadri della Home: un solo modo di mostrare i punteggi in tutta l'app
+        Box(Modifier.testTag("scores_card")) {
+            PairRow(
+                { m -> RecoveryTile(vm, moodFor(today.readiness.score, today.readiness.calibrating), m) {} },
+                { m -> SleepTile(vm, m) {} },
+            )
         }
         (today.readiness.flags + (today.sleep?.flags ?: emptyList())).forEach { fl ->
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Tint.warn.copy(alpha = 0.12f)).padding(12.dp)) {

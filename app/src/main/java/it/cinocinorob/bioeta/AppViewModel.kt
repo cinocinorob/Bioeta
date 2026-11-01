@@ -239,7 +239,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun autoBackupNow(announce: Boolean = false) {
         if (backup.folderUri == null) return
-        val json = LabStore.toJson(panels, profile, bpReadings, journal).toString(2)
+        val json = backupJson().toString(2)
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { backup.write(json) }
             lastBackup = backup.lastBackup
@@ -253,11 +253,80 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")!!.use {
-                        it.write(LabStore.toJson(panels, profile, bpReadings, journal).toString(2).toByteArray())
+                        it.write(backupJson().toString(2).toByteArray())
                     }
                 }.isSuccess
             }
             message = if (ok) "Backup esportato (${panels.size} prelievi)." else "Esportazione non riuscita."
+        }
+    }
+
+    /** Backup completo: dati locali + archivio ECG (file in Base64). */
+    private fun backupJson(): JSONObject = LabStore.toJson(panels, profile, bpReadings, journal).put("ecg", ecgStore.backupJson(ecgRecords))
+
+    // ---------------- Archivio ECG (PDF esportati dall'app ECG di Google Health / Fitbit) ----------------
+
+    private val ecgStore = it.cinocinorob.bioeta.data.EcgStore(app)
+    var ecgRecords by mutableStateOf(ecgStore.load())
+        private set
+    /** Chiesta l'apertura dell'archivio ECG (dopo un import da condivisione). */
+    var openEcgRequest by mutableStateOf(false)
+
+    fun ecgFile(r: EcgRecord): java.io.File = ecgStore.file(r)
+
+    /** Import di un ECG scelto dall'utente: il testo del PDF dà data, risultato e frequenza. */
+    fun importEcg(uri: Uri) {
+        viewModelScope.launch {
+            importing = true
+            try {
+                val app = getApplication<Application>()
+                val bytes = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)?.use { it.readBytes() } } ?: error("File non leggibile")
+                val isPdf = bytes.size > 4 && String(bytes, 0, 4) == "%PDF"
+                val text = withContext(Dispatchers.IO) { runCatching { ReportText.extract(app, uri, null).text }.getOrDefault("") }
+                addEcg(bytes, isPdf, text)
+            } catch (e: Exception) {
+                message = "Impossibile leggere l'ECG: ${e.message ?: e.javaClass.simpleName}"
+            } finally {
+                importing = false
+            }
+        }
+    }
+
+    private suspend fun addEcg(bytes: ByteArray, isPdf: Boolean, text: String) {
+        val p = EcgParser.parse(text)
+        val r = EcgRecord(
+            java.util.UUID.randomUUID().toString(), p.time ?: java.time.LocalDateTime.now().withSecond(0).withNano(0),
+            p.result, p.heartRate, if (isPdf) "pdf" else "image", parsed = p.result != EcgResult.UNKNOWN,
+        )
+        ecgRecords = withContext(Dispatchers.IO) { ecgStore.add(r, bytes, ecgRecords) }
+        message = if (r.result == EcgResult.UNKNOWN) "ECG archiviato: indica tu il risultato mostrato dall'app ECG."
+            else "ECG del ${EcgStats.fmt(r.time)} archiviato: ${r.result.label.lowercase()}."
+        autoBackupNow()
+    }
+
+    fun setEcgResult(r: EcgRecord, result: EcgResult) {
+        ecgRecords = ecgRecords.map { if (it.id == r.id) it.copy(result = result, parsed = false) else it }
+        ecgStore.save(ecgRecords)
+    }
+
+    fun deleteEcg(r: EcgRecord) {
+        ecgRecords = ecgStore.delete(r, ecgRecords)
+    }
+
+    /**
+     * File condiviso con BioEtà da un'altra app (es. «Esporta PDF» dell'ECG): se il testo è un referto ECG va
+     * nell'archivio ECG, altrimenti è trattato come referto di analisi del sangue.
+     */
+    fun importShared(uri: Uri) {
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val text = withContext(Dispatchers.IO) { runCatching { ReportText.extract(app, uri, null).text }.getOrNull() }
+            if (text != null && EcgParser.looksLikeEcg(text)) {
+                val bytes = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
+                if (bytes == null) { message = "File non leggibile."; return@launch }
+                addEcg(bytes, bytes.size > 4 && String(bytes, 0, 4) == "%PDF", text)
+                openEcgRequest = true
+            } else importReport(uri)
         }
     }
 
@@ -339,6 +408,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             val (imported, prof, bpImported) = parsed
+            // Archivio ECG nel backup (se presente)
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val root = JSONObject(getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() })
+                    root.optJSONArray("ecg")?.let { ecgRecords = ecgStore.restore(it, ecgRecords) }
+                }
+            }
             if (journalImport.isNotEmpty()) {
                 val dates = journalImport.map { it.date }.toSet()
                 journal = (journal.filter { it.date !in dates } + journalImport).sortedBy { it.date }

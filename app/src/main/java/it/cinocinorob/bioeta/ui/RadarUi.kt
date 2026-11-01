@@ -243,17 +243,16 @@ fun RpeLoadCard(vm: AppViewModel) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Media 4 sett.", sm.chronicWeek?.f(0) ?: "—", if (sm.chronicWeek != null) "a settimana" else "dopo 14 gg", Modifier.weight(1f))
-            StatChip("Rapporto", sm.ratio?.f(2) ?: "—", "7 gg / media", Modifier.weight(1f))
+            StatChip("Ultimi 7 gg", sm.ratio?.let { "×" + it.f(1) } ?: "—", "", Modifier.weight(1f))
             StatChip("Monotonia", sm.monotony?.f(1) ?: "—", "indice", Modifier.weight(1f))
         }
         val msg = when {
             sm.ratio == null -> "Il confronto con le 4 settimane compare dopo 14 giorni di voti."
-            sm.ratio > 1.5 -> "Settimana molto più pesante del tuo solito: aumenti bruschi sono quelli da tenere d'occhio, soprattutto se il recupero cala."
+            sm.ratio > 1.5 -> "Settimana molto più pesante del tuo solito. Il rapporto da solo non predice infortuni: conta come recuperi."
             sm.ratio < 0.8 -> "Settimana più leggera del tuo solito."
             else -> "Settimana in linea con le ultime 4."
         }
         Caption(msg)
         if ((sm.monotony ?: 0.0) > 2.0) Caption("Monotonia alta: carichi simili tutti i giorni, senza giorni facili. Alternare giorni duri e leggeri riduce la tensione complessiva.")
-        SourcesRow(listOf(ExtraRefs.FOSTER2001, ExtraRefs.HADDAD, ExtraRefs.FOSTER1998))
     }
 }

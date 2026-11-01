@@ -96,9 +96,6 @@ fun HomeScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // ---------------- Stato dei dati ----------------
-        item { DataFreshnessRow(vm, onOpenSync) }
-
         when {
             vm.hcStatus == HealthConnectClient.SDK_UNAVAILABLE -> item {
                 EmptyState(BioIcons.Info, "Connessione Salute non disponibile", "Questo telefono non supporta Connessione Salute: restano disponibili analisi del sangue, pressione e diario.", Tint.warn)
@@ -301,7 +298,7 @@ fun HomeScreen(
 
 /** Riquadro grande tonale (contenitore pastello del colore di dominio). */
 @Composable
-private fun BigTile(
+internal fun BigTile(
     label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, modifier: Modifier, onClick: () -> Unit,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
@@ -323,7 +320,7 @@ private fun BigTile(
 }
 
 @Composable
-private fun BigNumber(value: String, unit: String? = null, dim: Boolean = false) {
+internal fun BigNumber(value: String, unit: String? = null, dim: Boolean = false) {
     val p = LocalPalette.current
     Row(verticalAlignment = Alignment.Bottom) {
         Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 52.sp, lineHeight = 54.sp, fontFeatureSettings = TABULAR),
@@ -334,7 +331,7 @@ private fun BigNumber(value: String, unit: String? = null, dim: Boolean = false)
 
 /** Recupero: punteggio, giudizio rispetto alle tue giornate e consiglio in poche parole. */
 @Composable
-private fun RecoveryTile(vm: AppViewModel, mood: Mood, m: Modifier, onClick: () -> Unit) {
+internal fun RecoveryTile(vm: AppViewModel, mood: Mood, m: Modifier, onClick: () -> Unit) {
     val p = LocalPalette.current
     val t = vm.today
     val score = t.readiness.score
@@ -357,7 +354,7 @@ private fun RecoveryTile(vm: AppViewModel, mood: Mood, m: Modifier, onClick: () 
 }
 
 @Composable
-private fun SleepTile(vm: AppViewModel, m: Modifier, onClick: () -> Unit) {
+internal fun SleepTile(vm: AppViewModel, m: Modifier, onClick: () -> Unit) {
     val p = LocalPalette.current
     val n = vm.today.night
     val sc = vm.today.sleep?.score
@@ -384,7 +381,7 @@ private fun SleepTile(vm: AppViewModel, m: Modifier, onClick: () -> Unit) {
 
 /** Movimento di oggi: minuti attivi (settimana OMS), passi e carico, ciascuno con la sua barra. */
 @Composable
-private fun MoveTile(vm: AppViewModel, chrono: Double?, onGoActivity: () -> Unit, onOpenMetric: (String) -> Unit) {
+internal fun MoveTile(vm: AppViewModel, chrono: Double?, onGoActivity: () -> Unit, onOpenMetric: (String) -> Unit) {
     val p = LocalPalette.current
     val today = LocalDate.now()
     val act = vm.todayActivity
@@ -473,7 +470,7 @@ private fun VitalTile(
 
 /** Due tessere affiancate della stessa altezza. */
 @Composable
-private fun PairRow(a: @Composable (Modifier) -> Unit, b: @Composable (Modifier) -> Unit) {
+internal fun PairRow(a: @Composable (Modifier) -> Unit, b: @Composable (Modifier) -> Unit) {
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         a(Modifier.weight(1f).fillMaxHeight())
         b(Modifier.weight(1f).fillMaxHeight())
@@ -507,33 +504,7 @@ private fun BaselineTile(vm: AppViewModel, metric: Metric, label: String, icon: 
 }
 
 @Composable
-private fun DataFreshnessRow(vm: AppViewModel, onOpenSync: () -> Unit) {
-    val p = LocalPalette.current
-    val st = vm.syncStatus
-    val dot = when {
-        vm.loading || vm.syncing -> Tint.blue
-        !vm.hasAnyHealthPermission -> p.text3
-        st.state == SyncState.ERROR || st.state == SyncState.PARTIAL -> Tint.warn
-        else -> Tint.good
-    }
-    val text = when {
-        vm.loading || vm.syncing -> "Aggiornamento da Connessione Salute…"
-        !vm.hasAnyHealthPermission -> "Connessione Salute non collegata"
-        else -> "Aggiornato ${agoShort(vm.lastRefresh)}" + (st.origins.takeIf { it.isNotEmpty() }?.let { " · " + it.joinToString(", ") } ?: "")
-    }
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(p.card).clickable(onClick = onOpenSync).padding(vertical = 10.dp, horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-        Spacer(Modifier.width(8.dp))
-        Text(text, style = MaterialTheme.typography.labelLarge, color = p.text2, maxLines = 1, modifier = Modifier.weight(1f))
-        Text("Fonti", style = MaterialTheme.typography.labelLarge, color = p.ink(p.brand))
-    }
-}
-
-@Composable
-private fun QuickAction(title: String, value: String, tint: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier) {
+internal fun QuickAction(title: String, value: String, tint: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier) {
     val p = LocalPalette.current
     Column(
         modifier.clip(RoundedCornerShape(24.dp)).background(p.tone(tint)).clickable(onClick = onClick).padding(16.dp),

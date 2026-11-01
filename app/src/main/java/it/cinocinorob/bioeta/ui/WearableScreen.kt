@@ -81,6 +81,7 @@ fun WearableScreen(
     onOpenDiscoveries: () -> Unit = {},
     onOpenBp: () -> Unit = {},
     onOpenMetric: (String) -> Unit = {},
+    onOpenEcg: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val summaries = Metric.entries.mapNotNull { m ->
@@ -96,8 +97,9 @@ fun WearableScreen(
         item { LargeHeader("Salute", "Recupero, sonno e parametri vitali") }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HealthShortcut("Pressione", vm.bpSummary?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)} mmHg" } ?: "Registra", Tint.bp, BioIcons.Heart, onOpenBp, Modifier.weight(1f))
-                HealthShortcut("Diario", "Umore e abitudini", Tint.sleep, BioIcons.Pencil, onOpenJournal, Modifier.weight(1f))
+                QuickAction("Pressione", vm.bpSummary?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)} mmHg" } ?: "Registra", Tint.bp, BioIcons.Heart, onOpenBp, Modifier.weight(1f))
+                QuickAction("ECG", vm.ecgRecords.firstOrNull()?.let { ecgShort(it) } ?: "Importa", Tint.heart, BioIcons.Pulse, onOpenEcg, Modifier.weight(1f))
+                QuickAction("Diario", "Abitudini", Tint.mood, BioIcons.Pencil, onOpenJournal, Modifier.weight(1f))
             }
         }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
@@ -108,7 +110,6 @@ fun WearableScreen(
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
         item { DiscoveriesCard(vm, onOpenDiscoveries) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SectionLabel("Sensori e composizione corporea") }
-        if (vm.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Tint.heart) }
 
         when (vm.hcStatus) {
             HealthConnectClient.SDK_UNAVAILABLE -> item {
