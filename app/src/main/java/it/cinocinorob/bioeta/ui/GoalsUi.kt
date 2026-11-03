@@ -160,7 +160,7 @@ private fun Companion(vm: AppViewModel, g: GameState, size: Int) {
 @Composable
 private fun ActivityPath(days: List<PathDay>, height: Int, showLabels: Boolean) {
     val p = LocalPalette.current
-    val band = Tint.good.copy(alpha = if (p.dark) 0.22f else 0.16f)
+    val band = Tint.good.copy(alpha = if (p.dark) 0.32f else 0.26f)
     val goalLine = p.ink(Tint.good)
     val colors = days.map { kindColor(it.kind, p) }
     val maxV = (days.maxOfOrNull { maxOf(it.steps ?: 0, it.goal ?: 0) } ?: 1).coerceAtLeast(1) * 1.12f
@@ -186,7 +186,7 @@ private fun ActivityPath(days: List<PathDay>, height: Int, showLabels: Boolean) 
             // barre
             days.forEachIndexed { i, d ->
                 val v = d.steps ?: 0
-                val bw = w * 0.56f
+                val bw = w * 0.42f
                 val x = i * w + (w - bw) / 2
                 val h = if (d.kind == DayKind.REST && v < 300) size.height * 0.08f else (v / maxV) * size.height
                 if (h > 0f) drawRoundRect(colors[i].copy(alpha = if (d.kind == DayKind.PENDING) 0.55f else 1f), Offset(x, size.height - h), Size(bw, h), CornerRadius(bw / 2, bw / 2))

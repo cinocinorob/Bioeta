@@ -100,7 +100,7 @@ fun DiscoveriesScreen(vm: AppViewModel, onBack: () -> Unit, onOpenJournal: () ->
         LazyColumn(m.fillMaxSize().testTag("discoveries_list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 HealthCard("Cosa cambia i tuoi numeri", BioIcons.Sparkle, Tint.good, info = DISCOVERIES_INFO) {
-                    Caption("Confronto tra i giorni con e senza ciascuna abitudine, rispetto alla tua normalità. Le frecce indicano la notte e il mattino successivi.")
+                    Caption("Ogni scoperta confronta i giorni con e senza un'abitudine, guardando la notte e il mattino successivi rispetto al tuo solito. Sono associazioni nei tuoi dati: per una prova, un esperimento di 2 settimane.")
                     if (d == null || vm.discoveriesLoading) LoadingBar()
                 }
             }
@@ -197,7 +197,7 @@ private fun InsightFinding(vm: AppViewModel, r: AssocResult, co: List<String>?) 
             Pill(if (r.favorable) "Ti fa bene" else "Ti pesa", c)
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(t.big, style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 40.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontFeatureSettings = TABULAR), color = p.ink(c))
+            Text(t.big, style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 34.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontFeatureSettings = TABULAR), color = p.ink(c))
             Spacer(Modifier.width(8.dp))
             Text(t.metric, style = MaterialTheme.typography.titleSmall, color = p.text2, modifier = Modifier.padding(bottom = 8.dp))
         }
