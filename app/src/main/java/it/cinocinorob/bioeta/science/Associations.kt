@@ -64,6 +64,9 @@ data class AssocResult(
     val nWith: Int,
     val nWithout: Int,
     var verdict: Verdict = Verdict.NONE,
+    /** Media dei valori grezzi (ms, bpm, minuti, punti) nei giorni con e senza: per il confronto «con / senza». */
+    val meanWith: Double? = null,
+    val meanWithout: Double? = null,
 ) {
     val favorable: Boolean get() = (effect > 0) == outcome.higherBetter
     /** Effetto in multipli della soglia di rilevanza (per il grafico a foresta). */
@@ -168,10 +171,13 @@ object Associations {
             var testedAny = false
             for ((k, r) in res) {
                 val a = mutableListOf<Double>(); val b = mutableListOf<Double>()
+                val rawA = mutableListOf<Double>(); val rawB = mutableListOf<Double>()
+                val raw = outcomes[k].orEmpty()
                 for (d in e.known) {
                     if (d.isBefore(from) || d.isAfter(today)) continue
                     val v = r[d.plusDays(1)] ?: continue
-                    if (d in e.days) a += v else b += v
+                    val rv = raw[d.plusDays(1)]
+                    if (d in e.days) { a += v; rv?.let { rawA += it } } else { b += v; rv?.let { rawB += it } }
                 }
                 bestWith = max(bestWith, a.size); bestWithout = max(bestWithout, b.size)
                 if (a.size < MIN_N || b.size < MIN_N) continue
@@ -179,7 +185,8 @@ object Associations {
                 val seed = (e.key + k.name).hashCode().toLong()
                 val (diff, ci, p) = compare(a, b, seed)
                 fun scale(v: Double) = if (k.log) (exp(v) - 1) * 100 else v
-                results += AssocResult(e, k, scale(diff), scale(ci.first), scale(ci.second), p, nWith = a.size, nWithout = b.size)
+                results += AssocResult(e, k, scale(diff), scale(ci.first), scale(ci.second), p, nWith = a.size, nWithout = b.size,
+                    meanWith = rawA.takeIf { it.isNotEmpty() }?.average(), meanWithout = rawB.takeIf { it.isNotEmpty() }?.average())
             }
             if (!testedAny) pending += Pending(e, bestWith, bestWithout)
         }

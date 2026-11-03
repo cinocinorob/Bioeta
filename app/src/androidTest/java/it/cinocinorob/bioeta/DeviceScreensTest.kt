@@ -303,10 +303,21 @@ class DeviceScreensTest {
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("game_card"))
             screenshot("home_obiettivo")
             compose.onNodeWithTag("game_card").performClick()
-            compose.waitUntil(10_000) { compose.onAllNodesWithTag("level_card").fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("companion_card").fetchSemanticsNodes().isNotEmpty() }
             screenshot("traguardi")
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("level_card"))
+            screenshot("traguardi_livello")
             compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("badge_who_150"))
             screenshot("traguardi_elenco")
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("companion_card"))
+            compose.onNodeWithTag("pause_button").performClick()
+            Thread.sleep(500)
+            screenshot("traguardi_pausa")
+            compose.onNodeWithTag("pause_confirm").performClick()
+            Thread.sleep(500)
+            screenshot("traguardi_in_pausa")
+            compose.onNodeWithText("Riprendi").performClick()
+            Thread.sleep(300)
             back()
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("nutrition_card"))

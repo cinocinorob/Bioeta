@@ -38,6 +38,8 @@ import it.cinocinorob.bioeta.AppViewModel
 import it.cinocinorob.bioeta.science.AssocResult
 import it.cinocinorob.bioeta.science.Associations
 import it.cinocinorob.bioeta.science.Verdict
+import it.cinocinorob.bioeta.science.Explain
+import it.cinocinorob.bioeta.science.Strength
 import it.cinocinorob.bioeta.science.JournalCatalog
 import it.cinocinorob.bioeta.science.JCat
 import it.cinocinorob.bioeta.science.Experiments
@@ -84,7 +86,7 @@ fun DiscoveriesCard(vm: AppViewModel, onOpen: () -> Unit) {
                         (next?.let { " Ora: ${it.exposure.label} ${it.nWith}/5." } ?: ""),
                 )
             }
-            else -> d.results.filter { it.verdict != Verdict.NONE }.take(3).forEach { r -> FindingRow(r, compact = true) }
+            else -> d.results.filter { it.verdict != Verdict.NONE }.take(3).forEach { r -> CompactFinding(r) }
         }
         if (d != null && d.results.any { it.verdict != Verdict.NONE }) Text("Tutte le scoperte", style = MaterialTheme.typography.labelLarge, color = p.brand)
     }
@@ -113,11 +115,11 @@ fun DiscoveriesScreen(vm: AppViewModel, onBack: () -> Unit, onOpenJournal: () ->
             val bad = d.results.filter { it.verdict != Verdict.NONE && !it.favorable }
             if (good.isNotEmpty()) {
                 item { SectionHeader("Cosa ti fa bene") }
-                items(good, key = { "g" + it.exposure.key + it.outcome }) { r -> HealthCard { FindingRow(r, compact = false); CoNote(d.cooccurring[r.exposure.key]) } }
+                items(good, key = { "g" + it.exposure.key + it.outcome }) { r -> InsightFinding(vm, r, d.cooccurring[r.exposure.key]) }
             }
             if (bad.isNotEmpty()) {
                 item { SectionHeader("Cosa ti pesa") }
-                items(bad, key = { "b" + it.exposure.key + it.outcome }) { r -> HealthCard { FindingRow(r, compact = false); CoNote(d.cooccurring[r.exposure.key]) } }
+                items(bad, key = { "b" + it.exposure.key + it.outcome }) { r -> InsightFinding(vm, r, d.cooccurring[r.exposure.key]) }
             }
             if (good.isEmpty() && bad.isEmpty()) item {
                 EmptyState(BioIcons.Sparkle, "Nessuna associazione chiara, per ora",
@@ -172,6 +174,81 @@ private fun CoNote(others: List<String>?) {
     Caption("Spesso nella stessa giornata di: ${others.joinToString(", ")}. Gli effetti possono sovrapporsi.")
 }
 
+/**
+ * Scoperta raccontata come nelle app migliori (Ultrahuman, Oura): il numero che conta, la frase con i tuoi valori,
+ * il confronto «con / senza», quanto è forte e affidabile, e cosa fare. Statistica invariata (Associations.kt).
+ */
+@Composable
+private fun InsightFinding(vm: AppViewModel, r: AssocResult, co: List<String>?) {
+    val p = LocalPalette.current
+    val t = Explain.finding(r)
+    val c = if (r.favorable) Tint.good else Tint.bad
+    var showCi by androidx.compose.runtime.saveable.rememberSaveable(r.exposure.key + r.outcome) { androidx.compose.runtime.mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(p.card).padding(18.dp).testTag("finding_${r.exposure.key}_${r.outcome}"),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(p.toneStrong(if (r.exposure.auto) Tint.hrv else Tint.mood)), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Icon(if (r.exposure.auto) BioIcons.Pulse else BioIcons.Pencil, null, tint = p.ink(if (r.exposure.auto) Tint.hrv else Tint.mood), modifier = Modifier.size(17.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(r.exposure.label, style = MaterialTheme.typography.titleSmall, color = p.text, modifier = Modifier.weight(1f), maxLines = 2)
+            Pill(if (r.favorable) "Ti fa bene" else "Ti pesa", c)
+        }
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(t.big, style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 40.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontFeatureSettings = TABULAR), color = p.ink(c))
+            Spacer(Modifier.width(8.dp))
+            Text(t.metric, style = MaterialTheme.typography.titleSmall, color = p.text2, modifier = Modifier.padding(bottom = 8.dp))
+        }
+        Text(t.sentence, style = MaterialTheme.typography.bodyMedium, color = p.text)
+        if (t.withValue != null && t.withoutValue != null) CompareBars(r, t.withValue, t.withoutValue, c)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Pill(t.strength.label, if (t.strength == Strength.MILD) Tint.blue else c)
+            Text(t.reliability, style = MaterialTheme.typography.labelMedium, color = p.text2, maxLines = 2, modifier = Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.tone(Tint.brand, 1.3f)).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(t.action, style = MaterialTheme.typography.bodySmall, color = p.text, modifier = Modifier.weight(1f))
+            val key = t.experimentKey
+            if (key != null && vm.activeExperiment == null) androidx.compose.material3.TextButton(onClick = { vm.startExperiment(key, !t.experimentAvoid, 14) }) {
+                Text("Prova 14 giorni", color = p.ink(Tint.brand))
+            }
+        }
+        CoNote(co)
+        Text(if (showCi) "Nascondi i dettagli" else "Dettagli statistici", style = MaterialTheme.typography.labelLarge, color = p.ink(Tint.brand),
+            modifier = Modifier.clickable { showCi = !showCi })
+        if (showCi) {
+            ForestBar(r, Modifier.fillMaxWidth().height(22.dp), axisRange(listOf(r)))
+            Caption("Effetto rispetto al tuo solito, con intervallo al 95%: tra ${Associations.ciText(r).replace(" … ", " e ")} ${r.outcome.unit}. " +
+                "p = ${String.format(java.util.Locale.ITALY, "%.3f", r.p)}, q = ${String.format(java.util.Locale.ITALY, "%.3f", r.q)} dopo la correzione per confronti multipli. La fascia grigia è sotto la soglia di rilevanza.")
+        }
+    }
+}
+
+/** Confronto «con / senza»: due barre con i tuoi valori medi. */
+@Composable
+private fun CompareBars(r: AssocResult, with: Double, without: Double, c: androidx.compose.ui.graphics.Color) {
+    val p = LocalPalette.current
+    val maxV = maxOf(with, without).coerceAtLeast(1e-6)
+    // base dell'asse all'80% del minimo, così le differenze piccole si vedono senza esagerarle oltre il dichiarato
+    val base = minOf(with, without) * 0.8
+    fun frac(v: Double) = ((v - base) / (maxV - base)).toFloat().coerceIn(0.05f, 1f)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf(Triple("Con", with, c), Triple("Senza", without, p.text3)).forEach { (l, v, col) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(l, style = MaterialTheme.typography.labelMedium, color = p.text2, modifier = Modifier.width(52.dp))
+                Box(Modifier.weight(1f).height(14.dp).clip(RoundedCornerShape(7.dp)).background(p.field)) {
+                    Box(Modifier.fillMaxWidth(frac(v)).height(14.dp).clip(RoundedCornerShape(7.dp)).background(col))
+                }
+                Text(Explain.raw(r.outcome, v), style = MaterialTheme.typography.labelLarge, color = p.text,
+                    modifier = Modifier.width(76.dp), textAlign = TextAlign.End, maxLines = 1)
+            }
+        }
+        Caption("Barre che partono dall'80% del valore più basso, per rendere visibile la differenza.")
+    }
+}
+
 /** Una scoperta: titolo, effetto con intervallo, distintivo e numeri. */
 @Composable
 private fun FindingRow(r: AssocResult, compact: Boolean) {
@@ -188,6 +265,22 @@ private fun FindingRow(r: AssocResult, compact: Boolean) {
         Text(Associations.effectText(r), style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 22.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontFeatureSettings = TABULAR), color = c)
     }
     if (!compact) ForestBar(r, Modifier.fillMaxWidth().height(22.dp), axisRange(listOf(r)))
+}
+
+/** Riga in Home: «−14%  HRV la notte dopo · Alcol». */
+@Composable
+private fun CompactFinding(r: AssocResult) {
+    val p = LocalPalette.current
+    val t = Explain.finding(r)
+    val c = if (r.favorable) Tint.good else Tint.bad
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(t.big, style = androidx.compose.ui.text.TextStyle(fontFamily = DisplayFont, fontSize = 22.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontFeatureSettings = TABULAR),
+            color = p.ink(c), modifier = Modifier.width(96.dp), maxLines = 1)
+        Column(Modifier.weight(1f)) {
+            Text(t.metric.replaceFirstChar { ch -> ch.uppercase() }, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
+            Text("con «${r.exposure.label}» · ${t.strength.label.lowercase()}", style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 2)
+        }
+    }
 }
 
 @Composable

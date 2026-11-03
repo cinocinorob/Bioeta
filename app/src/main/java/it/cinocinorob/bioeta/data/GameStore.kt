@@ -3,6 +3,8 @@ package it.cinocinorob.bioeta.data
 import android.content.Context
 import it.cinocinorob.bioeta.science.FrozenWeek
 import it.cinocinorob.bioeta.science.GameLevel
+import it.cinocinorob.bioeta.science.GamePause
+import it.cinocinorob.bioeta.science.PauseReason
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -19,12 +21,17 @@ class GameStore(context: Context) {
     fun loadBadges(): Map<String, LocalDate> = runCatching { badgesFromJson(JSONObject(prefs.getString("badges", "{}")!!)) }.getOrDefault(emptyMap())
     fun bestStreak(): Int = prefs.getInt("best_streak", 0)
 
+    /** Pause scelte dall'utente (anche quelle finite: i giorni passati in pausa restano tali). */
+    fun loadPauses(): List<GamePause> = runCatching { pausesFromJson(JSONArray(prefs.getString("pauses", "[]"))) }.getOrDefault(emptyList())
+    fun savePauses(l: List<GamePause>) { prefs.edit().putString("pauses", pausesToJson(l).toString()).apply() }
+
     fun save(weeks: Map<LocalDate, FrozenWeek>, badges: Map<String, LocalDate>, best: Int) {
         prefs.edit().putString("weeks", weeksToJson(weeks).toString()).putString("badges", badgesToJson(badges).toString())
             .putInt("best_streak", best).apply()
     }
 
     fun toJson(): JSONObject = JSONObject().put("weeks", weeksToJson(loadWeeks())).put("badges", badgesToJson(loadBadges())).put("best_streak", bestStreak())
+        .put("pauses", pausesToJson(loadPauses()))
 
     /** Ripristino da backup: unione (le settimane e i traguardi già presenti restano). */
     fun restore(o: JSONObject) {
@@ -32,6 +39,7 @@ class GameStore(context: Context) {
         val b = badgesFromJson(o.optJSONObject("badges") ?: JSONObject()).toMutableMap()
         loadBadges().forEach { (k, v) -> b[k] = minOf(v, b[k] ?: v) }
         save(w, b, maxOf(bestStreak(), o.optInt("best_streak", 0)))
+        o.optJSONArray("pauses")?.let { a -> savePauses((loadPauses() + pausesFromJson(a)).distinct()) }
     }
 
     companion object {
@@ -47,6 +55,17 @@ class GameStore(context: Context) {
                 FrozenWeek(LocalDate.parse(o.getString("s")), o.getInt("p"), o.optInt("m"), o.optInt("x"), o.optBoolean("r", true), GameLevel.valueOf(o.getString("l")))
             }.getOrNull()
         }.associateBy { it.start }
+
+        fun pausesToJson(l: List<GamePause>) = JSONArray().apply {
+            l.forEach { p -> put(JSONObject().put("r", p.reason.name).put("f", p.from.toString()).put("t", p.to?.toString() ?: "")) }
+        }
+
+        fun pausesFromJson(a: JSONArray): List<GamePause> = (0 until a.length()).mapNotNull { i ->
+            runCatching {
+                val o = a.getJSONObject(i)
+                GamePause(PauseReason.valueOf(o.getString("r")), LocalDate.parse(o.getString("f")), o.optString("t").takeIf { it.isNotEmpty() }?.let(LocalDate::parse))
+            }.getOrNull()
+        }
 
         fun badgesToJson(m: Map<String, LocalDate>) = JSONObject().apply { m.forEach { (k, v) -> put(k, v.toString()) } }
 

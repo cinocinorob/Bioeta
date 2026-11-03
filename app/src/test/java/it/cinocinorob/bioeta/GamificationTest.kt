@@ -7,6 +7,16 @@ import it.cinocinorob.bioeta.science.FrozenWeek
 import it.cinocinorob.bioeta.science.Game
 import it.cinocinorob.bioeta.science.GameInput
 import it.cinocinorob.bioeta.science.GameLevel
+import it.cinocinorob.bioeta.science.GamePath
+import it.cinocinorob.bioeta.science.GamePause
+import it.cinocinorob.bioeta.science.PauseReason
+import it.cinocinorob.bioeta.science.DailyAdvice
+import it.cinocinorob.bioeta.science.Effort
+import it.cinocinorob.bioeta.science.Explain
+import it.cinocinorob.bioeta.science.AssocResult
+import it.cinocinorob.bioeta.science.Exposure
+import it.cinocinorob.bioeta.science.OutcomeKind
+import it.cinocinorob.bioeta.science.Verdict
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -134,5 +144,59 @@ class GamificationTest {
         assertFalse("ecg_first" in got)
         // ogni traguardo ha un id unico
         assertEquals(Badges.all.size, Badges.all.map { it.id }.toSet().size)
+    }
+
+    @Test fun pausedDaysDoNotCostPointsOrBreakStreak() {
+        val steps = HashMap<LocalDate, Int>()
+        for (k in 0L until 14L) steps[mon.plusDays(k)] = 8000
+        for (k in 7L..10L) steps[mon.plusDays(k)] = 500   // influenza da martedì a venerdì della 2ª settimana
+        val today = mon.plusDays(14)
+        val pause = GamePause(PauseReason.ILLNESS, mon.plusDays(7), mon.plusDays(10))
+        val i = GameInput(today, steps, emptyMap(), emptyMap(), 9000, paused = pause.days(today))
+        val s = Game.evaluate(i)!!
+        assertEquals(70, s.weeks[1].points)
+        assertTrue(s.weeks[1].days.filter { it.date in pause.days(today) }.all { it.kind == DayKind.REST })
+        assertEquals(10, s.dayStreak)
+        // senza pausa gli stessi giorni costano 40 punti
+        assertEquals(30, Game.evaluate(i.copy(paused = emptySet()))!!.weeks[1].points)
+    }
+
+    @Test fun openPauseIsCappedAt30Days() {
+        val p = GamePause(PauseReason.TRAVEL, mon, null)
+        assertEquals(30, p.days(mon.plusDays(60)).size)
+        assertFalse(p.active(mon.plusDays(31)))
+        assertTrue(p.active(mon.plusDays(5)))
+    }
+
+    @Test fun dailyAdvice() {
+        assertEquals(Effort.REST, DailyAdvice.effort(35, 10, false, false, false))
+        assertEquals(Effort.EASY, DailyAdvice.effort(52, 40, false, false, false))
+        assertEquals(Effort.EASY, DailyAdvice.effort(80, 60, true, false, false))
+        assertEquals(Effort.HARD, DailyAdvice.effort(82, 80, false, false, false))
+        assertEquals(Effort.MODERATE, DailyAdvice.effort(70, 50, false, false, false))
+        assertEquals(Effort.REST, DailyAdvice.effort(90, 90, false, true, false))
+        assertEquals(Effort.REST, DailyAdvice.effort(90, 90, false, false, true))
+    }
+
+    @Test fun activityPathHasBandAndGoal() {
+        val steps = (0L until 20L).associate { mon.plusDays(it) to 5000 + 250 * (it % 8).toInt() }
+        val today = mon.plusDays(19)
+        val path = GamePath.path(GameInput(today, steps, emptyMap(), emptyMap(), 9000), 14)
+        assertEquals(14, path.size)
+        assertEquals(today, path.last().date)
+        assertTrue(path.all { d -> d.low != null && d.goal != null && d.low!! <= d.goal!! })
+    }
+
+    @Test fun explanationIsPlainAndDescriptive() {
+        val e = Exposure("tag:alcohol", "Alcol", emptySet(), emptySet(), auto = false)
+        val r = AssocResult(e, OutcomeKind.HRV, -14.0, -22.0, -6.0, 0.002, 0.02, 9, 31, Verdict.CONFIRMED, meanWith = 42.0, meanWithout = 49.0)
+        val t = Explain.finding(r)
+        assertEquals("−14%", t.big)
+        assertTrue(t.sentence.contains("più bassa del 14%"))
+        assertTrue(t.sentence.contains("42 ms contro 49 ms"))
+        assertFalse(t.sentence.contains("abbassa"))
+        assertEquals("alcohol", t.experimentKey)
+        assertTrue(t.experimentAvoid)
+        assertTrue(t.reliability.startsWith("Affidabile"))
     }
 }

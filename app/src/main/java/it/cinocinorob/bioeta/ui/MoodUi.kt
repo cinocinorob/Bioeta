@@ -94,7 +94,7 @@ fun MoodTrendCard(vm: AppViewModel, onLog: (() -> Unit)? = null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(label, style = MaterialTheme.typography.bodyMedium, color = p.text)
-                    Text(a?.let { MoodTrend.describe(it) } ?: "dati insufficienti", style = MaterialTheme.typography.bodySmall, color = p.text2)
+                    Text(a?.let { x -> moodSentence(x) } ?: "dati insufficienti", style = MaterialTheme.typography.bodySmall, color = p.text2)
                 }
                 if (a != null) {
                     Column(horizontalAlignment = Alignment.End) {
@@ -173,4 +173,16 @@ fun MoodStrip(vm: AppViewModel, days: Int = 14) {
             Text("oggi", style = MaterialTheme.typography.labelSmall, color = p.text3)
         }
     }
+}
+
+
+/** Frase concreta sul legame con l'umore, con i valori del terzo di giorni più basso e più alto. */
+private fun moodSentence(a: it.cinocinorob.bioeta.science.MoodAssoc): String {
+    val (what, fmt) = when (a.label) {
+        "sonno" -> "notti di sonno" to { v: Double -> val m = (v * 60).toInt(); "${m / 60} h ${"%02d".format(m % 60)}" }
+        "hrv" -> "HRV" to { v: Double -> String.format(java.util.Locale.ITALY, "%.0f ms", v) }
+        "recupero" -> "Recupero" to { v: Double -> String.format(java.util.Locale.ITALY, "%.0f", v) }
+        else -> "minuti attivi il giorno prima" to { v: Double -> String.format(java.util.Locale.ITALY, "%.0f min", v) }
+    }
+    return it.cinocinorob.bioeta.science.Explain.mood(what, a, fmt)
 }

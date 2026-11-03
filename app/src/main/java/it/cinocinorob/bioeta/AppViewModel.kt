@@ -435,7 +435,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             panels = (panels.filter { it.id !in ids } + imported).sortedBy { it.date }
             store.savePanels(panels)
             if (prof != null && profile.birthDate == null) updateProfile(prof)
-            frozenWeeks = gameStore.loadWeeks(); badgeDates = gameStore.loadBadges(); bestStreakSaved = gameStore.bestStreak()
+            frozenWeeks = gameStore.loadWeeks(); badgeDates = gameStore.loadBadges(); bestStreakSaved = gameStore.bestStreak(); pauses = gameStore.loadPauses()
             autoBackupNow()
             message = "Ripristinati ${imported.size} prelievi."
         }
@@ -1228,6 +1228,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var bestStreakSaved by mutableStateOf(gameStore.bestStreak())
         private set
+    var pauses by mutableStateOf(gameStore.loadPauses())
+        private set
+
+    /** Pausa in corso (malattia, infortunio, vacanza), se c'è. */
+    val activePause: GamePause? get() = pauses.lastOrNull { it.active(java.time.LocalDate.now()) }
+
+    fun startPause(reason: PauseReason, days: Int?) {
+        val today = java.time.LocalDate.now()
+        val keep = pauses.map { p -> if (p.active(today)) p.copy(to = today.minusDays(1)) else p }.filter { p -> p.days(today).isNotEmpty() }
+        pauses = keep + GamePause(reason, today, days?.let { d -> today.plusDays(d - 1L) })
+        gameStore.savePauses(pauses)
+    }
+
+    fun endPause() {
+        val today = java.time.LocalDate.now()
+        // la pausa finisce ieri: oggi torna un giorno normale
+        pauses = pauses.map { p -> if (p.active(today)) p.copy(to = today.minusDays(1)) else p }.filter { p -> p.days(today).isNotEmpty() }
+        gameStore.savePauses(pauses)
+    }
+
+    /** Consiglio del giorno: Riposo, Leggero, Moderato, Intenso. */
+    val todayEffort: Effort
+        get() = DailyAdvice.effort(
+            today.readiness.score, readinessPercentile, loadTrend.state == LoadTrendState.SPIKE,
+            illness = radar.level == RadarLevel.MAJOR, paused = activePause != null,
+        )
+
     /** Traguardi appena sbloccati, da mostrare finché non si apre la schermata. */
     var newBadges by mutableStateOf<List<String>>(emptyList())
         private set
@@ -1242,13 +1269,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private var gameKey: List<Any?>? = null
     private var gameCache: GameState? = null
+    /** Ultimo input del gioco (per il percorso attività). */
+    var gameInput: GameInput? = null
+        private set
 
     val game: GameState?
         get() {
             val today = java.time.LocalDate.now()
             val rest = radar.level == RadarLevel.MINOR || radar.level == RadarLevel.MAJOR
             val hist = scoreHistory60
-            val key = listOf(wearable, dayActivities, hist, todayActivity?.steps, rest, frozenWeeks, profile, today)
+            val key = listOf(wearable, dayActivities, hist, todayActivity?.steps, rest, frozenWeeks, profile, today, pauses)
             if (key == gameKey) return gameCache
             val steps = HashMap<java.time.LocalDate, Int>()
             wearable[Metric.STEPS].orEmpty().forEach { pt -> steps[pt.date] = pt.value.toInt() }
@@ -1261,7 +1291,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 ageGoal = Fitness.stepGoal(profile.ageAt(today)),
                 restToday = rest,
                 frozen = frozenWeeks,
+                paused = pauses.flatMap { p -> p.days(today) }.toSet(),
             )
+            gameInput = input
             gameCache = Game.evaluate(input)
             gameKey = key
             return gameCache
@@ -1291,8 +1323,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val fresh = Badges.satisfied(ctx) - badgeDates.keys
         if (fresh.isEmpty() && weeks == frozenWeeks && best == bestStreakSaved) return
         val badges = badgeDates + fresh.associateWith { today }
-        // al primo avvio non si annunciano in blocco i traguardi già raggiunti in passato
-        if (fresh.isNotEmpty() && badgeDates.isNotEmpty()) newBadges = (newBadges + fresh).distinct()
+        // al primo giorno non si annunciano in blocco i traguardi già raggiunti in passato (anche dopo la lettura completa)
+        val firstDay = badgeDates.values.minOrNull()
+        if (fresh.isNotEmpty() && firstDay != null && firstDay.isBefore(today)) newBadges = (newBadges + fresh).distinct()
         frozenWeeks = weeks; badgeDates = badges; bestStreakSaved = best
         gameStore.save(weeks, badges, best)
     }
