@@ -192,6 +192,14 @@ Regole (scelte progettuali, non validate):
 - Settimane chiuse da più di 2 giorni sono salvate e non vengono più ricalcolate; il livello di partenza per lo
   storico di 120 giorni è quello dell'ultima settimana salvata.
 - Serie gentile: pause e giorni senza orologio non interrompono; un giorno mancato per settimana è coperto da un jolly.
+- Pausa (come Gentler Streak): malattia, infortunio, vacanza o altro, per 1, 3, 7 giorni o finché l'utente non riprende
+  (massimo 30); i giorni in pausa valgono come pausa (nessun punto perso, serie intatta) e restano tali nello storico.
+- Consiglio del giorno (Riposo / Leggero / Moderato / Intenso): Riposo con Recupero < 40, malessere marcato o pausa;
+  Leggero con Recupero < 55, sotto il 25° percentile personale o carico 7/28 «molto sopra il solito»; Intenso con
+  Recupero ≥ 70 e ≥ 70° percentile; altrimenti Moderato. Regola di progetto: l'allenamento guidato dall'HRV migliora i
+  parametri submassimali ma non in modo significativo la prestazione (Düking 2021, doi:10.1016/j.jsams.2021.04.012).
+- Percorso attività: per ogni giorno passi, fascia personale tra 40° e 60° percentile dei 10 giorni precedenti, e
+  obiettivo; riepilogo della settimana rispetto agli stessi giorni della precedente.
 - Traguardi solo su soglie con benefici documentati (150 e 300 minuti OMS, media 7.000 passi, SRI ≥ 81) o su abitudini
   di misura corrette (protocollo pressione, diario, referti); nessun premio per eccessi. La data di sblocco è salvata
   e inclusa nel backup. Il gioco si disattiva da Profilo senza effetti sulle valutazioni.
@@ -271,6 +279,12 @@ Ispirazione: Oura «Personal discoveries», WHOOP «Journal Impact». Regole pro
   umore 0,3. «Confermata» = q ≤ 0,10 e |effetto| ≥ soglia; «Indizio» = p < 0,10 e |effetto| ≥ soglia.
 - Co‑occorrenze segnalate quando due abitudini coincidono in ≥ 60% dei giorni della prima.
 - Limiti: osservazionale, una sola persona, autocorrelazione tra giorni; non stabilisce cause.
+
+- Presentazione (versione 2): ogni scoperta è detta in una frase con i tuoi valori medi «con / senza» (grezzi, nella
+  notte o nel mattino successivo), la forza (lieve < 2, moderata 2–3, forte ≥ 3 volte la soglia di rilevanza),
+  l'affidabilità (Confermata = «affidabile», Indizio = «da confermare») e un'azione; per le voci del diario si può
+  avviare un esperimento di 14 giorni. Le parole sono descrittive («è più bassa»), non causali. Associazioni con
+  l'umore: umore medio nel terzo di giorni con il valore più basso e in quello più alto.
 
 ## Esperimenti personali (versione 1)
 

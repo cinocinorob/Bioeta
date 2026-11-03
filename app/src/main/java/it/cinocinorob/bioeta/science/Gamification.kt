@@ -72,6 +72,8 @@ data class GameInput(
     /** Segni di malessere stanotte (radar): oggi è giorno di pausa. */
     val restToday: Boolean = false,
     val frozen: Map<LocalDate, FrozenWeek> = emptyMap(),
+    /** Giorni in pausa scelti dall'utente (malattia, infortunio, vacanza): come in Gentler Streak non contano. */
+    val paused: Set<LocalDate> = emptySet(),
 )
 
 data class GameState(
@@ -124,7 +126,7 @@ object Game {
     }
 
     fun goalFor(d: LocalDate, i: GameInput): DayGoal {
-        val rest = d == i.today && i.restToday
+        val rest = (d == i.today && i.restToday) || d in i.paused
         val prior = (1..WINDOW).mapNotNull { i.steps[d.minusDays(it.toLong())]?.takeIf { s -> s >= MIN_WORN_STEPS } }
         if (prior.size < MIN_DAYS) {
             return DayGoal(d, minOf(i.ageGoal, Fitness.STEP_HEALTH), light = false, rest = rest, calibrating = true)
@@ -227,6 +229,88 @@ object Game {
     /** Minuti attivi OMS per settimana (lunedì → domenica). */
     fun weekMinutes(activeMinutes: Map<LocalDate, Int>): Map<LocalDate, Int> =
         activeMinutes.entries.groupBy { weekStart(it.key) }.mapValues { e -> e.value.sumOf { it.value } }
+}
+
+// ---------------- Pausa, consiglio del giorno, riepilogo (Gentler Streak, FitWoody) ----------------
+
+enum class PauseReason(val label: String) { ILLNESS("Malattia"), INJURY("Infortunio"), TRAVEL("Vacanza o viaggio"), OTHER("Altro") }
+
+/** Pausa scelta dall'utente: da [from] a [to] compresi (to = null: finché non riprende, al massimo 30 giorni). */
+data class GamePause(val reason: PauseReason, val from: LocalDate, val to: LocalDate?) {
+    fun days(today: LocalDate): Set<LocalDate> {
+        val end = minOf(to ?: today, from.plusDays(29))
+        if (end.isBefore(from)) return emptySet()
+        return generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(end) }.toSet()
+    }
+    fun active(today: LocalDate) = !today.isBefore(from) && (to == null || !today.isAfter(to)) && !today.isAfter(from.plusDays(29))
+}
+
+enum class Effort(val label: String) { REST("Riposo"), EASY("Leggero"), MODERATE("Moderato"), HARD("Intenso") }
+
+/**
+ * Consiglio del giorno (come il suggerimento quotidiano di Gentler Streak e il readiness di FitWoody): dipende dal
+ * Recupero rispetto alla tua storia e da quanto è cresciuto il carico. È una regola di BioEtà, non un algoritmo validato:
+ * l'allenamento guidato dall'HRV migliora i parametri submassimali più di un piano fisso ma non in modo significativo la prestazione (Düking 2021,
+ * doi:10.1016/j.jsams.2021.04.012), e il rapporto 7/28 giorni non predice gli infortuni.
+ */
+object DailyAdvice {
+    fun effort(readiness: Int?, readinessPct: Int?, loadSpike: Boolean, illness: Boolean, paused: Boolean): Effort = when {
+        illness || paused -> Effort.REST
+        readiness == null -> Effort.MODERATE
+        readiness < 40 -> Effort.REST
+        readiness < 55 || (readinessPct != null && readinessPct < 25) -> Effort.EASY
+        loadSpike -> Effort.EASY
+        readinessPct != null && readinessPct >= 70 && readiness >= 70 -> Effort.HARD
+        else -> Effort.MODERATE
+    }
+
+    /** Frase del compagno, con tono gentile e senza sensi di colpa. */
+    fun line(o: DayOutcome, effort: Effort, pause: GamePause?): String = when {
+        pause != null -> when (pause.reason) {
+            PauseReason.ILLNESS -> "Pensa a guarire: la serie ti aspetta."
+            PauseReason.INJURY -> "Il corpo sta riparando: niente fretta, la serie è al sicuro."
+            PauseReason.TRAVEL -> "Goditi il viaggio: la serie è in pausa con te."
+            PauseReason.OTHER -> "In pausa: quando vuoi ripartiamo da qui."
+        }
+        o.goal.rest -> "Stanotte ho visto segni di malessere: oggi riposo, la serie non si rompe."
+        o.met && (o.steps ?: 0) < (o.goal.target ?: 0) -> "Fatto con i minuti attivi! Il resto della giornata è tuo."
+        o.met -> "Obiettivo raggiunto! Il resto della giornata è tuo."
+        o.goal.calibrating -> "Sto imparando i tuoi ritmi: ancora qualche giorno con l'orologio."
+        effort == Effort.REST -> "Il recupero è basso: oggi una passeggiata tranquilla basta e avanza."
+        effort == Effort.EASY || o.goal.light -> "Oggi andiamo piano: basta un giro facile."
+        effort == Effort.HARD -> "Hai energia: è un buon giorno per un allenamento vero."
+        else -> "Una camminata a passo svelto e ci sei."
+    }
+}
+
+data class PathDay(val date: LocalDate, val steps: Int?, val low: Int?, val goal: Int?, val kind: DayKind)
+
+data class Recap(val activeDays: Int, val restDays: Int, val missed: Int, val minutes: Int, val prevMinutes: Int?, val stepsAvg: Int?, val prevStepsAvg: Int?)
+
+object GamePath {
+    /** Percorso attività: ogni giorno i passi rispetto alla fascia tra obiettivo leggero (40° percentile) e obiettivo. */
+    fun path(i: GameInput, days: Int = 30): List<PathDay> = (days - 1 downTo 0).map { i.today.minusDays(it.toLong()) }.map { d ->
+        val o = Game.outcome(d, i)
+        val prior = (1..Game.WINDOW).mapNotNull { i.steps[d.minusDays(it.toLong())]?.takeIf { s -> s >= Game.MIN_WORN_STEPS } }
+        val low = if (prior.size >= Game.MIN_DAYS) (Math.ceil(Game.quantile(prior, 0.40) / 250) * 250).toInt().coerceIn(Game.LIGHT_FLOOR, o.goal.target ?: Int.MAX_VALUE) else null
+        PathDay(d, i.steps[d], low, o.goal.target, o.kind)
+    }
+
+    /** Riepilogo della settimana in corso rispetto alla precedente (come il riepilogo settimanale di Gentler Streak). */
+    fun recap(s: GameState, activeMinutes: Map<LocalDate, Int>, steps: Map<LocalDate, Int>, today: LocalDate): Recap {
+        val ws = s.week.start
+        fun mins(from: LocalDate, to: LocalDate) = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(to) }.sumOf { activeMinutes[it] ?: 0 }
+        fun avg(from: LocalDate, to: LocalDate) = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(to) }
+            .mapNotNull { steps[it]?.takeIf { v -> v >= Game.MIN_WORN_STEPS } }.toList().takeIf { it.isNotEmpty() }?.average()?.toInt()
+        val elapsed = java.time.temporal.ChronoUnit.DAYS.between(ws, today)
+        val prevStart = ws.minusWeeks(1)
+        val hasPrev = activeMinutes.keys.any { !it.isAfter(prevStart) }
+        return Recap(
+            s.week.days.count { it.met }, s.week.days.count { it.kind == DayKind.REST }, s.week.days.count { it.kind == DayKind.MISSED },
+            mins(ws, today), if (hasPrev) mins(prevStart, prevStart.plusDays(elapsed)) else null,
+            avg(ws, today), avg(prevStart, prevStart.plusDays(elapsed)),
+        )
+    }
 }
 
 // ---------------- Traguardi ----------------

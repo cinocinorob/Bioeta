@@ -21,7 +21,12 @@ import kotlin.math.sqrt
  */
 data class MoodPoint(val date: LocalDate, val value: Double)
 
-data class MoodAssoc(val label: String, val rho: Double, val low: Double, val high: Double, val n: Int) {
+data class MoodAssoc(
+    val label: String, val rho: Double, val low: Double, val high: Double, val n: Int,
+    /** Umore medio nel terzo dei giorni con il valore più basso / più alto, e i due limiti del valore. */
+    val moodLowThird: Double? = null, val moodHighThird: Double? = null,
+    val xLowCut: Double? = null, val xHighCut: Double? = null,
+) {
     val clear get() = low > 0 || high < 0
 }
 
@@ -82,7 +87,14 @@ object MoodTrend {
         val z = 0.5 * ln((1 + rho.coerceIn(-0.999, 0.999)) / (1 - rho.coerceIn(-0.999, 0.999)))
         val se = sqrt(1.06 / (pairs.size - 3))
         fun back(v: Double) = (exp(2 * v) - 1) / (exp(2 * v) + 1)
-        return MoodAssoc(label, rho, back(z - 1.96 * se), back(z + 1.96 * se), pairs.size)
+        // terzili del valore: umore medio nel terzo inferiore e in quello superiore (lettura concreta del rho)
+        val sorted = pairs.sortedBy { it.first }
+        val k = sorted.size / 3
+        val lowT = sorted.take(k); val highT = sorted.takeLast(k)
+        return MoodAssoc(
+            label, rho, back(z - 1.96 * se), back(z + 1.96 * se), pairs.size,
+            lowT.map { it.second }.average(), highT.map { it.second }.average(), lowT.last().first, highT.first().first,
+        )
     }
 
     fun describe(a: MoodAssoc): String {
