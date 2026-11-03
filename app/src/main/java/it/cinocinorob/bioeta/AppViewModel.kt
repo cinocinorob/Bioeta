@@ -57,6 +57,7 @@ import it.cinocinorob.bioeta.data.LabStore
 import it.cinocinorob.bioeta.data.LabValue
 import it.cinocinorob.bioeta.data.ReportParser
 import it.cinocinorob.bioeta.data.ReportText
+import it.cinocinorob.bioeta.data.GameStore
 import it.cinocinorob.bioeta.data.Panel
 import it.cinocinorob.bioeta.data.PhenoPoint
 import it.cinocinorob.bioeta.data.Profile
@@ -135,6 +136,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     quietly { refreshNutrition() }
                     quietly { refreshBp() }
                     quietly { updateLedger() }
+                    quietly { syncGame() }
                     saveSnapshot()
                     updateWidget()
                     if (needFull) {
@@ -142,6 +144,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         applySnapshot(snapshot)
                         refreshFitness()
                         quietly { updateLedger() }
+                        quietly { syncGame() }
                         saveSnapshot()
                         updateWidget()
                     }
@@ -186,7 +189,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             WidgetData.save(
                 getApplication<Application>(),
                 readiness = t.readiness.score, sleep = t.sleep?.score,
-                steps = todayActivity?.steps, stepGoal = Fitness.stepGoal(profile.ageAt(java.time.LocalDate.now())),
+                steps = todayActivity?.steps, stepGoal = (if (gameOn) game?.today?.goal?.target else null) ?: Fitness.stepGoal(profile.ageAt(java.time.LocalDate.now())),
                 load = todayLoad?.load,
             )
             BioWidget().updateAll(getApplication<Application>())
@@ -263,7 +266,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Backup completo: dati locali + archivio ECG (file in Base64). */
-    private fun backupJson(): JSONObject = LabStore.toJson(panels, profile, bpReadings, journal).put("ecg", ecgStore.backupJson(ecgRecords))
+    private fun backupJson(): JSONObject = LabStore.toJson(panels, profile, bpReadings, journal).put("ecg", ecgStore.backupJson(ecgRecords)).put("game", gameStore.toJson())
 
     // ---------------- Archivio ECG (PDF esportati dall'app ECG di Google Health / Fitbit) ----------------
 
@@ -414,6 +417,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching {
                     val root = JSONObject(getApplication<Application>().contentResolver.openInputStream(uri)!!.bufferedReader().use { it.readText() })
                     root.optJSONArray("ecg")?.let { ecgRecords = ecgStore.restore(it, ecgRecords) }
+                    root.optJSONObject("game")?.let { g -> gameStore.restore(g) }
                 }
             }
             if (journalImport.isNotEmpty()) {
@@ -431,6 +435,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             panels = (panels.filter { it.id !in ids } + imported).sortedBy { it.date }
             store.savePanels(panels)
             if (prof != null && profile.birthDate == null) updateProfile(prof)
+            frozenWeeks = gameStore.loadWeeks(); badgeDates = gameStore.loadBadges(); bestStreakSaved = gameStore.bestStreak()
             autoBackupNow()
             message = "Ripristinati ${imported.size} prelievi."
         }
@@ -1211,6 +1216,86 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             while (done(d) && k < 400) { k++; d = d.minusDays(1) }
             return k
         }
+
+    // ---------------- Obiettivi e traguardi (gamification: vedi science/Gamification.kt) ----------------
+
+    private val gameStore = GameStore(app)
+    var gameOn by mutableStateOf(settings.getBoolean("game_on", true))
+        private set
+    var frozenWeeks by mutableStateOf(gameStore.loadWeeks())
+        private set
+    var badgeDates by mutableStateOf(gameStore.loadBadges())
+        private set
+    var bestStreakSaved by mutableStateOf(gameStore.bestStreak())
+        private set
+    /** Traguardi appena sbloccati, da mostrare finché non si apre la schermata. */
+    var newBadges by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    fun setGameEnabled(on: Boolean) {
+        gameOn = on
+        settings.edit().putBoolean("game_on", on).apply()
+        if (on) syncGame()
+    }
+
+    fun seenNewBadges() { newBadges = emptyList() }
+
+    private var gameKey: List<Any?>? = null
+    private var gameCache: GameState? = null
+
+    val game: GameState?
+        get() {
+            val today = java.time.LocalDate.now()
+            val rest = radar.level == RadarLevel.MINOR || radar.level == RadarLevel.MAJOR
+            val hist = scoreHistory60
+            val key = listOf(wearable, dayActivities, hist, todayActivity?.steps, rest, frozenWeeks, profile, today)
+            if (key == gameKey) return gameCache
+            val steps = HashMap<java.time.LocalDate, Int>()
+            wearable[Metric.STEPS].orEmpty().forEach { pt -> steps[pt.date] = pt.value.toInt() }
+            todayActivity?.let { a -> steps[today] = maxOf(steps[today] ?: 0, a.steps.toInt()) }
+            val input = GameInput(
+                today = today,
+                steps = steps,
+                activeMinutes = dayActivities.associate { d -> d.date to d.activeMinutes },
+                readiness = hist.mapNotNull { d -> d.readiness.score?.let { sc -> d.date to sc } }.toMap(),
+                ageGoal = Fitness.stepGoal(profile.ageAt(today)),
+                restToday = rest,
+                frozen = frozenWeeks,
+            )
+            gameCache = Game.evaluate(input)
+            gameKey = key
+            return gameCache
+        }
+
+    /** Settimane da congelare, serie migliore, traguardi da sbloccare: idempotente, chiamato dopo ogni lettura. */
+    fun syncGame() {
+        if (!gameOn) return
+        val today = java.time.LocalDate.now()
+        val g = game
+        var weeks = frozenWeeks
+        if (g != null && g.toFreeze.isNotEmpty()) weeks = weeks + g.toFreeze.associateBy { w -> w.start }
+        val best = maxOf(bestStreakSaved, g?.bestDayStreak ?: 0)
+        val steps30 = wearable[Metric.STEPS].orEmpty().filter { pt -> pt.date.isBefore(today) && pt.date.isAfter(today.minusDays(31)) && pt.value >= Game.MIN_WORN_STEPS }
+        val ctx = BadgeContext(
+            game = g,
+            weekMinutes = Game.weekMinutes(dayActivities.associate { d -> d.date to d.activeMinutes }),
+            steps30Mean = steps30.takeIf { l -> l.size >= 14 }?.map { pt -> pt.value }?.average(),
+            sleepRegularity = sleepRegularity,
+            journalStreak = journalStreak,
+            bpProtocolComplete = bpSummary?.protocolComplete == true,
+            labPanels = panels.size,
+            bioAge = phenoSeries.isNotEmpty(),
+            experimentsDone = experiments.count { e -> e.finished(today) },
+            ecgCount = ecgRecords.size,
+        )
+        val fresh = Badges.satisfied(ctx) - badgeDates.keys
+        if (fresh.isEmpty() && weeks == frozenWeeks && best == bestStreakSaved) return
+        val badges = badgeDates + fresh.associateWith { today }
+        // al primo avvio non si annunciano in blocco i traguardi già raggiunti in passato
+        if (fresh.isNotEmpty() && badgeDates.isNotEmpty()) newBadges = (newBadges + fresh).distinct()
+        frozenWeeks = weeks; badgeDates = badges; bestStreakSaved = best
+        gameStore.save(weeks, badges, best)
+    }
 
     // ---------------- In evidenza: cambiamenti rilevanti della settimana o del mese ----------------
 

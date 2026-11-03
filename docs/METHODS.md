@@ -170,6 +170,32 @@ come PDF esportati dall'app ECG di Google Health / Fitbit (condivisione verso Bi
   i valori più alti.
 - Trend: pendenza OLS su 90 giorni con ≥ 10 misure distribuite su ≥ 21 giorni.
 
+## Obiettivi e traguardi (versione 1) — `science/Gamification.kt`
+
+Prove: la gamification nelle app aumenta i passi di 489/giorno rispetto alle stesse app senza giochi (IC 64–914;
+36 RCT, GRADE alto, effetto definito «trascurabile»; Nishi 2024, doi:10.1016/j.eclinm.2024.102798). Punti assegnati
+in anticipo e persi (avversione alla perdita) e livelli: +637–920 passi/giorno, effetto che cala alla fine del gioco
+(STEP UP, Patel 2019, doi:10.1001/jamainternmed.2019.3505). Obiettivi adattivi da percentile: +1.130 passi/giorno
+rispetto a 10.000 fissi in un RCT di 20 persone (Adams 2013, doi:10.1371/journal.pone.0082901).
+
+Regole (scelte progettuali, non validate):
+- Obiettivo del giorno D = 60° percentile (interpolazione lineare) dei passi dei 10 giorni precedenti con ≥ 300
+  passi, servono ≥ 5 giorni (prima: min(obiettivo per età, 7.000), «provvisorio»); arrotondato per eccesso a 250,
+  tra 3.000 e l'obiettivo per età (9.000 sotto i 60 anni, 7.000 sopra: oltre il beneficio non cresce, Paluch 2022).
+- Recupero basso (punteggio < 50 o sotto il 30° percentile dei 28 giorni precedenti): obiettivo = 40° percentile
+  (≥ 2.000); se non raggiunto il giorno è di pausa, senza perdita di punti. Radar «segni lievi» o «marcati» stanotte:
+  oggi è giorno di pausa.
+- Raggiunto = passi ≥ obiettivo oppure ≥ 30 minuti attivi OMS (vigorosi ×2): bici, nuoto e palestra contano.
+- Giorni con < 300 passi e senza minuti attivi: «senza orologio», non contano.
+- Punti (schema STEP UP): 70 a inizio settimana (lunedì), −10 per giorno mancato. Settimana con ≥ 4 giorni valutati:
+  ≥ 40 punti → livello su, altrimenti giù (Blu, Bronzo, Argento, Oro, Platino).
+- Settimane chiuse da più di 2 giorni sono salvate e non vengono più ricalcolate; il livello di partenza per lo
+  storico di 120 giorni è quello dell'ultima settimana salvata.
+- Serie gentile: pause e giorni senza orologio non interrompono; un giorno mancato per settimana è coperto da un jolly.
+- Traguardi solo su soglie con benefici documentati (150 e 300 minuti OMS, media 7.000 passi, SRI ≥ 81) o su abitudini
+  di misura corrette (protocollo pressione, diario, referti); nessun premio per eccessi. La data di sblocco è salvata
+  e inclusa nel backup. Il gioco si disattiva da Profilo senza effetti sulle valutazioni.
+
 ## 5. Recupero e sonno
 
 Recupero: z-score di ln(RMSSD) e FC a riposo rispetto alla baseline personale (giorni D−61…D−1), media del giorno e

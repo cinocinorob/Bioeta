@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -77,6 +78,17 @@ fun SettingsScreen(
             HealthCard("Aspetto", BioIcons.Sparkle, Tint.brand) {
                 SegmentPill(ThemeMode.entries.map { it.label }, ThemeMode.entries.indexOf(vm.themeMode), onSelect = { vm.selectTheme(ThemeMode.entries[it]) })
                 Caption("Con «Sistema» BioEtà segue il tema chiaro o scuro del telefono. Le dimensioni del testo seguono le impostazioni di sistema.")
+            }
+        }
+        item {
+            HealthCard("Obiettivi e traguardi", BioIcons.Trophy, Tint.lvlGold) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                        Text(if (vm.gameOn) "Attivi" else "Disattivati", fontSize = 15.sp, color = pal.text)
+                        Caption("Obiettivo di passi che si adatta a te, punti, livelli e traguardi.")
+                    }
+                    androidx.compose.material3.Switch(checked = vm.gameOn, onCheckedChange = { vm.setGameEnabled(it) }, modifier = Modifier.testTag("game_switch"))
+                }
             }
         }
         item {

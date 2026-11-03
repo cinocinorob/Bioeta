@@ -76,6 +76,7 @@ fun HomeScreen(
     onOpenJournalYesterday: () -> Unit = {},
     onOpenLongTerm: () -> Unit = {},
     onOpenNutrition: () -> Unit = {},
+    onOpenGoals: () -> Unit = {},
     onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
     onRequestPermissions: () -> Unit,
@@ -128,6 +129,7 @@ fun HomeScreen(
             )
         }
         item { MoveTile(vm, chrono, onGoActivity, onOpenMetric) }
+        if (vm.gameOn && vm.hasAnyHealthPermission && vm.game != null) item { GameCard(vm, onOpenGoals) }
         item { RpePrompt(vm) }
         if (vm.hasAnyHealthPermission) item { NutritionCard(vm, onOpenNutrition, onRequestPermissions) }
 
@@ -386,7 +388,8 @@ internal fun MoveTile(vm: AppViewModel, chrono: Double?, onGoActivity: () -> Uni
     val today = LocalDate.now()
     val act = vm.todayActivity
     val dayAct = vm.todayDayActivity
-    val goal = Fitness.stepGoal(chrono)
+    // con gli obiettivi attivi il traguardo dei passi è quello adattivo del giorno
+    val goal = (if (vm.gameOn) vm.game?.today?.goal?.target else null) ?: Fitness.stepGoal(chrono)
     val week = Fitness.weekActiveMinutes(vm.dayLoads, today)
     val target = vm.targetLoad
     val todays = vm.displaySessions.filter { it.start.atZone(ZoneId.systemDefault()).toLocalDate() == today }
