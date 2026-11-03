@@ -32,6 +32,7 @@ object BioIcons {
     val Bolt = filled("bolt", "M7,2v11h3v9l7,-12h-4l4,-8z")
     val Drop = filled("drop", "M12,2c-5.33,4.55 -8,8.48 -8,11.8 0,4.98 3.8,8.2 8,8.2s8,-3.22 8,-8.2c0,-3.32 -2.67,-7.25 -8,-11.8z")
     val Sparkle = filled("sparkle", "M12,2l2.3,6.9L21,11.5l-6.7,2.6L12,21l-2.3,-6.9L3,11.5l6.7,-2.6z")
+    val Trophy = filled("trophy", "M7,3h10v2h3v3a4,4 0 0,1 -3.6,4A5,5 0 0,1 13,15v3h3v3H8v-3h3v-3a5,5 0 0,1 -3.4,-3A4,4 0 0,1 4,8V5h3zM6,7v1a2,2 0 0,0 1,1.7V7zM17,7v2.7A2,2 0 0,0 18,8V7z")
     val Person = filled("person", "M12,12c2.21,0 4,-1.79 4,-4s-1.79,-4 -4,-4 -4,1.79 -4,4 1.79,4 4,4zM12,14c-2.67,0 -8,1.34 -8,4v2h16v-2c0,-2.66 -5.33,-4 -8,-4z")
     val Pulse = stroked("pulse", "M2,12h4l3,-7l4,14l3,-7h6")
     val Wind = stroked("wind", "M3,8h10a3,3 0 1,0 -3,-3M3,12h15a3,3 0 1,1 -3,3M3,16h7")

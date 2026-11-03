@@ -12,8 +12,8 @@ android {
         applicationId = "it.cinocinorob.bioeta"
         minSdk = 28
         targetSdk = 36
-        versionCode = 27
-        versionName = "0.24.0"
+        versionCode = 28
+        versionName = "0.25.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

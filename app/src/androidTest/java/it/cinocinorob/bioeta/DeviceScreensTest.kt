@@ -299,6 +299,16 @@ class DeviceScreensTest {
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("highlights"))
             screenshot("home_in_evidenza")
+            // Obiettivi e traguardi: riquadro in Home e schermata dedicata
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("game_card"))
+            screenshot("home_obiettivo")
+            compose.onNodeWithTag("game_card").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("level_card").fetchSemanticsNodes().isNotEmpty() }
+            screenshot("traguardi")
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("badge_who_150"))
+            screenshot("traguardi_elenco")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("nutrition_card"))
             waitText("giorni completi", 30_000)
             screenshot("home_alimentazione")

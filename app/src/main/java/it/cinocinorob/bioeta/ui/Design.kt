@@ -123,6 +123,12 @@ object Tint {
     val bp = Color(0xFFC2398A)
     val mood = Color(0xFFD99400)     // umore
     val food = Color(0xFF5E9E2F)     // nutrizione
+    // livelli dei traguardi
+    val lvlBlue = Color(0xFF3B6FE0)
+    val lvlBronze = Color(0xFFB0703A)
+    val lvlSilver = Color(0xFF7D8796)
+    val lvlGold = Color(0xFFC99A06)
+    val lvlPlatinum = Color(0xFF2F9DB0)
 }
 
 val LocalPalette = staticCompositionLocalOf { LightPalette }
