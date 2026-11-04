@@ -328,8 +328,9 @@ class DeviceScreensTest {
             screenshot("mese")
             compose.onNodeWithTag("month_list").performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("mese_record")
-            back()
-            back()
+            // torna alla Home: un «indietro» per schermata, finché la Home non c'è (al massimo 4)
+            var tries = 0
+            while (compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isEmpty() && tries < 4) { back(); tries++ }
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("nutrition_card"))
             waitText("giorni completi", 30_000)
