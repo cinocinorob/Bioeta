@@ -83,7 +83,7 @@ fun SettingsScreen(
                         Text("Colori dal telefono", fontSize = 15.sp, color = pal.text)
                         Caption("Superfici e colore principale presi dallo sfondo (Material You). I colori di sonno, cuore, movimento restano.")
                     }
-                    androidx.compose.material3.Switch(checked = vm.dynamicColor, onCheckedChange = { vm.setDynamicColor(it) }, modifier = Modifier.testTag("dynamic_switch"))
+                    androidx.compose.material3.Switch(checked = vm.dynamicColor, onCheckedChange = { vm.enableDynamicColor(it) }, modifier = Modifier.testTag("dynamic_switch"))
                 }
             }
         }

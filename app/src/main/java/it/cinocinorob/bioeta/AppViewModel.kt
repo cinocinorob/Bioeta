@@ -623,7 +623,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var dynamicColor by mutableStateOf(settings.getBoolean("dynamic_color", false))
         private set
 
-    fun setDynamicColor(on: Boolean) { dynamicColor = on; settings.edit().putBoolean("dynamic_color", on).apply() }
+    fun enableDynamicColor(on: Boolean) { dynamicColor = on; settings.edit().putBoolean("dynamic_color", on).apply() }
 
     fun selectTheme(m: it.cinocinorob.bioeta.ui.ThemeMode) {
         themeMode = m
