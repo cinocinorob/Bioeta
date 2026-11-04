@@ -122,7 +122,7 @@ fun HomeScreen(
         item { ChangesNotice(vm) }
         if (vm.hasAnyHealthPermission && radarAlert) item { RadarCard(vm) }
 
-        // ---------------- Cruscotto: oggi ----------------
+        // ---------------- Oggi: briefing e punteggio, poi le due schede che contano ----------------
         if (vm.hasAnyHealthPermission) item { SedentaryNudge(vm) }
         if (vm.hasAnyHealthPermission) item { DayScoreCard(vm) }
         item {
@@ -131,37 +131,15 @@ fun HomeScreen(
                 { m -> SleepTile(vm, m) { onOpenMetric("SLEEP") } },
             )
         }
-        item { MoveTile(vm, chrono, onGoActivity, onOpenMetric) }
-        if (vm.gameOn && vm.hasAnyHealthPermission && vm.game != null) item { GameCard(vm, onOpenGoals) }
+        // Movimento: una sola scheda. Con il gioco attivo è quella del compagno (passi, obiettivo, carico, settimana);
+        // nei giorni di allerta per la salute il gioco si nasconde e resta la scheda semplice.
+        val alert = vm.healthAlert
+        if (alert != null && vm.gameOn) item {
+            InlineNotice("Oggi punti e traguardi sono in pausa per $alert: il giorno non conta per la serie.", NoticeKind.INFO)
+        }
+        if (vm.gameOn && alert == null && vm.hasAnyHealthPermission && vm.game != null) item { GameCard(vm, onOpenGoals, onGoActivity) }
+        else item { MoveTile(vm, chrono, onGoActivity, onOpenMetric) }
         item { RpePrompt(vm) }
-        if (vm.hasAnyHealthPermission) item { NutritionCard(vm, onOpenNutrition, onRequestPermissions) }
-
-        // ---------------- Salute a lungo termine: indicatori con soglie dalla letteratura ----------------
-        if (vm.hasAnyHealthPermission) {
-            item { SectionHeader("Salute a lungo termine", "Dettagli", onOpenLongTerm) }
-            item { LongTermCard(vm.longTerm, onOpenLongTerm) }
-        }
-
-        // ---------------- Parametri della notte (stessa valutazione del radar: intervallo personale) ----------------
-        item { SectionHeader("Parametri della notte", "Salute", onGoHealth) }
-        val sig = vm.radar.signals.associateBy { it.spec.key }
-        val vitals = listOf(
-            Triple("rhr", Metric.RHR, BioIcons.Heart to Tint.heart),
-            Triple("hrv", Metric.HRV, BioIcons.Pulse to Tint.hrv),
-            Triple("resp", Metric.RESP, BioIcons.Wind to Tint.resp),
-            Triple("spo2", Metric.SPO2, BioIcons.Drop to Tint.spo2),
-            Triple("temp", Metric.SKIN_TEMP, BioIcons.Thermo to Tint.load),
-            Triple("shr", null, BioIcons.Moon to Tint.sleep),
-        ).filter { (k, _, _) -> sig[k]?.let { it.value != null || it.baselineNights > 0 } == true }
-        vitals.chunked(2).forEach { row ->
-            item {
-                PairRow(
-                    { m -> row[0].let { (k, metric, ic) -> VitalTile(vm, sig.getValue(k), metric, ic.first, ic.second, m) { onOpenMetric(metric?.name ?: "SLEEP") } } },
-                    { m -> if (row.size > 1) row[1].let { (k, metric, ic) -> VitalTile(vm, sig.getValue(k), metric, ic.first, ic.second, m) { onOpenMetric(metric?.name ?: "SLEEP") } } else Spacer(m) },
-                )
-            }
-        }
-        if (vm.hasAnyHealthPermission && !radarAlert) item { RadarCard(vm) }
 
         // ---------------- In evidenza: solo ciò che è cambiato davvero ----------------
         if (vm.hasAnyHealthPermission) {
@@ -169,78 +147,8 @@ fun HomeScreen(
             item { HighlightsSection(vm.highlights, onOpenMetric) }
         }
 
-        // ---------------- Corpo ed età ----------------
-        item { SectionHeader("Corpo ed età", "Dettagli", onGoAge) }
-        item {
-            val series = vm.phenoSeries
-            val last = series.lastOrNull()
-            val prev = series.dropLast(1).lastOrNull()
-            val wearVo2 = vm.wearable[Metric.VO2]?.filter { it.date.isAfter(today.minusDays(30)) }?.map { it.value }?.takeIf { it.isNotEmpty() }?.average()
-            val vo2 = profile.vo2Manual ?: wearVo2
-            PairRow(
-                {
-                    MetricTile(
-                        "Età biologica", last?.result?.phenoAge?.f(1), "anni", Tint.bio, BioIcons.Sparkle,
-                        if (last != null) DataStatus.ESTIMATED else DataStatus.UNAVAILABLE,
-                        when {
-                            last == null && series.isEmpty() -> "Servono 9 esami del sangue"
-                            last == null -> "Dati incompleti nell'ultimo prelievo"
-                            else -> "Dal prelievo del ${last.panel.date.itLong()}" + (chrono?.let { " · anagrafica ${it.f(0)}" } ?: "")
-                        },
-                        it,
-                        trend = if (last != null && prev != null) {
-                            val d = last.result.phenoAge - prev.result.phenoAge
-                            Trend("${abs(d).f(1)} anni", d > 0, goodWhenUp = false)
-                        } else null,
-                        onClick = onGoAge,
-                    )
-                },
-                {
-                    val raw = vo2?.let { FitnessAge.fitnessAgeRaw(it, male) }
-                    MetricTile(
-                        "Età cardio", raw?.let { r -> when { r < 20 -> "<20"; r > 80 -> ">80"; else -> r.f(0) } }, "anni", Tint.vo2, BioIcons.Gauge,
-                        if (raw != null) DataStatus.ESTIMATED else DataStatus.UNAVAILABLE,
-                        when {
-                            vo2 == null -> "Serve il VO₂max"
-                            profile.vo2Manual != null -> "Da VO₂max ${vo2.f(1)} misurato"
-                            else -> "Da VO₂max ${vo2.f(1)} dell'orologio"
-                        },
-                        it, onClick = { onOpenMetric("VO2") },
-                    )
-                },
-            )
-        }
-        item {
-            val w = vm.wearable[Metric.WEIGHT].orEmpty()
-            val bp = vm.bpSummary
-            PairRow(
-                { m ->
-                    MetricTile(
-                        "Peso", w.lastOrNull()?.value?.f(1), "kg", Tint.body, BioIcons.Person,
-                        if (w.isNotEmpty()) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
-                        w.lastOrNull()?.let { "Ultima misura ${it.date.itLong()}" } ?: "Nessuna pesata in Connessione Salute",
-                        m, spark = w.takeLast(30).map { it.value }, onClick = { onOpenMetric("WEIGHT") },
-                    )
-                },
-                { m ->
-                    MetricTile(
-                        "Pressione", bp?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)}" }, "mmHg", Tint.bp, BioIcons.Heart,
-                        if (bp != null) DataStatus.MEASURED else DataStatus.UNAVAILABLE,
-                        if (bp != null) "Media delle misure recenti" else "Tocca per registrare una misura",
-                        m, onClick = onGoBp,
-                    )
-                },
-            )
-        }
-
         // ---------------- Benessere ----------------
-        item { SectionHeader("Benessere") }
-        vm.bedtimeGuide?.let { g ->
-            item {
-                CompactRow(BioIcons.Moon, Tint.sleep, "Stasera a letto entro ${Bedtime.fmt(g.bedtime)}",
-                    "Ultimo caffè entro le ${Bedtime.fmt(g.caffeineCutoff)} · sveglia abituale ${Bedtime.fmt(g.wake)}", onGoHealth)
-            }
-        }
+        item { SectionHeader("Diario") }
         item {
             val e = vm.journalFor(today)
             HealthCard("Umore e diario", BioIcons.Pencil, Tint.mood, onClick = onOpenJournal, modifier = Modifier.testTag("journal_card")) {
@@ -282,14 +190,6 @@ fun HomeScreen(
                         Text(if (a >= n) "Rivedi" else if (!evening && forToday && a == 0) "Apri" else "Rispondi", style = MaterialTheme.typography.labelLarge, color = p.onBrand)
                     }
                 }
-            }
-        }
-        if (vm.hasAnyHealthPermission) item { DiscoveriesCard(vm, onOpenDiscoveries) }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickAction("Analisi del sangue", "${vm.panels.size} prelievi", Tint.blood, BioIcons.Drop, onGoLabs, Modifier.weight(1f))
-                QuickAction("Chiedi a Claude", "Domande sui tuoi dati", Tint.sleep, BioIcons.Chat, { onAsk("") }, Modifier.weight(1f))
             }
         }
         if (vm.hasAnyHealthPermission) item {

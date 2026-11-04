@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.health.connect.client.HealthConnectClient
@@ -281,13 +282,6 @@ class DeviceScreensTest {
             waitText("Meglio del", 90_000)
             Thread.sleep(6000) // fase completa: storico, carico, statistiche allenamenti
             screenshot("home")
-            // Radar malessere: si apre al tocco con i parametri della notte e il loro intervallo
-            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
-            compose.onNodeWithTag("radar_card").performClick()
-            Thread.sleep(600)
-            screenshot("home_radar")
-            compose.onNodeWithTag("radar_card").performClick()
-            Thread.sleep(400)
             // Fatica percepita: richiesta per gli allenamenti di oggi, voto 6 e poi 4
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("rpe_prompt"))
             screenshot("home_rpe")
@@ -296,7 +290,6 @@ class DeviceScreensTest {
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("rpe_prompt"))
             compose.onNodeWithTag("rpe_4").performClick()
             Thread.sleep(500)
-            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("radar_card"))
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("highlights"))
             screenshot("home_in_evidenza")
             // Obiettivi e traguardi: riquadro in Home e schermata dedicata
@@ -332,35 +325,7 @@ class DeviceScreensTest {
             var tries = 0
             while (compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isEmpty() && tries < 4) { back(); tries++ }
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("nutrition_card"))
-            waitText("giorni completi", 30_000)
-            screenshot("home_alimentazione")
-            compose.onNodeWithTag("nutrition_card").performClick()
-            waitText("Rispetto ai riferimenti", 10_000)
-            screenshot("alimentazione")
-            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_targets"))
-            screenshot("alimentazione_riferimenti")
-            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_energy"))
-            screenshot("alimentazione_bilancio")
-            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_timing"))
-            screenshot("alimentazione_orari")
-            back()
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("longterm_card"))
-            screenshot("home_lungo_termine")
-            compose.onNodeWithTag("longterm_card").performClick()
-            waitText("Cosa dice la ricerca", 10_000)
-            screenshot("lungo_termine")
-            compose.onNodeWithTag("longterm_list").performTouchInput { swipeUp(durationMillis = 400) }
-            screenshot("lungo_termine_dettaglio")
-            back()
-            compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Parametri della notte"))
-            screenshot("home_parametri_notte")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Corpo ed età"))
-            screenshot("home_corpo_eta")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("discoveries_card"))
-            screenshot("home_fine")
             // Diario in stile WHOOP: abitudini di ieri
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("journal_yesterday"))
             compose.onNodeWithTag("journal_yesterday").performClick()
@@ -429,11 +394,8 @@ class DeviceScreensTest {
 
             tab("HEALTH")
             screenshot("salute")
-            compose.onNodeWithText("ECG").performClick()
-            waitText("Nessun ECG in archivio", 10_000)
-            screenshot("ecg_vuoto")
-            back()
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("ECG").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("radar_card"))
+            screenshot("salute_radar")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("salute_recupero")
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("regularity_card"))
@@ -454,20 +416,39 @@ class DeviceScreensTest {
             screenshot("scoperte_attesa")
             back()
 
-            tab("AGE")
+            tab("BODY")
+            screenshot("corpo")
+            compose.onNodeWithTag("qa_ecg").performClick()
+            waitText("Nessun ECG in archivio", 10_000)
+            screenshot("ecg_vuoto")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("body_segment").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("qa_nutrition").performClick()
+            waitText("Rispetto ai riferimenti", 30_000)
+            screenshot("alimentazione")
+            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_targets"))
+            screenshot("alimentazione_riferimenti")
+            compose.onNodeWithTag("nutrition_list").performScrollToNode(hasTestTag("nutrition_energy"))
+            screenshot("alimentazione_bilancio")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("body_segment").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithTag("qa_longterm").performClick()
+            waitText("Cosa dice la ricerca", 10_000)
+            screenshot("lungo_termine")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("body_segment").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("doctor_report"))
+            screenshot("corpo_report")
+            compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("eta_biologica")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("eta_dettagli")
-
-            tab("LABS")
+            compose.onNode(hasScrollableList()).performScrollToIndex(0)
+            compose.onAllNodesWithText("Analisi del sangue")[0].performClick()
+            Thread.sleep(800)
             screenshot("analisi")
 
             tab("HOME")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("FC a riposo"))
-            compose.onAllNodesWithText("FC a riposo")[0].performClick()
-            Thread.sleep(1200)
-            screenshot("dettaglio_fc_riposo")
-            back()
 
             // Profilo e tema chiaro
             compose.onNodeWithTag("profile_button").performClick()
@@ -476,8 +457,8 @@ class DeviceScreensTest {
             compose.onNodeWithText("Scuro").performClick()
             back()
             screenshot("home_tema_scuro")
-            compose.onNodeWithTag("home_list").performScrollToNode(hasText("Parametri della notte"))
-            screenshot("home_tema_scuro_parametri")
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("journal_card"))
+            screenshot("home_tema_scuro_diario")
             tab("ACTIVITY")
             screenshot("attivita_tema_scuro")
             tab("HEALTH")
