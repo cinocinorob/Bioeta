@@ -109,12 +109,15 @@ fun DayScoreCard(vm: AppViewModel) {
     val p = LocalPalette.current
     var info by rememberSaveable { mutableStateOf(false) }
     if (info) InfoDialog("Il tuo giorno", DAY_INFO) { info = false }
-    Row(
+    Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
             .background(Brush.linearGradient(listOf(p.tone(Tint.brand, 1.6f), p.tone(Tint.sleep, 1.2f), p.tone(Tint.activity, 1.2f))))
             .clickable { info = true }.padding(18.dp).testTag("day_score"),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+    // Briefing: una frase che dice cosa conta oggi (sostituisce più schede)
+    Text(vm.briefing, style = MaterialTheme.typography.titleMedium, color = p.text, modifier = Modifier.testTag("briefing"))
+    Row(verticalAlignment = Alignment.CenterVertically) {
         PartsRing(d, 118)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -138,6 +141,7 @@ fun DayScoreCard(vm: AppViewModel) {
             }
             if (d.score == null) Caption("Il punteggio compare con almeno ${DayScoreCalc.MIN_PARTS} parti.")
         }
+    }
     }
 }
 

@@ -198,12 +198,21 @@ private fun schemeFor(p: Palette) = if (p.dark) darkColorScheme(
 )
 
 @Composable
-fun BioTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {
+fun BioTheme(mode: ThemeMode = ThemeMode.SYSTEM, dynamic: Boolean = false, content: @Composable () -> Unit) {
     val dark = when (mode) { ThemeMode.DARK -> true; ThemeMode.LIGHT -> false; ThemeMode.SYSTEM -> isSystemInDarkTheme() }
-    val p = if (dark) DarkPalette else LightPalette
+    val base = if (dark) DarkPalette else LightPalette
+    // Colori dal telefono (Material You, Android 12+): superfici e colore di marca dallo sfondo; i colori di dominio restano
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val dyn = if (dynamic && android.os.Build.VERSION.SDK_INT >= 31)
+        (if (dark) androidx.compose.material3.dynamicDarkColorScheme(ctx) else androidx.compose.material3.dynamicLightColorScheme(ctx)) else null
+    val p = if (dyn == null) base else base.copy(
+        bg = dyn.surfaceContainerLow, card = if (dark) dyn.surfaceContainer else dyn.surfaceContainerLowest,
+        field = dyn.surfaceContainerHighest, card2 = dyn.surfaceContainerHigh, sep = dyn.outlineVariant,
+        text = dyn.onSurface, text2 = dyn.onSurfaceVariant, brand = dyn.primary, onBrand = dyn.onPrimary,
+    )
     CompositionLocalProvider(LocalPalette provides p) {
         MaterialTheme(
-            colorScheme = schemeFor(p), typography = bioTypography(),
+            colorScheme = dyn ?: schemeFor(p), typography = bioTypography(),
             shapes = androidx.compose.material3.Shapes(
                 extraSmall = RoundedCornerShape(10.dp), small = RoundedCornerShape(14.dp), medium = RoundedCornerShape(20.dp),
                 large = RoundedCornerShape(28.dp), extraLarge = RoundedCornerShape(32.dp),

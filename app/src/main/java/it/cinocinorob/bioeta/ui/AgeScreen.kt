@@ -57,6 +57,7 @@ fun AgeScreen(
     onGoRecovery: () -> Unit,
     onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
+    top: @Composable () -> Unit = {},
 ) {
     val profile = vm.profile
     val series = vm.phenoSeries
@@ -70,6 +71,7 @@ fun AgeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { LargeHeader("Salute", "Età biologica, pressione, insight") }
+        item { top() }
 
         if (profile.birthDate == null) item {
             HealthCard("Completa il profilo", BioIcons.Person, Tint.body, onClick = onGoProfile) {

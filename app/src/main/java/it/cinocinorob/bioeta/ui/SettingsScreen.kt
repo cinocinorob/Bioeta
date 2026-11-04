@@ -78,6 +78,13 @@ fun SettingsScreen(
             HealthCard("Aspetto", BioIcons.Sparkle, Tint.brand) {
                 SegmentPill(ThemeMode.entries.map { it.label }, ThemeMode.entries.indexOf(vm.themeMode), onSelect = { vm.selectTheme(ThemeMode.entries[it]) })
                 Caption("Con «Sistema» BioEtà segue il tema chiaro o scuro del telefono. Le dimensioni del testo seguono le impostazioni di sistema.")
+                if (android.os.Build.VERSION.SDK_INT >= 31) androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                        Text("Colori dal telefono", fontSize = 15.sp, color = pal.text)
+                        Caption("Superfici e colore principale presi dallo sfondo (Material You). I colori di sonno, cuore, movimento restano.")
+                    }
+                    androidx.compose.material3.Switch(checked = vm.dynamicColor, onCheckedChange = { vm.enableDynamicColor(it) }, modifier = Modifier.testTag("dynamic_switch"))
+                }
             }
         }
         item {

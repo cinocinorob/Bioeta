@@ -224,6 +224,19 @@ con regole dichiarate.
 - Peso: pendenza OLS delle pesate degli ultimi 28 giorni (≥ 4 su ≥ 14 giorni); data prevista = (obiettivo − attuale) /
   pendenza, intervallo con ± 1,96 errori standard della pendenza; «fermo» sotto 0,05 kg/settimana.
 
+## Organizzazione e giorni di allerta (versione 1)
+
+- Navigazione a 4 schede: Oggi, Attività, Recupero (sonno, recupero, parametri vitali, diario, scoperte), Corpo (età
+  biologica, analisi, pressione, ECG, lungo termine, alimentazione, report per il medico).
+- Briefing del giorno: una frase costruita da regole fisse (Recupero rispetto alla tua storia, consiglio del giorno,
+  obiettivo di passi, orario consigliato per andare a letto); non introduce nuovi calcoli.
+- Giorno di allerta: radar con segni marcati, media domiciliare ≥ 180/110 negli ultimi 7 giorni o un ECG con segni di
+  fibrillazione atriale negli ultimi 7 giorni. In quei giorni punti, compagno e traguardi si nascondono e il giorno
+  vale come pausa.
+- Report per il medico: PDF creato sul telefono (pressione con protocollo ESH, ECG dei 12 mesi, ultimo referto con
+  PhenoAge, andamenti di 30–90 giorni); resta nella memoria dell'app finché l'utente non lo condivide.
+- Colori dal telefono (Material You, Android 12+): opzionale, cambia solo superfici e colore principale.
+
 ## 5. Recupero e sonno
 
 Recupero: z-score di ln(RMSSD) e FC a riposo rispetto alla baseline personale (giorni D−61…D−1), media del giorno e

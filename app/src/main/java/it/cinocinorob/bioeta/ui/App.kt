@@ -57,15 +57,14 @@ import it.cinocinorob.bioeta.AppViewModel
 import java.time.LocalTime
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Navigazione principale: 5 aree raggiungibili con il pollice. Profilo dall'avatar in alto, Claude dalle azioni. */
-enum class Tab(val label: String) { HOME("Home"), ACTIVITY("Attività"), HEALTH("Salute"), AGE("Età"), LABS("Analisi") }
+/** Navigazione principale: 4 aree (Oggi, Attività, Recupero, Corpo). Profilo dall'avatar in alto. */
+enum class Tab(val label: String) { HOME("Oggi"), ACTIVITY("Attività"), HEALTH("Recupero"), BODY("Corpo") }
 
 private fun tabIcon(t: Tab) = when (t) {
     Tab.HOME -> BioIcons.Home
     Tab.ACTIVITY -> BioIcons.Bolt
-    Tab.HEALTH -> BioIcons.Heart
-    Tab.AGE -> BioIcons.Sparkle
-    Tab.LABS -> BioIcons.Drop
+    Tab.HEALTH -> BioIcons.Moon
+    Tab.BODY -> BioIcons.Person
 }
 
 /** Schermate secondarie, gestite come una pila: "indietro" chiude sempre la più recente. */
@@ -185,7 +184,7 @@ fun App(
             }
             draft != null -> PanelEditor(
                 initial = draft.panel, isNew = true, importNotes = draft.notes, highlighted = draft.foundKeys, profile = vm.profile,
-                onSave = { vm.savePanel(it); vm.importDraft = null; tab = Tab.LABS; vm.message = "Referto salvato." },
+                onSave = { vm.savePanel(it); vm.importDraft = null; tab = Tab.BODY; vm.message = "Referto salvato." },
                 onDelete = { vm.importDraft = null },
                 onBack = { vm.importDraft = null },
             )
@@ -248,16 +247,14 @@ private fun MainTabs(
                 (vm.profile.name.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")
         }
         Tab.ACTIVITY -> "Attività"
-        Tab.HEALTH -> "Salute"
-        Tab.AGE -> "Età biologica"
-        Tab.LABS -> "Analisi"
+        Tab.HEALTH -> "Sonno e recupero"
+        Tab.BODY -> "Corpo"
     }
     val subtitle = when (tab) {
         Tab.HOME -> java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE d MMMM", java.util.Locale.ITALIAN)).replaceFirstChar { it.uppercase() }
         Tab.ACTIVITY -> "Movimento, allenamenti e carico"
         Tab.HEALTH -> "Recupero, sonno e parametri vitali"
-        Tab.AGE -> "PhenoAge ed età cardiorespiratoria"
-        Tab.LABS -> "Esami e andamenti"
+        Tab.BODY -> "Età biologica, esami e controlli"
     }
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
@@ -275,7 +272,6 @@ private fun MainTabs(
                     BioLogo(Modifier.padding(start = 14.dp, end = 4.dp), size = 34)
                 },
                 actions = {
-                    if (tab == Tab.LABS) IconButton(onClick = { askClaude("") }) { Icon(BioIcons.Chat, "Chiedi a Claude") }
                     Box(
                         Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape).testTag("profile_button")
                             .background(MaterialTheme.colorScheme.primaryContainer)
@@ -331,8 +327,8 @@ private fun MainTabs(
                         vm, m,
                         onGoActivity = { onTab(Tab.ACTIVITY) },
                         onGoHealth = { onTab(Tab.HEALTH) },
-                        onGoAge = { onTab(Tab.AGE) },
-                        onGoLabs = { onTab(Tab.LABS) },
+                        onGoAge = { onTab(Tab.BODY) },
+                        onGoLabs = { onTab(Tab.BODY) },
                         onOpenMetric = { push(R_METRIC + it) },
                         onOpenSync = { push(R_SYNC) },
                         onOpenProfile = { push(R_PROFILE) },
@@ -354,25 +350,35 @@ private fun MainTabs(
                         onOpenDiscoveries = { push(R_DISC) },
                         onOpenEcg = { push(R_ECG) },
                     )
-                    Tab.AGE -> AgeScreen(
+                    Tab.BODY -> BodyScreen(
                         vm, m,
-                        onOpenInfo = { push(R_INFO) },
-                        onGoLabs = { onTab(Tab.LABS) },
-                        onGoWear = { onTab(Tab.HEALTH) },
-                        onGoProfile = { push(R_PROFILE) },
-                        onImportReport = onImportReport,
-                        onGoInsights = { push(R_INSIGHTS) },
-                        onGoRecovery = { onTab(Tab.HEALTH) },
-                        onGoBp = { push(R_BP) },
-                        onAsk = askClaude,
-                    )
-                    Tab.LABS -> LabsScreen(
-                        vm, m,
-                        onEdit = { push(R_EDIT + it) },
-                        onNew = { push(R_EDIT + "new") },
-                        onImportReport = onImportReport,
-                        onAnalyte = { push(R_ANALYTE + it) },
-                        onGoBp = { push(R_BP) },
+                        onOpenBp = { push(R_BP) }, onOpenEcg = { push(R_ECG) }, onOpenLongTerm = { push(R_LONG) }, onOpenNutrition = { push(R_NUT) },
+                        age = { mm, top ->
+                            AgeScreen(
+                                vm, mm,
+                                onOpenInfo = { push(R_INFO) },
+                                onGoLabs = { onTab(Tab.BODY) },
+                                onGoWear = { onTab(Tab.HEALTH) },
+                                onGoProfile = { push(R_PROFILE) },
+                                onImportReport = onImportReport,
+                                onGoInsights = { push(R_INSIGHTS) },
+                                onGoRecovery = { onTab(Tab.HEALTH) },
+                                onGoBp = { push(R_BP) },
+                                onAsk = askClaude,
+                                top = top,
+                            )
+                        },
+                        labs = { mm, top ->
+                            LabsScreen(
+                                vm, mm,
+                                onEdit = { push(R_EDIT + it) },
+                                onNew = { push(R_EDIT + "new") },
+                                onImportReport = onImportReport,
+                                onAnalyte = { push(R_ANALYTE + it) },
+                                onGoBp = { push(R_BP) },
+                                top = top,
+                            )
+                        },
                     )
                 }
             }

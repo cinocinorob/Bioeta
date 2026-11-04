@@ -58,6 +58,7 @@ import it.cinocinorob.bioeta.data.LabValue
 import it.cinocinorob.bioeta.data.ReportParser
 import it.cinocinorob.bioeta.data.ReportText
 import it.cinocinorob.bioeta.data.GameStore
+import it.cinocinorob.bioeta.data.DoctorReport
 import it.cinocinorob.bioeta.data.Panel
 import it.cinocinorob.bioeta.data.PhenoPoint
 import it.cinocinorob.bioeta.data.Profile
@@ -550,6 +551,79 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     var themeMode by mutableStateOf(runCatching { it.cinocinorob.bioeta.ui.ThemeMode.valueOf(settings.getString("theme_v2", "SYSTEM") ?: "SYSTEM") }.getOrDefault(it.cinocinorob.bioeta.ui.ThemeMode.SYSTEM))
         private set
+
+    // ---------------- Report per il medico ----------------
+
+    /** Crea il PDF per il medico con i dati attuali (sul telefono; si condivide solo se l'utente lo sceglie). */
+    suspend fun buildDoctorReport(): java.io.File {
+        val today = java.time.LocalDate.now()
+        val loc = java.util.Locale.ITALY
+        fun f(v: Double, d: Int = 0) = String.format(loc, "%.${d}f", v)
+        val dfm = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ITALIAN)
+        val sections = mutableListOf<DoctorReport.Section>()
+        // Pressione
+        val bp = bpSummary
+        val bpLines = mutableListOf<String>()
+        if (bp == null) bpLines += "Nessuna misura registrata."
+        else {
+            bpLines += "Media domiciliare ${f(bp.meanSys)}/${f(bp.meanDia)} mmHg su ${bp.n} misure in ${bp.days} giorni (${bp.from.format(dfm)} – ${bp.to.format(dfm)}), primo giorno escluso come da protocollo ESH 2023."
+            bpLines += "Categoria (soglie domiciliari ESC 2024): ${bp.category.label}" + if (bp.provisional) " — provvisoria: protocollo incompleto (servono ≥ 3 giorni e ≥ 12 misure)." else "."
+            bp.morning?.let { (s, d) -> bpLines += "Mattino ${f(s)}/${f(d)} mmHg" + (bp.evening?.let { (s2, d2) -> " · sera ${f(s2)}/${f(d2)} mmHg" } ?: "") }
+            bp.interArm?.let { a -> bpLines += "Differenza sistolica media tra le braccia: ${f(a)} mmHg" + (bp.higherArm?.let { h -> " (più alta a $h)" } ?: "") + "." }
+            bpAll.takeLast(14).reversed().forEach { r ->
+                bpLines += "${r.time.format(java.time.format.DateTimeFormatter.ofPattern("d MMM HH:mm", java.util.Locale.ITALIAN))}  ${r.sys}/${r.dia} mmHg" +
+                    (r.pulse?.let { p -> " · FC $p" } ?: "") + (if (r.arm.isNotBlank()) " · braccio ${r.arm}" else "") + (if (r.source.isNotEmpty()) " · ${r.source}" else "")
+            }
+        }
+        sections += DoctorReport.Section("Pressione arteriosa", bpLines)
+        // ECG
+        val ecg = ecgRecords.filter { r -> r.time.toLocalDate().isAfter(today.minusYears(1)) }
+        sections += DoctorReport.Section("ECG a una derivazione (app ECG Google Health / Fitbit)",
+            if (ecg.isEmpty()) listOf("Nessun ECG in archivio negli ultimi 12 mesi.")
+            else ecg.map { r -> "${r.time.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy HH:mm", java.util.Locale.ITALIAN))}  ${r.result.label}" + (r.heartRate?.let { h -> " · $h bpm" } ?: "") + (if (r.parsed) "" else " (risultato indicato dall'utente)") } +
+                "I PDF originali sono disponibili nell'app e si possono condividere a parte.")
+        // Esami
+        val last = panels.maxByOrNull { p -> p.date }
+        val labLines = mutableListOf<String>()
+        if (last == null) labLines += "Nessun referto in archivio."
+        else {
+            labLines += "Prelievo del ${last.date.format(dfm)}" + (if (last.lab.isNotBlank()) " · ${last.lab}" else "") + ":"
+            last.values.entries.sortedBy { e -> Analytes.get(e.key)?.name ?: e.key }.forEach { (k, v) ->
+                val a = Analytes.get(k)
+                labLines += "${a?.name ?: k}: ${if (v.belowLimit) "<" else ""}${f(v.value, a?.decimals ?: 1)} ${a?.units?.firstOrNull()?.label ?: ""}"
+            }
+            phenoSeries.lastOrNull()?.let { ph -> labLines += "Età biologica stimata (PhenoAge, Levine 2018): ${f(ph.result.phenoAge, 1)} anni, età anagrafica ${f(ph.age, 1)} (stima statistica, non diagnostica)." }
+        }
+        sections += DoctorReport.Section("Esami del sangue", labLines)
+        // Andamenti
+        fun mean(m: Metric, from: Long, to: Long) = wearable[m].orEmpty().filter { pt -> pt.date.isAfter(today.minusDays(from)) && !pt.date.isAfter(today.minusDays(to)) }
+            .map { pt -> pt.value }.takeIf { l -> l.size >= 5 }?.average()
+        val tr = mutableListOf<String>()
+        mean(Metric.RHR, 30, 0)?.let { v -> tr += "FC a riposo: ${f(v, 1)} bpm (media 30 giorni)" + (mean(Metric.RHR, 90, 30)?.let { o -> ", nei 60 giorni prima ${f(o, 1)} bpm" } ?: "") + "." }
+        mean(Metric.HRV, 30, 0)?.let { v -> tr += "HRV (RMSSD notturna): ${f(v)} ms (media 30 giorni)" + (mean(Metric.HRV, 90, 30)?.let { o -> ", prima ${f(o)} ms" } ?: "") + "." }
+        sleepNights.filter { n -> n.date.isAfter(today.minusDays(30)) }.takeIf { l -> l.size >= 5 }?.let { l ->
+            val m = l.map { n -> n.totalSleepMin }.average().toInt(); tr += "Sonno: ${m / 60} h ${"%02d".format(m % 60)} a notte (media 30 giorni, ${l.size} notti)." }
+        mean(Metric.STEPS, 30, 0)?.let { v -> tr += "Passi: ${String.format(loc, "%,.0f", v)} al giorno (media 30 giorni)." }
+        dayActivities.filter { d -> d.date.isAfter(today.minusDays(28)) }.takeIf { l -> l.size >= 14 }?.let { l -> tr += "Minuti attivi (OMS, vigorosi ×2): ${l.sumOf { d -> d.activeMinutes } * 7 / l.size} a settimana." }
+        (profile.vo2Manual ?: mean(Metric.VO2, 30, 0))?.let { v -> tr += "VO₂max: ${f(v, 1)} mL/kg/min" + (if (profile.vo2Manual != null) " (misurato)." else " (stima dell'orologio).") }
+        wearable[Metric.WEIGHT].orEmpty().let { w ->
+            w.lastOrNull()?.let { l -> tr += "Peso: ${f(l.value, 1)} kg il ${l.date.format(dfm)}" + (w.firstOrNull { pt -> pt.date.isAfter(today.minusDays(90)) }?.takeIf { fst -> fst.date != l.date }?.let { fst -> ", ${String.format(loc, "%+.1f", l.value - fst.value)} kg in 90 giorni" } ?: "") + "." }
+        }
+        sections += DoctorReport.Section("Andamenti dall'orologio", tr.ifEmpty { listOf("Dati dell'orologio non disponibili.") })
+        sections += DoctorReport.Section("Note", listOf(
+            "Valori misurati a domicilio e da dispositivi indossabili di consumo; le stime (età biologica, VO₂max dell'orologio) hanno un'incertezza di alcune unità.",
+            "Metodi e fonti: documento METHODS di BioEtà.",
+        ))
+        val age = profile.ageAt(today)?.let { a -> "${a.toInt()} anni" } ?: "età non indicata"
+        val data = DoctorReport.Data(profile.name.ifBlank { "Paziente" }, "$age · ${if (profile.sex == Sex.M) "uomo" else "donna"}", today, sections)
+        return withContext(Dispatchers.IO) { DoctorReport.write(getApplication(), data) }
+    }
+
+    /** Colori dal telefono (Material You). Predefinito: palette pastello di BioEtà. */
+    var dynamicColor by mutableStateOf(settings.getBoolean("dynamic_color", false))
+        private set
+
+    fun enableDynamicColor(on: Boolean) { dynamicColor = on; settings.edit().putBoolean("dynamic_color", on).apply() }
 
     fun selectTheme(m: it.cinocinorob.bioeta.ui.ThemeMode) {
         themeMode = m
@@ -1249,6 +1323,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         gameStore.savePauses(pauses)
     }
 
+    /**
+     * Giorno di allerta per la salute: radar con segni marcati, pressione molto elevata (≥ 180/110) o un ECG con segni
+     * di fibrillazione atriale negli ultimi 7 giorni. In questi giorni il gioco si nasconde e il giorno vale come pausa:
+     * medaglie e punti accanto a un avviso medico mandano il messaggio sbagliato.
+     */
+    val healthAlert: String?
+        get() {
+            val today = java.time.LocalDate.now()
+            return when {
+                radar.level == RadarLevel.MAJOR -> "segni marcati di malessere stanotte"
+                bpSummary?.category == BpCategory.SEVERE && bpSummary?.to?.isAfter(today.minusDays(7)) == true -> "pressione molto elevata"
+                ecgRecords.any { r -> r.result == EcgResult.AFIB && r.time.toLocalDate().isAfter(today.minusDays(7)) } -> "un ECG con segni di fibrillazione atriale"
+                else -> null
+            }
+        }
+
     /** Consiglio del giorno: Riposo, Leggero, Moderato, Intenso. */
     val todayEffort: Effort
         get() = DailyAdvice.effort(
@@ -1297,6 +1387,44 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 t.readiness.score, t.sleep?.score, move?.coerceAtMost(1.0), load, tl?.low, tl?.high,
                 restAdvised = todayEffort == Effort.REST, fuel = fuelFraction, mood = e.mood, energy = e.energy,
             )
+        }
+
+    /**
+     * Briefing del giorno in una frase: come stai, cosa fare, quando andare a letto. Sostituisce in Home le schede
+     * parametri della notte, orario del sonno e lungo termine (restano nelle loro schermate).
+     */
+    val briefing: String
+        get() {
+            val r = today.readiness.score
+            val pct = readinessPercentile
+            val state = when {
+                healthAlert != null -> "Oggi riposo per ${healthAlert}; se serve, senti il medico"
+                activePause != null -> "Sei in pausa: pensa a recuperare"
+                r == null -> "Il recupero arriva dopo qualche notte con l'orologio"
+                pct != null && pct >= 70 -> "Recupero sopra il solito"
+                pct != null && pct < 30 -> "Recupero sotto il solito"
+                r >= 75 -> "Recupero buono"
+                r >= 50 -> "Recupero nella media"
+                else -> "Recupero basso"
+            }
+            val plan = when {
+                healthAlert != null || activePause != null -> null
+                else -> when (todayEffort) {
+                    Effort.REST -> "oggi riposo attivo"
+                    Effort.EASY -> "oggi un giorno leggero"
+                    Effort.MODERATE -> "oggi allenamento moderato"
+                    Effort.HARD -> "buon giorno per spingere"
+                }
+            }
+            val goal = (if (gameOn) game?.today?.goal?.target else null)?.takeIf { _ -> healthAlert == null && activePause == null }
+            val bed = bedtimeGuide?.let { g -> "a letto entro le ${Bedtime.fmt(g.bedtime)}" }
+            val tail = listOfNotNull(goal?.let { g -> "punta a ${String.format(java.util.Locale.ITALY, "%,d", g)} passi" }, bed)
+            return buildString {
+                append(state)
+                if (plan != null) append(": ").append(plan)
+                if (tail.isNotEmpty()) append(". ").append(tail.joinToString(", ").replaceFirstChar { c -> c.uppercase() })
+                append(".")
+            }
         }
 
     val sedentary: SedentaryPattern
@@ -1361,7 +1489,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val game: GameState?
         get() {
             val today = java.time.LocalDate.now()
-            val rest = radar.level == RadarLevel.MINOR || radar.level == RadarLevel.MAJOR
+            val rest = radar.level == RadarLevel.MINOR || radar.level == RadarLevel.MAJOR || healthAlert != null
             val hist = scoreHistory60
             val key = listOf(wearable, dayActivities, hist, todayActivity?.steps, rest, frozenWeeks, profile, today, pauses)
             if (key == gameKey) return gameCache

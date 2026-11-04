@@ -97,9 +97,7 @@ fun WearableScreen(
         item { LargeHeader("Salute", "Recupero, sonno e parametri vitali") }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickAction("Pressione", vm.bpSummary?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)} mmHg" } ?: "Registra", Tint.bp, BioIcons.Heart, onOpenBp, Modifier.weight(1f))
-                QuickAction("ECG", vm.ecgRecords.firstOrNull()?.let { ecgShort(it) } ?: "Importa", Tint.heart, BioIcons.Pulse, onOpenEcg, Modifier.weight(1f))
-                QuickAction("Diario", "Abitudini", Tint.mood, BioIcons.Pencil, onOpenJournal, Modifier.weight(1f))
+                QuickAction("Diario", "Umore e abitudini", Tint.mood, BioIcons.Pencil, onOpenJournal, Modifier.weight(1f))
             }
         }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }

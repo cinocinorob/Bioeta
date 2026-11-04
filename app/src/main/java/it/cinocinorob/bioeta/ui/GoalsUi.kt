@@ -62,6 +62,8 @@ import it.cinocinorob.bioeta.science.DayKind
 import it.cinocinorob.bioeta.science.DayOutcome
 import it.cinocinorob.bioeta.science.Effort
 import it.cinocinorob.bioeta.science.Game
+import it.cinocinorob.bioeta.science.Fitness
+import it.cinocinorob.bioeta.science.LoadQuality
 import it.cinocinorob.bioeta.science.GameLevel
 import it.cinocinorob.bioeta.science.GamePath
 import it.cinocinorob.bioeta.science.GameState
@@ -248,9 +250,19 @@ private fun ProgressRing(fraction: Float, color: Color, size: Int, stroke: Int, 
     }
 }
 
+@Composable
+private fun MiniStat(label: String, value: String, sub: String) {
+    val p = LocalPalette.current
+    Column {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 1)
+        Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
+        Text(sub, style = MaterialTheme.typography.labelSmall, color = p.text3, maxLines = 1)
+    }
+}
+
 /** Riquadro in Home: compagno con il consiglio, obiettivo di oggi, percorso di 14 giorni, settimana e livello. */
 @Composable
-fun GameCard(vm: AppViewModel, onOpen: () -> Unit) {
+fun GameCard(vm: AppViewModel, onOpen: () -> Unit, onGoActivity: () -> Unit = {}) {
     val g = vm.game ?: return
     val p = LocalPalette.current
     LaunchedEffect(g) { vm.syncGame() }
@@ -278,6 +290,18 @@ fun GameCard(vm: AppViewModel, onOpen: () -> Unit) {
             }
         }
         vm.gameInput?.let { inp -> ActivityPath(GamePath.path(inp, 14), 54, showLabels = false) }
+        // Movimento in una riga (sostituisce la vecchia scheda «Movimento di oggi» in Home)
+        val week = Fitness.weekActiveMinutes(vm.dayLoads, java.time.LocalDate.now())
+        val load = vm.todayDayActivity?.takeIf { d -> d.quality != LoadQuality.UNAVAILABLE }?.load
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card.copy(alpha = 0.7f)).clickable(onClick = onGoActivity)
+                .padding(horizontal = 14.dp, vertical = 10.dp).testTag("move_row"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            MiniStat("Minuti attivi", "${vm.todayDayActivity?.activeMinutes ?: 0}", "settimana $week/150")
+            MiniStat("Carico", load?.let { l -> String.format(Locale.ITALY, "%.0f", l) } ?: "—", vm.targetLoad?.let { t -> "fascia ${t.low.toInt()}–${t.high.toInt()}" } ?: "in calibrazione")
+            MiniStat("Allenamenti", "${vm.displaySessions.count { s -> s.start.atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() }}", "oggi")
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             WeekDots(g)
             Spacer(Modifier.weight(1f))
@@ -328,6 +352,7 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit, onOpenMonth: () -> Unit = 
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            vm.healthAlert?.let { a -> item { InlineNotice("Oggi il gioco è in pausa per $a: il giorno vale come pausa e non costa punti.", NoticeKind.INFO) } }
             if (g == null) {
                 item { EmptyState(BioIcons.Trophy, "Ancora nessun dato", "Gli obiettivi partono quando Connessione Salute ha almeno un giorno di passi dall'orologio.", Tint.activity) }
             } else {

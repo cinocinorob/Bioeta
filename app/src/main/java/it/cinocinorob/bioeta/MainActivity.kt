@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !dark
                 }
             }
-            BioTheme(mode = vm.themeMode) {
+            BioTheme(mode = vm.themeMode, dynamic = vm.dynamicColor) {
                 App(
                     vm = vm,
                     startOnPrivacy = openPrivacy,
