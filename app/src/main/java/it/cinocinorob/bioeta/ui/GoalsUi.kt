@@ -305,7 +305,7 @@ fun GameCard(vm: AppViewModel, onOpen: () -> Unit) {
 }
 
 @Composable
-fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
+fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit, onOpenMonth: () -> Unit = {}) {
     val p = LocalPalette.current
     LaunchedEffect(Unit) { vm.syncGame(); vm.seenNewBadges() }
     val g = vm.game
@@ -415,6 +415,13 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
                                 else -> "Finora ${r.prevMinutes - r.minutes} minuti attivi in meno degli stessi giorni della settimana scorsa: va bene così se il corpo chiedeva riposo."
                             } + (r.stepsAvg?.let { " Passi medi: ${n(it)}" + (r.prevStepsAvg?.let { pv -> " (prima ${n(pv)})" } ?: "") + "." } ?: ""),
                         )
+                    }
+                }
+                item { WeightGoalCard(vm) }
+                item { SedentaryCard(vm) }
+                item {
+                    HealthCard("Il tuo mese", BioIcons.Sparkle, Tint.brand, onClick = onOpenMonth, modifier = Modifier.testTag("month_link")) {
+                        Caption("Il mese rispetto al precedente e i tuoi record personali.")
                     }
                 }
                 item {

@@ -204,6 +204,26 @@ Regole (scelte progettuali, non validate):
   di misura corrette (protocollo pressione, diario, referti); nessun premio per eccessi. La data di sblocco è salvata
   e inclusa nel backup. Il gioco si disattiva da Profilo senza effetti sulle valutazioni.
 
+## Punteggio del giorno, momenti sedentari, mese, record, peso (versione 1) — `science/DailyOverview.kt`
+
+Idee riprese da Wellness Project (Fit Score, Sedentary Patterns, Month in Review, Trophy case, obiettivi con data prevista),
+con regole dichiarate.
+- Punteggio del giorno = media semplice delle parti disponibili (≥ 3): Recupero, Sonno, Movimento (frazione
+  dell'obiettivo del giorno, passi o minuti attivi), Allenamento (100 nella fascia di carico; sotto in proporzione;
+  sopra scende fino a 50; con riposo consigliato poco carico vale 100), Alimentazione (quota tra proteine ≥ 0,83 g/kg,
+  fibre ≥ 25 g, grassi saturi < 10% dell'energia, sodio < 2.000 mg nell'ultimo giorno completo entro 3 giorni, con
+  ≥ 2 voci disponibili), Benessere (umore ed energia del diario, 1–5 → 0–100). Una parte senza dati non conta. Non è
+  un indice validato.
+- Momenti sedentari: giorno della settimana con mediana dei passi ≤ 75% della mediana dei 56 giorni e sotto la mediana
+  in ≥ 60% delle volte (≥ 28 giorni, ≥ 5 occorrenze); fascia di 2 ore (8–22) con < 250 passi in ≥ 60% dei giorni
+  (≥ 14 giorni con passi per ora). Avviso in Home solo nella fascia e con < 250 passi finora. Interrompere la
+  sedentarietà riduce glicemia (SMD −0,54) e insulina (−0,56) dopo i pasti (Loh 2020, doi:10.1007/s40279-019-01183-w).
+- Mese: medie dei primi N giorni del mese contro gli stessi N giorni del mese precedente (≥ 3 valori).
+- Record: giorno con più passi, settimana più attiva (lun–dom chiusa), FC a riposo media di 7 giorni più bassa, VO₂max
+  più alto, serie più lunga; salvati e aggiornati solo se migliorano.
+- Peso: pendenza OLS delle pesate degli ultimi 28 giorni (≥ 4 su ≥ 14 giorni); data prevista = (obiettivo − attuale) /
+  pendenza, intervallo con ± 1,96 errori standard della pendenza; «fermo» sotto 0,05 kg/settimana.
+
 ## 5. Recupero e sonno
 
 Recupero: z-score di ln(RMSSD) e FC a riposo rispetto alla baseline personale (giorni D−61…D−1), media del giorno e

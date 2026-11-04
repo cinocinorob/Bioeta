@@ -318,6 +318,17 @@ class DeviceScreensTest {
             screenshot("traguardi_in_pausa")
             compose.onNodeWithText("Riprendi").performClick()
             Thread.sleep(300)
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("weight_goal"))
+            screenshot("traguardi_peso")
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("sedentary_card"))
+            screenshot("traguardi_sedentari")
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("month_link"))
+            compose.onNodeWithTag("month_link").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("month_list").fetchSemanticsNodes().isNotEmpty() }
+            screenshot("mese")
+            compose.onNodeWithTag("month_list").performTouchInput { swipeUp(durationMillis = 400) }
+            screenshot("mese_record")
+            back()
             back()
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("nutrition_card"))
