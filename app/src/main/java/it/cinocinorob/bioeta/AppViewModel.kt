@@ -190,7 +190,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 getApplication<Application>(),
                 readiness = t.readiness.score, sleep = t.sleep?.score,
                 steps = todayActivity?.steps, stepGoal = (if (gameOn) game?.today?.goal?.target else null) ?: Fitness.stepGoal(profile.ageAt(java.time.LocalDate.now())),
-                load = todayLoad?.load,
+                load = todayLoad?.load, day = dayScore.score,
             )
             BioWidget().updateAll(getApplication<Application>())
         }
@@ -1050,6 +1050,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun refreshFitness() {
         todayActivity = runCatching { health.todayActivity() }.getOrNull() ?: todayActivity
+        runCatching { health.hourlyStepsHistory(56) }.getOrNull()?.let { h -> if (h.isNotEmpty()) hourlyHistory = h }
         val age = profile.ageAt(java.time.LocalDate.now()) ?: 40.0
         fitnessLoading = true
         try {
@@ -1255,6 +1256,90 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             illness = radar.level == RadarLevel.MAJOR, paused = activePause != null,
         )
 
+    // ---------------- Punteggio del giorno, momenti sedentari, mese, record, peso (idee da Wellness Project) ----------------
+
+    /** Passi per ora degli ultimi 56 giorni (letti nella fase completa). */
+    var hourlyHistory by mutableStateOf<Map<java.time.LocalDate, IntArray>>(emptyMap())
+        private set
+
+    /** Frazione dei riferimenti alimentari rispettati nell'ultimo giorno completo (entro 3 giorni). */
+    private val fuelFraction: Double?
+        get() {
+            val n = nutrition ?: return null
+            val today = java.time.LocalDate.now()
+            val d = n.days.filter { x -> x.complete && x.date.isBefore(today) && !x.date.isBefore(today.minusDays(3)) }.maxByOrNull { x -> x.date } ?: return null
+            val kg = wearable[Metric.WEIGHT]?.lastOrNull()?.value
+            val checks = listOfNotNull(
+                kg?.let { w -> d.protein >= 0.83 * w },
+                d.fiber?.let { f -> f >= 25.0 },
+                d.satFat?.let { s -> s * 9 < 0.10 * d.kcal },
+                d.sodiumMg?.let { na -> na < 2000.0 },
+            )
+            return if (checks.size >= 2) checks.count { ok -> ok } / checks.size.toDouble() else null
+        }
+
+    val dayScore: DayScore
+        get() {
+            val t = today
+            val g = if (gameOn) game else null
+            val move = g?.today?.let { o ->
+                val goal = o.goal.target
+                when {
+                    o.met -> 1.0
+                    goal == null || goal <= 0 -> null
+                    else -> maxOf((o.steps ?: 0) / goal.toDouble(), (o.activeMinutes ?: 0) / Game.ACTIVE_EQ.toDouble())
+                }
+            } ?: todayActivity?.let { a -> a.steps / Fitness.stepGoal(profile.ageAt(java.time.LocalDate.now())).toDouble() }
+            val tl = targetLoad
+            val load = todayLoad?.takeIf { l -> todayDayActivity?.quality != LoadQuality.UNAVAILABLE }?.load
+            val e = journalFor(java.time.LocalDate.now())
+            return DayScoreCalc.compute(
+                t.readiness.score, t.sleep?.score, move?.coerceAtMost(1.0), load, tl?.low, tl?.high,
+                restAdvised = todayEffort == Effort.REST, fuel = fuelFraction, mood = e.mood, energy = e.energy,
+            )
+        }
+
+    val sedentary: SedentaryPattern
+        get() = Sedentary.pattern(
+            wearable[Metric.STEPS].orEmpty().associate { pt -> pt.date to pt.value.toInt() }, hourlyHistory, java.time.LocalDate.now(),
+        )
+
+    /** Avviso «muoviti un po'» solo se adesso sei nella tua fascia ferma abituale. */
+    val sedentaryNudge: Boolean
+        get() = todayActivity?.let { a -> Sedentary.nudgeNow(sedentary, java.time.LocalTime.now().hour, a.hourlySteps) } == true
+
+    fun monthReview(month: java.time.YearMonth = java.time.YearMonth.now()): MonthReview {
+        fun m(x: Metric) = wearable[x].orEmpty().associate { pt -> pt.date to pt.value }
+        val met = game?.weeks?.flatMap { w -> w.days }?.filter { o -> o.met }?.map { o -> o.date }?.toSet() ?: emptySet()
+        return MonthReviewCalc.review(
+            java.time.LocalDate.now(), m(Metric.STEPS), sleepNights.associate { n -> n.date to n.totalSleepMin }, m(Metric.RHR), m(Metric.HRV),
+            dayActivities.associate { d -> d.date to d.activeMinutes }, m(Metric.WEIGHT), met, month,
+        )
+    }
+
+    var records by mutableStateOf(gameStore.loadRecords())
+        private set
+
+    private fun updateRecords() {
+        fun m(x: Metric) = wearable[x].orEmpty().associate { pt -> pt.date to pt.value }
+        val fresh = MonthReviewCalc.records(m(Metric.STEPS), dayActivities.associate { d -> d.date to d.activeMinutes }, m(Metric.RHR), m(Metric.VO2),
+            maxOf(bestStreakSaved, game?.bestDayStreak ?: 0), java.time.LocalDate.now())
+        val merged = MonthReviewCalc.merge(records, fresh)
+        if (merged != records) { records = merged; gameStore.saveRecords(merged) }
+    }
+
+    var weightGoal by mutableStateOf(gameStore.loadWeightGoal())
+        private set
+
+    fun setWeightGoal(target: Double?) {
+        val cur = wearable[Metric.WEIGHT]?.lastOrNull()?.value
+        weightGoal = if (target == null || cur == null) null else WeightGoal(target, cur, java.time.LocalDate.now())
+        gameStore.saveWeightGoal(weightGoal)
+    }
+
+    val weightProjection: WeightProjection?
+        get() = weightGoal?.let { g -> WeightGoalCalc.project(g, wearable[Metric.WEIGHT].orEmpty().associate { pt -> pt.date to pt.value }, java.time.LocalDate.now()) }
+
     /** Traguardi appena sbloccati, da mostrare finché non si apre la schermata. */
     var newBadges by mutableStateOf<List<String>>(emptyList())
         private set
@@ -1301,6 +1386,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Settimane da congelare, serie migliore, traguardi da sbloccare: idempotente, chiamato dopo ogni lettura. */
     fun syncGame() {
+        runCatching { updateRecords() }
         if (!gameOn) return
         val today = java.time.LocalDate.now()
         val g = game

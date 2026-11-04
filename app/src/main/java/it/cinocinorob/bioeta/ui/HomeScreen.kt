@@ -77,6 +77,7 @@ fun HomeScreen(
     onOpenLongTerm: () -> Unit = {},
     onOpenNutrition: () -> Unit = {},
     onOpenGoals: () -> Unit = {},
+    onOpenMonth: () -> Unit = {},
     onGoBp: () -> Unit,
     onAsk: (String) -> Unit,
     onRequestPermissions: () -> Unit,
@@ -122,6 +123,8 @@ fun HomeScreen(
         if (vm.hasAnyHealthPermission && radarAlert) item { RadarCard(vm) }
 
         // ---------------- Cruscotto: oggi ----------------
+        if (vm.hasAnyHealthPermission) item { SedentaryNudge(vm) }
+        if (vm.hasAnyHealthPermission) item { DayScoreCard(vm) }
         item {
             PairRow(
                 { m -> RecoveryTile(vm, mood, m, onGoHealth) },
@@ -287,6 +290,12 @@ fun HomeScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickAction("Analisi del sangue", "${vm.panels.size} prelievi", Tint.blood, BioIcons.Drop, onGoLabs, Modifier.weight(1f))
                 QuickAction("Chiedi a Claude", "Domande sui tuoi dati", Tint.sleep, BioIcons.Chat, { onAsk("") }, Modifier.weight(1f))
+            }
+        }
+        if (vm.hasAnyHealthPermission) item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickAction("Il tuo mese", "Confronto e record", Tint.brand, BioIcons.Sparkle, onOpenMonth, Modifier.weight(1f).testTag("open_month"))
+                QuickAction("Traguardi", "Livello e medaglie", Tint.lvlGold, BioIcons.Trophy, onOpenGoals, Modifier.weight(1f))
             }
         }
 

@@ -5,6 +5,8 @@ import it.cinocinorob.bioeta.science.FrozenWeek
 import it.cinocinorob.bioeta.science.GameLevel
 import it.cinocinorob.bioeta.science.GamePause
 import it.cinocinorob.bioeta.science.PauseReason
+import it.cinocinorob.bioeta.science.PersonalRecord
+import it.cinocinorob.bioeta.science.WeightGoal
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -24,6 +26,31 @@ class GameStore(context: Context) {
     /** Pause scelte dall'utente (anche quelle finite: i giorni passati in pausa restano tali). */
     fun loadPauses(): List<GamePause> = runCatching { pausesFromJson(JSONArray(prefs.getString("pauses", "[]"))) }.getOrDefault(emptyList())
     fun savePauses(l: List<GamePause>) { prefs.edit().putString("pauses", pausesToJson(l).toString()).apply() }
+
+    fun loadRecords(): Map<String, PersonalRecord> = runCatching {
+        val a = JSONArray(prefs.getString("records", "[]"))
+        (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            PersonalRecord(o.getString("id"), o.getString("l"), o.getDouble("v"), o.getString("u"), LocalDate.parse(o.getString("d")), o.optInt("k", 0))
+        }.associateBy { it.id }
+    }.getOrDefault(emptyMap())
+
+    fun saveRecords(m: Map<String, PersonalRecord>) {
+        val a = JSONArray()
+        m.values.forEach { r -> a.put(JSONObject().put("id", r.id).put("l", r.label).put("v", r.value).put("u", r.unit).put("d", r.date.toString()).put("k", r.decimals)) }
+        prefs.edit().putString("records", a.toString()).apply()
+    }
+
+    fun loadWeightGoal(): WeightGoal? = runCatching {
+        val o = JSONObject(prefs.getString("weight_goal", null) ?: return null)
+        WeightGoal(o.getDouble("t"), o.getDouble("s"), LocalDate.parse(o.getString("d")))
+    }.getOrNull()
+
+    fun saveWeightGoal(g: WeightGoal?) {
+        prefs.edit().apply {
+            if (g == null) remove("weight_goal") else putString("weight_goal", JSONObject().put("t", g.target).put("s", g.startWeight).put("d", g.startDate.toString()).toString())
+        }.apply()
+    }
 
     fun save(weeks: Map<LocalDate, FrozenWeek>, badges: Map<String, LocalDate>, best: Int) {
         prefs.edit().putString("weeks", weeksToJson(weeks).toString()).putString("badges", badgesToJson(badges).toString())

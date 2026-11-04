@@ -86,6 +86,7 @@ private const val R_LONG = "longterm"
 private const val R_NUT = "nutrition"
 private const val R_ECG = "ecg"
 private const val R_GOALS = "goals"
+private const val R_MONTH = "month"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -157,7 +158,8 @@ fun App(
             top == R_JOURNAL_Y -> JournalScreen(vm, onBack = pop, onOpenDiscoveries = { push(R_DISC) }, initialDay = java.time.LocalDate.now().minusDays(1))
             top == R_DISC -> DiscoveriesScreen(vm, onBack = pop, onOpenJournal = { push(R_JOURNAL) })
             top == R_LONG -> LongTermScreen(vm, onBack = pop)
-            top == R_GOALS -> GoalsScreen(vm, onBack = pop)
+            top == R_GOALS -> GoalsScreen(vm, onBack = pop, onOpenMonth = { push(R_MONTH) })
+            top == R_MONTH -> MonthScreen(vm, onBack = pop)
             top == R_ECG -> EcgScreen(vm, onBack = pop, onImport = onImportEcg)
             top == R_NUT -> NutritionScreen(vm, onBack = pop, onOpenDiscoveries = { push(R_DISC) }, onConnect = onRequestPermissions)
             top == R_DIAG -> DiagnosticsScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions)
@@ -340,6 +342,7 @@ private fun MainTabs(
                         onOpenLongTerm = { push(R_LONG) },
                         onOpenNutrition = { push(R_NUT) },
                         onOpenGoals = { push(R_GOALS) },
+                        onOpenMonth = { push(R_MONTH) },
                         onGoBp = { push(R_BP) },
                         onAsk = askClaude,
                         onRequestPermissions = onRequestPermissions,

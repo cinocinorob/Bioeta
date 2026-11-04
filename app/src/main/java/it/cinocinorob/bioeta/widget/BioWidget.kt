@@ -34,12 +34,14 @@ import it.cinocinorob.bioeta.MainActivity
 /** Valori mostrati dal widget, salvati dall'app a ogni lettura di Connessione Salute. */
 object WidgetData {
     private const val P = "widget"
-    data class Snap(val readiness: Int?, val sleep: Int?, val steps: Long?, val stepGoal: Int, val load: Double?, val at: Long)
+    data class Snap(val readiness: Int?, val sleep: Int?, val steps: Long?, val stepGoal: Int, val load: Double?, val at: Long, val day: Int? = null)
 
-    fun save(ctx: Context, readiness: Int?, sleep: Int?, steps: Long?, stepGoal: Int, load: Double?) {
+    /** [day] = punteggio del giorno; null lascia quello già salvato (valido solo nello stesso giorno). */
+    fun save(ctx: Context, readiness: Int?, sleep: Int?, steps: Long?, stepGoal: Int, load: Double?, day: Int? = null) {
         ctx.getSharedPreferences(P, Context.MODE_PRIVATE).edit()
             .putInt("r", readiness ?: -1).putInt("s", sleep ?: -1).putLong("st", steps ?: -1)
             .putInt("g", stepGoal).putFloat("l", (load ?: -1.0).toFloat()).putLong("at", System.currentTimeMillis())
+            .apply { if (day != null) putInt("d", day).putString("dd", java.time.LocalDate.now().toString()) }
             .apply()
     }
 
@@ -47,7 +49,8 @@ object WidgetData {
         val p = ctx.getSharedPreferences(P, Context.MODE_PRIVATE)
         fun i(k: String) = p.getInt(k, -1).takeIf { it >= 0 }
         return Snap(i("r"), i("s"), p.getLong("st", -1).takeIf { it >= 0 }, p.getInt("g", 9000),
-            p.getFloat("l", -1f).takeIf { it >= 0 }?.toDouble(), p.getLong("at", 0))
+            p.getFloat("l", -1f).takeIf { it >= 0 }?.toDouble(), p.getLong("at", 0),
+            day = i("d").takeIf { p.getString("dd", "") == java.time.LocalDate.now().toString() })
     }
 }
 
@@ -68,6 +71,8 @@ class BioWidget : GlanceAppWidget() {
             Text("BioEtà · oggi", style = TextStyle(color = c.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium))
             Spacer(GlanceModifier.height(8.dp))
             Row(GlanceModifier.fillMaxWidth()) {
+                Tile("Oggi", s.day?.toString() ?: "—", Color(0xFF3B6FE0), GlanceModifier.defaultWeight())
+                Spacer(GlanceModifier.width(8.dp))
                 Tile("Recupero", s.readiness?.toString() ?: "—", Color(0xFF00A38C), GlanceModifier.defaultWeight())
                 Spacer(GlanceModifier.width(8.dp))
                 Tile("Sonno", s.sleep?.toString() ?: "—", Color(0xFF7A5AF8), GlanceModifier.defaultWeight())

@@ -318,7 +318,19 @@ class DeviceScreensTest {
             screenshot("traguardi_in_pausa")
             compose.onNodeWithText("Riprendi").performClick()
             Thread.sleep(300)
-            back()
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("weight_goal"))
+            screenshot("traguardi_peso")
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("sedentary_card"))
+            screenshot("traguardi_sedentari")
+            compose.onNodeWithTag("goals_list").performScrollToNode(hasTestTag("month_link"))
+            compose.onNodeWithTag("month_link").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("month_list").fetchSemanticsNodes().isNotEmpty() }
+            screenshot("mese")
+            compose.onNodeWithTag("month_list").performTouchInput { swipeUp(durationMillis = 400) }
+            screenshot("mese_record")
+            // torna alla Home: un «indietro» per schermata, finché la Home non c'è (al massimo 4)
+            var tries = 0
+            while (compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isEmpty() && tries < 4) { back(); tries++ }
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("home_list").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("nutrition_card"))
             waitText("giorni completi", 30_000)

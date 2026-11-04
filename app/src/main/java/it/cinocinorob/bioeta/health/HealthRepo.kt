@@ -553,6 +553,30 @@ class HealthRepo(private val context: Context) {
         val recordedExerciseMinutes: Int = 0,
     )
 
+    /** Passi per ora degli ultimi [days] giorni (una sola richiesta aggregata): per i momenti sedentari. Null se la lettura fallisce. */
+    suspend fun hourlyStepsHistory(days: Long): Map<LocalDate, IntArray>? {
+        if (HealthPermission.getReadPermission(StepsRecord::class) !in granted()) return emptyMap()
+        val zone = ZoneId.systemDefault()
+        val start = LocalDate.now(zone).minusDays(days).atStartOfDay(zone).toInstant()
+        val end = LocalDate.now(zone).atStartOfDay(zone).toInstant()
+        return track("Passi per ora (storico)") {
+            withRetry {
+                val out = HashMap<LocalDate, IntArray>()
+                client.aggregateGroupByDuration(
+                    AggregateGroupByDurationRequest(
+                        metrics = setOf(StepsRecord.COUNT_TOTAL),
+                        timeRangeFilter = TimeRangeFilter.between(start, end),
+                        timeRangeSlicer = Duration.ofHours(1),
+                    )
+                ).forEach { b ->
+                    val z = b.startTime.atZone(zone)
+                    out.getOrPut(z.toLocalDate()) { IntArray(24) }[z.hour.coerceIn(0, 23)] += (b.result[StepsRecord.COUNT_TOTAL] ?: 0L).toInt()
+                }
+                out
+            }
+        }
+    }
+
     suspend fun todayActivity(): TodayActivity {
         val g = granted()
         val zone = ZoneId.systemDefault()
