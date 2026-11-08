@@ -185,6 +185,6 @@ fun CheckupsCard(vm: AppViewModel) {
             }
         }
         val later = list.filter { it.state == CheckState.NOT_YET }
-        if (later.isNotEmpty()) Caption("Più avanti: " + later.joinToString(" · ") { "${it.title.lowercase()} (${it.when_.lowercase()})" } + ".")
+        if (later.isNotEmpty()) Caption("Più avanti: " + later.joinToString("; ") { c -> "${c.title.replaceFirstChar { ch -> ch.lowercase() }}, ${c.when_.replaceFirstChar { ch -> ch.lowercase() }}" } + ".")
     }
 }
