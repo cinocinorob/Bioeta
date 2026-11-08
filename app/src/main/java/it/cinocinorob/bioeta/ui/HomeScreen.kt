@@ -25,6 +25,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -92,7 +94,7 @@ fun HomeScreen(
     val dayAct = vm.todayDayActivity
     val target = vm.targetLoad
     val mood = moodFor(t.readiness.score, t.readiness.calibrating || !vm.hasAnyHealthPermission)
-    var customizing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var customizing by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     if (customizing) CustomizeHomeDialog(vm) { customizing = false }
 
     LazyColumn(
