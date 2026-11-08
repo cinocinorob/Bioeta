@@ -78,6 +78,13 @@ fun SettingsScreen(
             HealthCard("Aspetto", BioIcons.Sparkle, Tint.brand) {
                 SegmentPill(ThemeMode.entries.map { it.label }, ThemeMode.entries.indexOf(vm.themeMode), onSelect = { vm.selectTheme(ThemeMode.entries[it]) })
                 Caption("Con «Sistema» BioEtà segue il tema chiaro o scuro del telefono. Le dimensioni del testo seguono le impostazioni di sistema.")
+                androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                        Text("Cielo che cambia con l'ora", fontSize = 15.sp, color = pal.text)
+                        Caption("Un velo di colore in alto: alba, giorno, tramonto, notte.")
+                    }
+                    androidx.compose.material3.Switch(checked = vm.skyOn, onCheckedChange = { vm.enableSky(it) })
+                }
                 if (android.os.Build.VERSION.SDK_INT >= 31) androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
                         Text("Colori dal telefono", fontSize = 15.sp, color = pal.text)

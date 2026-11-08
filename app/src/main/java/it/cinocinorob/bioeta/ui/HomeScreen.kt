@@ -25,6 +25,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -92,6 +94,8 @@ fun HomeScreen(
     val dayAct = vm.todayDayActivity
     val target = vm.targetLoad
     val mood = moodFor(t.readiness.score, t.readiness.calibrating || !vm.hasAnyHealthPermission)
+    var customizing by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    if (customizing) CustomizeHomeDialog(vm) { customizing = false }
 
     LazyColumn(
         modifier.fillMaxSize().testTag("home_list"),
@@ -124,29 +128,40 @@ fun HomeScreen(
 
         // ---------------- Oggi: briefing e punteggio, poi le due schede che contano ----------------
         if (vm.hasAnyHealthPermission) item { SedentaryNudge(vm) }
+        val alert = vm.healthAlert
+        if (alert != null && vm.gameOn) item {
+            InlineNotice("Oggi punti e traguardi sono in pausa per $alert: il giorno non conta per la serie.", NoticeKind.INFO)
+        }
+        // Sezioni nell'ordine scelto dall'utente (Personalizza, come in Sonar); briefing e avvisi restano in cima
+        val sections: Map<String, androidx.compose.foundation.lazy.LazyListScope.() -> Unit> = mapOf(
+            "score" to {
         if (vm.hasAnyHealthPermission) item { DayScoreCard(vm) }
+            },
+            "pair" to {
         item {
             PairRow(
                 { m -> RecoveryTile(vm, mood, m, onGoHealth) },
                 { m -> SleepTile(vm, m) { onOpenMetric("SLEEP") } },
             )
         }
+            },
+            "move" to {
         // Movimento: una sola scheda. Con il gioco attivo è quella del compagno (passi, obiettivo, carico, settimana);
         // nei giorni di allerta per la salute il gioco si nasconde e resta la scheda semplice.
-        val alert = vm.healthAlert
-        if (alert != null && vm.gameOn) item {
-            InlineNotice("Oggi punti e traguardi sono in pausa per $alert: il giorno non conta per la serie.", NoticeKind.INFO)
-        }
         if (vm.gameOn && alert == null && vm.hasAnyHealthPermission && vm.game != null) item { GameCard(vm, onOpenGoals, onGoActivity) }
         else item { MoveTile(vm, chrono, onGoActivity, onOpenMetric) }
         item { RpePrompt(vm) }
 
+            },
+            "highlights" to {
         // ---------------- In evidenza: solo ciò che è cambiato davvero ----------------
         if (vm.hasAnyHealthPermission) {
             item { SectionHeader("In evidenza") }
             item { HighlightsSection(vm.highlights, onOpenMetric) }
         }
 
+            },
+            "journal" to {
         // ---------------- Benessere ----------------
         item { SectionHeader("Diario") }
         item {
@@ -192,6 +207,8 @@ fun HomeScreen(
                 }
             }
         }
+            },
+            "shortcuts" to {
         if (vm.hasAnyHealthPermission) item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickAction("Il tuo mese", "Confronto e record", Tint.brand, BioIcons.Sparkle, onOpenMonth, Modifier.weight(1f).testTag("open_month"))
@@ -199,6 +216,14 @@ fun HomeScreen(
             }
         }
 
+            },
+        )
+        vm.homeOrder.filter { k -> k !in vm.homeHidden }.forEach { k -> sections[k]?.invoke(this) }
+        item {
+            androidx.compose.material3.TextButton(onClick = { customizing = true }, modifier = Modifier.fillMaxWidth().testTag("home_customize")) {
+                Text("Personalizza la Home", color = p.ink(p.brand))
+            }
+        }
         item { Caption("Stime statistiche a scopo informativo, non diagnosi.") }
     }
 }
@@ -447,4 +472,31 @@ private fun CompactRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
         }
         Icon(BioIcons.Chevron, null, tint = p.text3, modifier = Modifier.size(14.dp))
     }
+}
+
+
+/** Personalizza la Home (come in Sonar): mostra o nascondi le sezioni e cambia l'ordine. */
+@Composable
+private fun CustomizeHomeDialog(vm: AppViewModel, onDismiss: () -> Unit) {
+    val p = LocalPalette.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Personalizza la Home") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Caption("Il briefing e gli avvisi importanti restano sempre in cima.")
+                val order = vm.homeOrder
+                order.forEachIndexed { i, k ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("home_sec_$k")) {
+                        androidx.compose.material3.Checkbox(checked = k !in vm.homeHidden, enabled = k != "score", onCheckedChange = { on -> vm.setHomeSectionVisible(k, on) })
+                        Text(AppViewModel.HOME_SECTIONS[k] ?: k, style = MaterialTheme.typography.bodyMedium, color = p.text, modifier = Modifier.weight(1f))
+                        androidx.compose.material3.TextButton(enabled = i > 0, onClick = { vm.moveHomeSection(k, -1) }) { Text("↑") }
+                        androidx.compose.material3.TextButton(enabled = i < order.size - 1, onClick = { vm.moveHomeSection(k, 1) }) { Text("↓") }
+                    }
+                }
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Fatto") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { vm.resetHomeLayout() }) { Text("Ripristina") } },
+    )
 }

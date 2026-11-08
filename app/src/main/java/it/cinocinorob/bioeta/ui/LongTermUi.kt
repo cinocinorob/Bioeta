@@ -43,6 +43,8 @@ private fun pillarIcon(key: String): Pair<ImageVector, Color> = when (key) {
     "active" -> BioIcons.Bolt to Tint.good
     "sleep" -> BioIcons.Moon to Tint.sleep
     "rhr" -> BioIcons.Heart to Tint.heart
+    "metabolic" -> BioIcons.Drop to Tint.blood
+    "bioage" -> BioIcons.Sparkle to Tint.brand
     else -> BioIcons.Pulse to Tint.load
 }
 
@@ -55,7 +57,7 @@ private fun statusColor(s: PillarStatus): Color = when (s) {
 }
 
 private const val LONG_INFO =
-    "Questi sono gli indicatori misurabili dall'orologio che negli studi di popolazione sono legati in modo solido alla salute a lungo termine (mortalità, malattie cardiovascolari). Le soglie vengono dalle meta-analisi citate in ogni scheda.\n\n" +
+    "Questi sono gli indicatori misurabili dall'orologio e dagli esami del sangue che negli studi di popolazione sono legati in modo solido alla salute a lungo termine (mortalità, malattie cardiovascolari). Le soglie vengono dalle meta-analisi citate in ogni scheda.\n\n" +
         "Sono associazioni osservazionali: dicono cosa vale la pena curare, non quanto rischi tu personalmente, e non sono una diagnosi. A differenza dei punteggi giornalieri, cambiano lentamente: guardali una volta al mese."
 
 /** Scheda della Home: un riepilogo per riga, stato colorato. */

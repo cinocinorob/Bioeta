@@ -64,6 +64,10 @@ data class LongTermInputs(
     /** Notti di sonno (per regolarità e durata). */
     val nights: List<SleepNight>,
     val zone: ZoneId,
+    /** Ultimo valore di ciascun esame (unità canonica: mg/dL, HbA1c in mmol/mol) con la data del prelievo. */
+    val labs: Map<String, Pair<LocalDate, Double>> = emptyMap(),
+    /** Età biologica (PhenoAge) meno età anagrafica, con la data del prelievo. */
+    val phenoDelta: Pair<LocalDate, Double>? = null,
 )
 
 object LongTerm {
@@ -75,7 +79,62 @@ object LongTerm {
     private fun window(s: List<DailyValue>, today: LocalDate, from: Long, to: Long) =
         s.filter { !it.date.isAfter(today.minusDays(from)) && it.date.isAfter(today.minusDays(to + 1)) }.map { it.value }
 
-    fun compute(i: LongTermInputs): List<Pillar> = listOf(vo2(i), steps(i), active(i), sleep(i), rhr(i), shortBouts(i))
+    fun compute(i: LongTermInputs): List<Pillar> = listOf(vo2(i), steps(i), active(i), sleep(i), rhr(i), shortBouts(i), metabolic(i), bioAge(i))
+
+    /** Esami più vecchi di così non contano (come «non valutato» in Healthspan di Wellness Project). */
+    const val LAB_MAX_MONTHS = 24L
+
+    /**
+     * Salute metabolica dagli esami del sangue. Soglie: glicemia a digiuno e HbA1c secondo l'ADA 2025 (prediabete
+     * 100–125 mg/dL e 39–47 mmol/mol; diabete ≥ 126 e ≥ 48, da confermare); lipidi secondo ESC/EAS 2019 (LDL < 116
+     * mg/dL obiettivo a basso rischio, ≥ 190 da approfondire; ApoB < 100; trigliceridi < 150; HDL basso < 40 uomini,
+     * < 50 donne). Il giudizio è il peggiore tra gli esami disponibili; un esame mancante resta «non valutato».
+     */
+    fun metabolic(i: LongTermInputs): Pillar {
+        val ev = "Glicemia, emoglobina glicata e lipidi sono tra i fattori di rischio cardiovascolare meglio documentati. Soglie: ADA 2025 per glicemia e HbA1c, ESC/EAS 2019 per i lipidi."
+        val how = "Migliorano con attività fisica regolare, perdita del peso in eccesso, più fibre e meno zuccheri e grassi saturi; per i lipidi a volte servono farmaci: decide il medico."
+        val fresh = i.labs.filter { (_, v) -> !v.first.isBefore(i.today.minusMonths(LAB_MAX_MONTHS)) }
+        data class Check(val name: String, val status: PillarStatus, val text: String)
+        val checks = mutableListOf<Check>()
+        fun mg(v: Double) = "${f(v)} mg/dL"
+        fresh["glucose"]?.second?.let { v -> checks += Check("Glicemia", when { v < 100 -> PillarStatus.GOOD; v < 126 -> PillarStatus.MID; else -> PillarStatus.LOW }, "glicemia ${mg(v)}") }
+        fresh["hba1c"]?.second?.let { v -> checks += Check("HbA1c", when { v < 39 -> PillarStatus.GOOD; v < 48 -> PillarStatus.MID; else -> PillarStatus.LOW }, "HbA1c ${f(v)} mmol/mol") }
+        fresh["ldl"]?.second?.let { v -> checks += Check("LDL", when { v < 116 -> PillarStatus.GOOD; v < 190 -> PillarStatus.MID; else -> PillarStatus.LOW }, "LDL ${mg(v)}") }
+        fresh["apob"]?.second?.let { v -> checks += Check("ApoB", when { v < 100 -> PillarStatus.GOOD; v < 130 -> PillarStatus.MID; else -> PillarStatus.LOW }, "ApoB ${mg(v)}") }
+        fresh["tg"]?.second?.let { v -> checks += Check("Trigliceridi", when { v < 150 -> PillarStatus.GOOD; v < 200 -> PillarStatus.MID; else -> PillarStatus.LOW }, "trigliceridi ${mg(v)}") }
+        fresh["hdl"]?.second?.let { v -> checks += Check("HDL", if (v < (if (i.male) 40.0 else 50.0)) PillarStatus.MID else PillarStatus.GOOD, "HDL ${mg(v)}") }
+        val doi = "10.2337/dc25-S002"
+        if (checks.isEmpty()) return Pillar("metabolic", "Salute metabolica", null, "", PillarStatus.NA, "Non valutata",
+            "Servono glicemia, HbA1c o lipidi da un prelievo degli ultimi 2 anni.", how, ev, doi)
+        val worst = checks.maxOf { c -> when (c.status) { PillarStatus.GOOD -> 0; PillarStatus.MID -> 1; PillarStatus.LOW -> 2; else -> 0 } }
+        val st = listOf(PillarStatus.GOOD, PillarStatus.MID, PillarStatus.LOW)[worst]
+        val good = checks.count { it.status == PillarStatus.GOOD }
+        val off = checks.filter { it.status != PillarStatus.GOOD }.joinToString(", ") { it.text }
+        val date = fresh.values.maxOf { it.first }
+        val verdict = when (st) { PillarStatus.GOOD -> "Tutti gli esami nel range favorevole"; PillarStatus.MID -> "Qualche valore da migliorare"; else -> "Un valore da approfondire con il medico" }
+        val missing = listOf("glucose" to "glicemia", "hba1c" to "HbA1c", "ldl" to "LDL", "tg" to "trigliceridi", "hdl" to "HDL").filter { (k, _) -> k !in fresh }.map { it.second }
+        return Pillar("metabolic", "Salute metabolica", "$good/${checks.size}", "nel range", st, verdict,
+            "Ultimo prelievo ${date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ITALIAN))}." +
+                (if (off.isNotEmpty()) " Fuori dal range favorevole: $off." else "") +
+                (if (missing.isNotEmpty()) " Non valutati: ${missing.joinToString(", ")}." else ""),
+            how, ev, doi)
+    }
+
+    /** Età biologica (PhenoAge) rispetto all'età anagrafica: ±2 anni è nella variabilità della stima. */
+    fun bioAge(i: LongTermInputs): Pillar {
+        val ev = "La PhenoAge combina 9 esami e l'età; ogni anno in più rispetto all'età anagrafica si associa a un rischio di mortalità più alto del 9% circa (Levine 2018)."
+        val how = "Gli esami che la muovono di più: PCR (infiammazione), glicemia, RDW, albumina; migliorano con forma fisica, sonno, peso e dieta."
+        val doi = "10.18632/aging.101414"
+        val p = i.phenoDelta?.takeIf { !it.first.isBefore(i.today.minusMonths(LAB_MAX_MONTHS)) }
+            ?: return Pillar("bioage", "Età biologica", null, "anni", PillarStatus.NA, "Non valutata",
+                "Serve un prelievo completo per la PhenoAge (9 esami) negli ultimi 2 anni.", how, ev, doi, estimate = true)
+        val d = p.second
+        val st = when { d <= -2 -> PillarStatus.GOOD; d < 2 -> PillarStatus.MID; else -> PillarStatus.LOW }
+        val verdict = when { d <= -2 -> "Più giovane della tua età"; d < 2 -> "In linea con la tua età"; else -> "Più alta della tua età" }
+        return Pillar("bioage", "Età biologica", (if (d >= 0) "+" else "−") + f(abs(d), 1), "anni", st, verdict,
+            "PhenoAge meno età anagrafica, prelievo del ${p.first.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ITALIAN))}. Stima statistica con un'incertezza di alcuni anni.",
+            how, ev, doi, estimate = true)
+    }
 
     fun vo2(i: LongTermInputs): Pillar {
         val recent = window(i.vo2, i.today, 0, 29)
