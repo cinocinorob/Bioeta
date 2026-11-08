@@ -237,6 +237,22 @@ con regole dichiarate.
   PhenoAge, andamenti di 30–90 giorni); resta nella memoria dell'app finché l'utente non lo condivide.
 - Colori dal telefono (Material You, Android 12+): opzionale, cambia solo superfici e colore principale.
 
+## Idee da Sonar e salute metabolica (versione 1)
+
+- Salute a lungo termine: due nuovi indicatori dagli esami del sangue (solo prelievi degli ultimi 24 mesi, altrimenti
+  «non valutato»). Salute metabolica = giudizio peggiore tra glicemia (< 100 / 100–125 / ≥ 126 mg/dL) e HbA1c
+  (< 39 / 39–47 / ≥ 48 mmol/mol) secondo ADA 2025 (doi:10.2337/dc25-S002), LDL (< 116 / 116–189 / ≥ 190 mg/dL), ApoB
+  (< 100 / 100–129 / ≥ 130), trigliceridi (< 150 / 150–199 / ≥ 200) e HDL (< 40 uomini, < 50 donne = migliorabile)
+  secondo ESC/EAS 2019 (doi:10.1016/j.atherosclerosis.2019.08.014). Età biologica = PhenoAge − età: ≤ −2 favorevole,
+  −2…+2 in linea, ≥ +2 più alta.
+- Confronta: Spearman tra due metriche sui giorni in comune (stesso giorno o giorno dopo; 30/90/180 giorni), IC 95% di
+  Fisher, ≥ 14 coppie; frase con la media della seconda nel terzo di giorni più basso e più alto della prima.
+- Controlli consigliati: screening oncologici SSN (colon-retto 50–69 ogni 2 anni; mammografia 50–69 ogni 2 anni, in
+  alcune Regioni 45–74; cervice 25–65), PNPV 2023–25 (dTpa ogni 10 anni, pneumococco e zoster a 65 anni, influenza
+  secondo la circolare), pressione almeno ogni anno dai 40 anni, SCORE2 da considerare dai 40 (uomini) e 50 (donne),
+  glicemia ogni 3 anni dai 35 (ADA). «In regola» usa le date di misure ed esami presenti in BioEtà.
+- Home personalizzabile (ordine e visibilità delle sezioni) e sfondo «cielo» che cambia con l'ora: solo presentazione.
+
 ## 5. Recupero e sonno
 
 Recupero: z-score di ln(RMSSD) e FC a riposo rispetto alla baseline personale (giorni D−61…D−1), media del giorno e

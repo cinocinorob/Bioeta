@@ -619,6 +619,40 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return withContext(Dispatchers.IO) { DoctorReport.write(getApplication(), data) }
     }
 
+    // ---------------- Home personalizzabile e cielo (idee da Sonar) ----------------
+
+    var homeOrder by mutableStateOf(
+        (settings.getString("home_order", null)?.split(",")?.filter { k -> k in HOME_SECTIONS } ?: emptyList())
+            .let { l -> l + HOME_SECTIONS.keys.filter { k -> k !in l } },
+    )
+        private set
+    var homeHidden by mutableStateOf(settings.getStringSet("home_hidden", emptySet())!!.toSet())
+        private set
+
+    fun setHomeSectionVisible(k: String, on: Boolean) {
+        homeHidden = if (on) homeHidden - k else homeHidden + k
+        settings.edit().putStringSet("home_hidden", homeHidden).apply()
+    }
+
+    fun moveHomeSection(k: String, d: Int) {
+        val l = homeOrder.toMutableList(); val i = l.indexOf(k); val j = i + d
+        if (i < 0 || j !in l.indices) return
+        l[i] = l[j]; l[j] = k
+        homeOrder = l
+        settings.edit().putString("home_order", l.joinToString(",")).apply()
+    }
+
+    fun resetHomeLayout() {
+        homeOrder = HOME_SECTIONS.keys.toList(); homeHidden = emptySet()
+        settings.edit().remove("home_order").remove("home_hidden").apply()
+    }
+
+    /** Sfondo «cielo» che cambia con l'ora del giorno (come gli sfondi di Sonar). */
+    var skyOn by mutableStateOf(settings.getBoolean("sky", true))
+        private set
+
+    fun enableSky(on: Boolean) { skyOn = on; settings.edit().putBoolean("sky", on).apply() }
+
     /** Colori dal telefono (Material You). Predefinito: palette pastello di BioEtà. */
     var dynamicColor by mutableStateOf(settings.getBoolean("dynamic_color", false))
         private set
@@ -1626,6 +1660,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 today = java.time.LocalDate.now(), age = profile.ageAt(java.time.LocalDate.now()), male = profile.sex == Sex.M,
                 vo2 = s(Metric.VO2), vo2Manual = profile.vo2Manual, steps = s(Metric.STEPS), rhr = s(Metric.RHR),
                 days = dayActivities, nights = sleepNights, zone = zoneId(),
+                labs = panels.sortedByDescending { p -> p.date }.flatMap { p -> p.values.map { (k, v) -> k to (p.date to v.value) } }
+                    .groupBy({ e -> e.first }, { e -> e.second }).mapValues { e -> e.value.first() },
+                phenoDelta = phenoSeries.lastOrNull()?.let { ph -> ph.panel.date to (ph.result.phenoAge - ph.age) },
             ))
         }
 
@@ -1778,5 +1815,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         const val RECOVERY_WINDOW = 75L
         /** Giorni di storico dei minuti attivi: 5 settimane, per confrontare la settimana con le 4 precedenti. */
         const val ACTIVITY_DAYS = 35
+
+        /** Sezioni della Home nell'ordine predefinito, con il nome mostrato in «Personalizza». */
+        val HOME_SECTIONS: Map<String, String> = linkedMapOf(
+            "score" to "Il tuo giorno (briefing e punteggio)",
+            "pair" to "Recupero e sonno",
+            "move" to "Movimento e obiettivo",
+            "highlights" to "In evidenza",
+            "journal" to "Diario",
+            "shortcuts" to "Il tuo mese e traguardi",
+        )
     }
 }

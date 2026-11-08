@@ -51,6 +51,7 @@ fun BodyScreen(
                     QuickAction("Alimentazione", "Dalle app collegate", Tint.food, BioIcons.Food, onOpenNutrition, Modifier.weight(1f).testTag("qa_nutrition"))
                 }
                 DoctorReportButton(vm)
+                CheckupsCard(vm)
             }
         }
     }

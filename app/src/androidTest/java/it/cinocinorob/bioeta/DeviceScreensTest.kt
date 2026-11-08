@@ -394,6 +394,13 @@ class DeviceScreensTest {
 
             tab("HEALTH")
             screenshot("salute")
+            compose.onNodeWithTag("open_compare").performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("compare_list").fetchSemanticsNodes().isNotEmpty() }
+            screenshot("confronta")
+            compose.onNodeWithTag("compare_list").performScrollToNode(hasTestTag("compare_result"))
+            screenshot("confronta_risultato")
+            back()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("open_compare").fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("radar_card"))
             screenshot("salute_radar")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
@@ -439,6 +446,8 @@ class DeviceScreensTest {
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("body_segment").fetchSemanticsNodes().isNotEmpty() }
             compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("doctor_report"))
             screenshot("corpo_report")
+            compose.onNode(hasScrollableList()).performScrollToNode(hasTestTag("checkups"))
+            screenshot("corpo_controlli")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("eta_biologica")
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
@@ -449,6 +458,12 @@ class DeviceScreensTest {
             screenshot("analisi")
 
             tab("HOME")
+            compose.onNodeWithTag("home_list").performScrollToNode(hasTestTag("home_customize"))
+            compose.onNodeWithTag("home_customize").performClick()
+            Thread.sleep(600)
+            screenshot("home_personalizza")
+            compose.onNodeWithText("Fatto").performClick()
+            Thread.sleep(400)
 
             // Profilo e tema chiaro
             compose.onNodeWithTag("profile_button").performClick()

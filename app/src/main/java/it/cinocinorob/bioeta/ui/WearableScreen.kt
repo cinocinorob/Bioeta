@@ -25,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -79,6 +80,7 @@ fun WearableScreen(
     onRequestPermissions: () -> Unit,
     onOpenJournal: () -> Unit = {},
     onOpenDiscoveries: () -> Unit = {},
+    onOpenCompare: () -> Unit = {},
     onOpenBp: () -> Unit = {},
     onOpenMetric: (String) -> Unit = {},
     onOpenEcg: () -> Unit = {},
@@ -98,6 +100,7 @@ fun WearableScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuickAction("Diario", "Umore e abitudini", Tint.mood, BioIcons.Pencil, onOpenJournal, Modifier.weight(1f))
+                QuickAction("Confronta", "Due metriche insieme", Tint.brand, BioIcons.Sparkle, onOpenCompare, Modifier.weight(1f).testTag("open_compare"))
             }
         }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }

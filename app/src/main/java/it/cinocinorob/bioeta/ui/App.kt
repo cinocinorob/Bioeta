@@ -3,12 +3,14 @@ package it.cinocinorob.bioeta.ui
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -86,6 +88,7 @@ private const val R_NUT = "nutrition"
 private const val R_ECG = "ecg"
 private const val R_GOALS = "goals"
 private const val R_MONTH = "month"
+private const val R_COMPARE = "compare"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,6 +162,7 @@ fun App(
             top == R_LONG -> LongTermScreen(vm, onBack = pop)
             top == R_GOALS -> GoalsScreen(vm, onBack = pop, onOpenMonth = { push(R_MONTH) })
             top == R_MONTH -> MonthScreen(vm, onBack = pop)
+            top == R_COMPARE -> CompareScreen(vm, onBack = pop)
             top == R_ECG -> EcgScreen(vm, onBack = pop, onImport = onImportEcg)
             top == R_NUT -> NutritionScreen(vm, onBack = pop, onOpenDiscoveries = { push(R_DISC) }, onConnect = onRequestPermissions)
             top == R_DIAG -> DiagnosticsScreen(vm, onBack = pop, onRequestPermissions = onRequestPermissions)
@@ -256,9 +260,12 @@ private fun MainTabs(
         Tab.HEALTH -> "Recupero, sonno e parametri vitali"
         Tab.BODY -> "Età biologica, esami e controlli"
     }
+    // Cielo che cambia con l'ora (come gli sfondi di Sonar): un velo di colore in alto che sfuma nello sfondo
+    Box(Modifier.fillMaxSize().background(pal.bg)) {
+    if (vm.skyOn) SkyBackdrop()
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
-        containerColor = pal.bg,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             LargeTopAppBar(
@@ -283,7 +290,7 @@ private fun MainTabs(
                     }
                 },
                 scrollBehavior = scroll,
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = pal.bg, scrolledContainerColor = pal.bg),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = pal.bg),
             )
         },
         bottomBar = {
@@ -348,6 +355,7 @@ private fun MainTabs(
                         vm, m, onRequestPermissions,
                         onOpenJournal = { push(R_JOURNAL) }, onOpenBp = { push(R_BP) }, onOpenMetric = { push(R_METRIC + it) },
                         onOpenDiscoveries = { push(R_DISC) },
+                        onOpenCompare = { push(R_COMPARE) },
                         onOpenEcg = { push(R_ECG) },
                     )
                     Tab.BODY -> BodyScreen(
@@ -385,6 +393,29 @@ private fun MainTabs(
         }
         }
     }
+    }
+}
+
+/**
+ * Sfondo «cielo»: alba, giorno, tramonto e notte in tinte pastello (come gli sfondi di Sonar che cambiano con l'ora),
+ * attenuato nel tema scuro. Sfuma nello sfondo dell'app, quindi non riduce il contrasto delle schede.
+ */
+@Composable
+private fun SkyBackdrop() {
+    val pal = LocalPalette.current
+    val h = LocalTime.now().hour
+    val (top, mid) = when (h) {
+        in 5..7 -> Color(0xFFFFD9C2) to Color(0xFFEBDDFB)   // alba
+        in 8..16 -> Color(0xFFCFE6FF) to Color(0xFFD6F2EA)  // giorno
+        in 17..19 -> Color(0xFFFFCDB8) to Color(0xFFF4CFE6) // tramonto
+        else -> Color(0xFF3B3F7A) to Color(0xFF6A5A9E)      // notte
+    }
+    val a = if (pal.dark) 0.28f else if (h !in 5..19) 0.35f else 0.9f
+    Box(
+        Modifier.fillMaxWidth().height(420.dp).background(
+            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(top.copy(alpha = a), mid.copy(alpha = a * 0.6f), pal.bg)),
+        ),
+    )
 }
 
 /** Selettore segmentato Material 3. */
