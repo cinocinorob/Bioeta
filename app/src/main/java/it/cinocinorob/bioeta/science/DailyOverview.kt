@@ -160,7 +160,7 @@ object MonthReviewCalc {
         val out = mutableListOf<PersonalRecord>()
         steps.filterKeys { it.isBefore(today) }.maxByOrNull { it.value }?.let { out += PersonalRecord("steps_day", "Giorno con più passi", it.value, "passi", it.key) }
         Game.weekMinutes(activeMin.filterKeys { Game.weekStart(it).plusDays(6).isBefore(today) }).maxByOrNull { it.value }
-            ?.let { out += PersonalRecord("week_min", "Settimana più attiva", it.value.toDouble(), "min attivi", it.key) }
+            ?.takeIf { it.value > 0 }?.let { out += PersonalRecord("week_min", "Settimana più attiva", it.value.toDouble(), "min attivi", it.key) }
         val r = rhr.toSortedMap()
         if (r.size >= 7) {
             val keys = r.keys.toList()

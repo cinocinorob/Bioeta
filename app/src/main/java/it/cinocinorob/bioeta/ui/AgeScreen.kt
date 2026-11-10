@@ -198,42 +198,6 @@ fun AgeScreen(
             }
         }
 
-        // ---------- Tile wearable ----------
-        item { SectionLabel("Dati recenti") }
-        item {
-            val male = profile.sex == Sex.M
-            val wearVo2 = vm.wearable[Metric.VO2]?.filter { it.date.isAfter(today.minusDays(30)) }
-                ?.map { it.value }?.takeIf { it.isNotEmpty() }?.average()
-            val vo2 = profile.vo2Manual ?: wearVo2
-            val tiles = listOf(
-                Tile("Età cardio", BioIcons.Gauge, Tint.vo2,
-                    vo2?.let {
-                        val raw = FitnessAge.fitnessAgeRaw(it, male)
-                        when { raw < 20 -> "<20"; raw > 80 -> ">80"; else -> raw.f(0) }
-                    }, "anni",
-                    vm.wearable[Metric.VO2]?.takeLast(30)?.map { it.value }),
-                tileFor(vm, Metric.RHR, "FC a riposo", BioIcons.Heart, Tint.heart),
-                tileFor(vm, Metric.HRV, "HRV", BioIcons.Pulse, Tint.hrv),
-                tileFor(vm, Metric.SLEEP, "Sonno", BioIcons.Moon, Tint.sleep),
-                tileFor(vm, Metric.STEPS, "Passi", BioIcons.Bolt, Tint.activity),
-                tileFor(vm, Metric.RESP, "Respirazione", BioIcons.Wind, Tint.resp),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                tiles.chunked(2).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        row.forEach { t ->
-                            HealthCard(t.title, t.icon, t.tint, modifier = Modifier.weight(1f), onClick = onGoWear) {
-                                BigValue(t.value ?: "—", if (t.value != null) t.unit else null, size = 26)
-                                val sp = t.spark
-                                if (sp != null && sp.size >= 2) Sparkline(sp, t.tint, Modifier.fillMaxWidth())
-                                else Caption(if (vm.hasAnyHealthPermission) "nessun dato" else "non collegato")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // ---------- Età cardiorespiratoria (dettaglio) ----------
         item {
             val male = profile.sex == Sex.M

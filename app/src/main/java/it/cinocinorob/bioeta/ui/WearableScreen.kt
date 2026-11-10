@@ -105,7 +105,6 @@ fun WearableScreen(
         }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RecoverySection(vm, onRequestPermissions) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { SleepRegularityCard(vm) }
-        if (vm.hcAvailable && vm.hasAnyHealthPermission) item { WellnessQuestCard(vm) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { RadarCard(vm, startExpanded = true) }
         item { MoodTrendCard(vm, onLog = onOpenJournal) }
         if (vm.hcAvailable && vm.hasAnyHealthPermission) item { TonightCard(vm) }
