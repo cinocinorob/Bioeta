@@ -106,7 +106,7 @@ fun CompareScreen(vm: AppViewModel, onBack: () -> Unit) {
                 HealthCard("${a.label.replaceFirstChar { it.uppercase() }} e ${b.label}", BioIcons.Pulse, a.color, modifier = Modifier.testTag("compare_result")) {
                     r.assoc?.let { s ->
                         Row(verticalAlignment = Alignment.Bottom) {
-                            BigValue(String.format(Locale.ITALY, "%+.2f", s.rho), "ρ", size = 34)
+                            BigValue(String.format(Locale.ITALY, "%+.2f", s.rho).replace('-', '−'), "ρ", size = 34)
                             Spacer(Modifier.width(10.dp))
                             Caption("IC 95% ${String.format(Locale.ITALY, "%.2f", s.low)} … ${String.format(Locale.ITALY, "%.2f", s.high)} · ${r.n} giorni")
                         }

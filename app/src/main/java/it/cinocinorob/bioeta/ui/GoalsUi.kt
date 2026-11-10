@@ -289,7 +289,6 @@ fun GameCard(vm: AppViewModel, onOpen: () -> Unit, onGoActivity: () -> Unit = {}
                 Text(todayLine(o), style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 2)
             }
         }
-        vm.gameInput?.let { inp -> ActivityPath(GamePath.path(inp, 14), 54, showLabels = false) }
         // Movimento in una riga (sostituisce la vecchia scheda «Movimento di oggi» in Home)
         val week = Fitness.weekActiveMinutes(vm.dayLoads, java.time.LocalDate.now())
         val load = vm.todayDayActivity?.takeIf { d -> d.quality != LoadQuality.UNAVAILABLE }?.load
@@ -414,14 +413,6 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit, onOpenMonth: () -> Unit = 
                         }
                         WeekDots(g, big = true)
                         LevelLadder(g.level)
-                    }
-                }
-                item {
-                    HealthCard("Oggi", BioIcons.Bolt, Tint.activity) {
-                        Text(if (o.goal.target == null || o.goal.rest && !o.met) "Giorno di pausa" else "${n(o.steps ?: 0)} di ${n(o.goal.target)} passi",
-                            style = MaterialTheme.typography.titleLarge, color = p.text)
-                        Track(todayFraction(o), if (o.met) Tint.good else Tint.activity)
-                        Caption(todayLine(o))
                     }
                 }
                 item {

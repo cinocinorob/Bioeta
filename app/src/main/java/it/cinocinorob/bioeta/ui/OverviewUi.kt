@@ -211,7 +211,7 @@ fun MonthScreen(vm: AppViewModel, onBack: () -> Unit) {
             item { SectionHeader("Record personali") }
             item {
                 HealthCard {
-                    val recs = vm.records.values.sortedBy { it.id }
+                    val recs = vm.records.values.filter { it.value > 0 }.sortedBy { it.id }
                     if (recs.isEmpty()) Caption("I record compaiono con qualche settimana di dati.")
                     recs.forEach { rec ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("record_${rec.id}")) {
