@@ -193,8 +193,16 @@ fun AgeScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BigValue(actual.fs(1), "anni", size = 24, color = if (actual <= 0) Tint.good else Tint.bad)
                 }
-                ContributionBars(contribs.map { it.label to it.years })
-                Caption("Verde = ringiovanisce, rosso = invecchia. Residuo non lineare ${(actual - linear).fs(2)} anni. Piccole variazioni di PCR e globuli bianchi rientrano spesso nella variabilità biologica.")
+                // Contributi < 0,05 anni raggruppati: con 10 righe a «0,00» il quadro si legge peggio
+                val shown = contribs.filter { abs(it.years) >= 0.05 }
+                val minor = contribs.size - shown.size
+                Caption("Contributo di ciascun valore alla variazione, in anni di età biologica.")
+                ContributionBars(shown.map { it.label to it.years }, unit = " a")
+                if (minor > 0) Caption("Altri $minor valori: meno di 0,05 anni ciascuno.")
+                val resid = actual - linear
+                Caption("Verde = ringiovanisce, rosso = invecchia. «Età anagrafica» = tempo passato tra i due prelievi, che da solo aumenta la PhenoAge. " +
+                    (if (abs(resid) < 0.05) "Il resto della variazione è trascurabile. " else "Residuo non lineare ${resid.fs(1)} anni. ") +
+                    "Piccole variazioni di PCR e globuli bianchi rientrano spesso nella variabilità biologica.")
             }
         }
 

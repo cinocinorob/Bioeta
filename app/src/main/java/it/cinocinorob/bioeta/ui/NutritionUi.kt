@@ -212,14 +212,15 @@ private fun EnergyCard(s: NutritionSummary) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Mangiate", kcal(e.intake), "kcal", Modifier.weight(1f))
             StatChip("Peso/sett.", (if (e.weightPerWeek >= 0) "+" else "−") + "%.1f".format(kotlin.math.abs(e.weightPerWeek)).replace('.', ','), "kg", Modifier.weight(1f))
-            StatChip("Orologio", e.watchKcal?.let { kcal(it) } ?: "—", "kcal", Modifier.weight(1f))
+            StatChip("Stima orologio", e.watchKcal?.let { kcal(it) } ?: "—", "kcal", Modifier.weight(1f))
         }
         val bal = e.intake - e.kcal
         Caption(when {
             kotlin.math.abs(e.weightPerWeek) < 0.1 -> "Peso stabile: stai mangiando quanto consumi."
             bal < 0 -> "In media ${kcal(-bal)} kcal al giorno sotto il dispendio: il peso scende di circa ${"%.1f".format(-e.weightPerWeek).replace('.', ',')} kg a settimana."
             else -> "In media ${kcal(bal)} kcal al giorno sopra il dispendio: il peso sale di circa ${"%.1f".format(e.weightPerWeek).replace('.', ',')} kg a settimana."
-        } + " Basato su ${e.days} giorni e ${e.weighIns} pesate.")
+        } + " Basato su ${e.days} giorni e ${e.weighIns} pesate." +
+            (e.watchKcal?.let { w -> " La stima dell'orologio è la media degli stessi giorni completi: può discostarsi anche del 20%." } ?: ""))
     }
 }
 
@@ -236,7 +237,7 @@ private fun TimingCard(vm: AppViewModel, s: NutritionSummary, onOpenDiscoveries:
         val cut = vm.bedtimeGuide?.caffeineCutoff
         val lc = s.lastCaffeineMedian
         if (cut != null && lc != null) Caption(
-            if (lc.isAfter(cut)) "Di solito prendi l'ultima caffeina dopo le ${it.cinocinorob.bioeta.science.Bedtime.fmt(cut)}: meno di 8,8 ore prima di dormire riduce il sonno totale (meta-analisi Gardiner 2023)."
+            if (lc.isAfter(cut)) "Di solito prendi l'ultima caffeina dopo le ${it.cinocinorob.bioeta.science.Bedtime.fmt(cut)}: meno di 8,8 ore prima di dormire riduce il sonno totale (meta-analisi Gardiner 2023, per una tazza da ~100 mg; con ~200 mg servono circa 13 h)."
             else "L'ultima caffeina arriva di solito prima delle ${it.cinocinorob.bioeta.science.Bedtime.fmt(cut)}, il limite per non accorciare il sonno.",
         )
         Caption("Sull'orario della cena la ricerca è ancora poco solida: per questo le Scoperte confrontano i tuoi giorni con pasto vicino al sonno e quelli senza, guardando sonno e HRV della notte.")

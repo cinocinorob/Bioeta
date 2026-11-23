@@ -97,7 +97,7 @@ private fun PartsRing(d: DayScore, sizeDp: Int) {
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(d.score?.toString() ?: "—", style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = (sizeDp * 0.30).sp, fontFeatureSettings = TABULAR), color = p.text)
-            Text("oggi", style = MaterialTheme.typography.labelMedium, color = p.text2)
+            Text("giornata", style = MaterialTheme.typography.labelMedium, color = p.text2)
         }
     }
 }
@@ -140,6 +140,7 @@ fun DayScoreCard(vm: AppViewModel) {
                 }
             }
             if (d.score == null) Caption("Il punteggio compare con almeno ${DayScoreCalc.MIN_PARTS} parti.")
+            else Text("Punteggio = media delle ${d.parts.size} parti", style = MaterialTheme.typography.labelSmall, color = p.text3)
         }
     }
     }

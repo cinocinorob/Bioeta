@@ -334,6 +334,11 @@ Ispirazione: Oura «Personal discoveries», WHOOP «Journal Impact». Regole pro
   l'affidabilità (Confermata = «affidabile», Indizio = «da confermare») e un'azione; per le voci del diario si può
   avviare un esperimento di 14 giorni. Le parole sono descrittive («è più bassa»), non causali. Associazioni con
   l'umore: umore medio nel terzo di giorni con il valore più basso e in quello più alto.
+- Presentazione (versione 3, 0.31.0): «Cosa ti fa bene / ti pesa» mostra solo le Confermate; gli Indizi sono in una
+  sezione «In osservazione», chiusa per default. Esposizione dai pasti «caffeina a meno di 9 h dal sonno»: ore tra
+  l'ultima caffeina e l'addormentamento di quella notte < 8,8 (Gardiner 2023, doi:10.1016/j.smrv.2023.101764:
+  ~107 mg almeno 8,8 h prima; ~217 mg almeno 13,2 h). Sostituisce la soglia fissa delle 14, incoerente con il limite
+  personale mostrato nella guida all'orario di sonno.
 
 ## Esperimenti personali (versione 1)
 

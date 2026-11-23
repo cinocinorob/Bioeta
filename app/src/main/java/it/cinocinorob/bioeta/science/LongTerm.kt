@@ -254,7 +254,7 @@ object LongTerm {
         val st = if (perDay >= 3) PillarStatus.GOOD else PillarStatus.MID
         val verdict = if (perDay >= 3) "Abitudine presente" else "Spazio per qualche sforzo in più"
         return Pillar("bouts", "Brevi sforzi intensi", f(perDay, 1), "al giorno", st, verdict,
-            "Media delle ultime 4 settimane fuori dagli allenamenti: ${f(minPerDay, 1)} min al giorno. Stima da frequenza cardiaca e cadenza.",
+            "Media delle ultime 4 settimane fuori dagli allenamenti: ${f(minPerDay, 1)} min al giorno. Stima da frequenza cardiaca e cadenza: probabilmente per difetto, perché fuori dagli allenamenti l'orologio registra la FC a intervalli più radi e la FC sale con qualche decina di secondi di ritardo.",
             how, ev, "10.1038/s41591-022-02100-x", estimate = true)
     }
 }

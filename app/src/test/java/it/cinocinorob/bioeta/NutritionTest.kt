@@ -22,6 +22,17 @@ class NutritionTest {
     private fun meal(d: LocalDate, h: Int, kcal: Double, origin: String = "mfp", prot: Double = 30.0, fib: Double? = 8.0, caf: Double? = null, na: Double? = 600.0) =
         Meal(at(d, h), origin, 0, kcal, prot, kcal * 0.5 / 4, kcal * 0.3 / 9, kcal * 0.08 / 9, fib, 20.0, na, 1200.0, caf)
 
+    @Test fun caffeineGapUsesThatNightsBedtime() {
+        val d = today.minusDays(1)
+        val day = Nutrition.days(listOf(meal(d, 8, 600.0), meal(d, 15, 600.0, caf = 100.0), meal(d, 20, 800.0)), emptyList(), z).single()
+        // a letto alle 23:30: 8,5 h dopo l'ultima caffeina (sotto la soglia di 8,8 h)
+        val night = it.cinocinorob.bioeta.science.SleepNight(today, d.atTime(23, 30).atZone(z).toInstant(), today.atTime(7, 0).atZone(z).toInstant(), emptyList())
+        val h = Nutrition.caffeineToSleep(day, night, z)!!
+        assertEquals(8.5, h, 1e-9)
+        assertTrue(h < Nutrition.CAFFEINE_GAP_H)
+        assertNull(Nutrition.caffeineToSleep(day, null, z))
+    }
+
     @Test fun oneAppPerDayAvoidsDoubleCounting() {
         val d = today.minusDays(1)
         val meals = listOf(meal(d, 8, 500.0), meal(d, 13, 800.0), meal(d, 20, 700.0),

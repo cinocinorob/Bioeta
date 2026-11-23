@@ -296,7 +296,7 @@ fun AgeRangeBar(bioAge: Double, chronoAge: Double, span: Double = 15.0) {
 
 /** Barre divergenti per i contributi (anni) dei singoli biomarcatori. */
 @Composable
-fun ContributionBars(items: List<Pair<String, Double>>) {
+fun ContributionBars(items: List<Pair<String, Double>>, unit: String = "") {
     val p = LocalPalette.current
     val maxAbs = max(items.maxOfOrNull { abs(it.second) } ?: 0.0, 0.25)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -316,8 +316,9 @@ fun ContributionBars(items: List<Pair<String, Double>>) {
                     val x = if (v >= 0) mid else mid - len
                     drawRoundRect(color, Offset(x, 2.dp.toPx()), Size(len, size.height - 4.dp.toPx()), CornerRadius(3.dp.toPx()))
                 }
-                Text(v.fs(2), fontSize = 13.sp, color = color, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.width(52.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                // Sotto la metà dell'ultima cifra mostrata: «0,00» senza segno (un «−0,00» suggerisce un effetto che non c'è)
+                Text((if (abs(v) < 0.005) "0,00" else v.fs(2)) + unit, fontSize = 13.sp, color = color, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.width(if (unit.isEmpty()) 52.dp else 72.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
             }
         }
     }
