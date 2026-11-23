@@ -212,7 +212,7 @@ private fun EnergyCard(s: NutritionSummary) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatChip("Mangiate", kcal(e.intake), "kcal", Modifier.weight(1f))
             StatChip("Peso/sett.", (if (e.weightPerWeek >= 0) "+" else "−") + "%.1f".format(kotlin.math.abs(e.weightPerWeek)).replace('.', ','), "kg", Modifier.weight(1f))
-            StatChip("Stima orologio", e.watchKcal?.let { kcal(it) } ?: "—", "kcal", Modifier.weight(1f))
+            StatChip("Orologio", e.watchKcal?.let { kcal(it) } ?: "—", "kcal", Modifier.weight(1f))
         }
         val bal = e.intake - e.kcal
         Caption(when {

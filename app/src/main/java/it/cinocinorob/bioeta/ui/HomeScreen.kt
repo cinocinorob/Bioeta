@@ -362,7 +362,7 @@ private fun MoveStat(label: String, value: String, sub: String, fraction: Float?
         Text(label, style = MaterialTheme.typography.labelMedium, color = p.text2, maxLines = 1)
         Text(value, style = TextStyle(fontFamily = DisplayFont, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, fontFeatureSettings = TABULAR), color = p.text, maxLines = 1)
         Track(fraction ?: 0f, c)
-        Text(sub, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 1)
+        Text(sub, style = MaterialTheme.typography.labelSmall, color = p.text2, maxLines = 2)
     }
 }
 
@@ -450,8 +450,8 @@ internal fun QuickAction(title: String, value: String, tint: Color, icon: androi
         Box(Modifier.size(32.dp).clip(CircleShape).background(tint), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
         }
-        Text(title, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 1)
-        Text(value, style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 1)
+        Text(title, style = MaterialTheme.typography.titleSmall, color = p.text, maxLines = 2)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = p.text2, maxLines = 2)
     }
 }
 

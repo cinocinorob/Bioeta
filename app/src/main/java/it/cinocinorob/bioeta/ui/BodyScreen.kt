@@ -40,7 +40,7 @@ fun BodyScreen(
     var seg by rememberSaveable { mutableStateOf(0) }
     val header: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SegmentPill(listOf("Panoramica", "Analisi del sangue"), seg, onSelect = { seg = it }, modifier = Modifier.testTag("body_segment"))
+            SegmentPill(listOf("Panoramica", "Esami"), seg, onSelect = { seg = it }, modifier = Modifier.testTag("body_segment"))
             if (seg == 0) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     QuickAction("Pressione", vm.bpSummary?.let { "${it.meanSys.f(0)}/${it.meanDia.f(0)} mmHg" } ?: "Registra", Tint.bp, BioIcons.Heart, onOpenBp, Modifier.weight(1f).testTag("qa_bp"))
