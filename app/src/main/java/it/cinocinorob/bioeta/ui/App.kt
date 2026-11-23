@@ -7,6 +7,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -243,7 +245,6 @@ private fun MainTabs(
     onImportReport: () -> Unit,
 ) {
     val pal = LocalPalette.current
-    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val title = when (tab) {
         Tab.HOME -> {
             val h = LocalTime.now().hour
@@ -264,34 +265,31 @@ private fun MainTabs(
     Box(Modifier.fillMaxSize().background(pal.bg)) {
     if (vm.skyOn) SkyBackdrop()
     Scaffold(
-        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text(title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        Text(subtitle, maxLines = 1, style = MaterialTheme.typography.labelLarge, color = pal.text2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    }
-                },
-                navigationIcon = {
-                    BioLogo(Modifier.padding(start = 14.dp, end = 4.dp), size = 34)
-                },
-                actions = {
-                    Box(
-                        Modifier.padding(end = 12.dp).size(36.dp).clip(CircleShape).testTag("profile_button")
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .clickable(onClickLabel = "Profilo e impostazioni") { push(R_PROFILE) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(vm.profile.name.firstOrNull()?.uppercase() ?: "•", color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                },
-                scrollBehavior = scroll,
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = pal.bg),
-            )
+            // Intestazione propria invece di LargeTopAppBar: con il carattere di sistema molto grande la barra
+            // comprimibile di Material 3 può calcolare un'altezza negativa e chiudere l'app (visto in CI al 150%).
+            Row(
+                Modifier.fillMaxWidth().statusBarsPadding().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BioLogo(Modifier.padding(end = 10.dp), size = 34)
+                Column(Modifier.weight(1f)) {
+                    Text(title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        style = if (tab == Tab.HOME) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge, color = pal.text)
+                    Text(subtitle, maxLines = 1, style = MaterialTheme.typography.labelLarge, color = pal.text2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).testTag("profile_button")
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .clickable(onClickLabel = "Profilo e impostazioni") { push(R_PROFILE) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(vm.profile.name.firstOrNull()?.uppercase() ?: "•", color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            }
         },
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp) {
