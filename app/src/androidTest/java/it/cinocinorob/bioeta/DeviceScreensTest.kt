@@ -460,7 +460,7 @@ class DeviceScreensTest {
             compose.onNode(hasScrollableList()).performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("eta_dettagli")
             compose.onNode(hasScrollableList()).performScrollToIndex(0)
-            compose.onAllNodesWithText("Analisi del sangue")[0].performClick()
+            compose.onAllNodesWithText("Esami")[0].performClick()
             Thread.sleep(800)
             screenshot("analisi")
 
