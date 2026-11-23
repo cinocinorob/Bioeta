@@ -63,6 +63,8 @@ fun DiagnosticsScreen(vm: AppViewModel, onBack: () -> Unit, onRequestPermissions
                     Body("Connessione Salute: $status")
                     val asked = vm.health.permissions + vm.health.optionalPermissions
                     Body("Permessi concessi: ${asked.count { it in vm.granted }} di ${asked.size}")
+                    val missing = asked.filter { it !in vm.granted }
+                    if (missing.isNotEmpty()) Caption("Non concessi: " + missing.joinToString(", ") { permLabel(it) } + ".")
                     val lw = vm.lastWearable
                     Body("Ultimo dato dall'orologio: " + (lw?.let { agoText(it) } ?: "nessuno"))
                     if (lw == null || Duration.between(lw, Instant.now()).toHours() >= 14) {
@@ -195,4 +197,23 @@ internal fun openWatchApp(ctx: android.content.Context) {
     runCatching {
         ctx.startActivity(launch ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$pkg")))
     }
+}
+
+/** Nome leggibile di un permesso di Connessione Salute (es. READ_HEART_RATE_VARIABILITY → «lettura: heart rate variability»). */
+internal fun permLabel(perm: String): String {
+    val raw = perm.substringAfterLast('.')
+    val known = mapOf(
+        "READ_HEALTH_DATA_HISTORY" to "storico oltre 30 giorni",
+        "READ_HEALTH_DATA_IN_BACKGROUND" to "lettura in background",
+        "READ_EXERCISE_ROUTES" to "percorsi GPS degli allenamenti",
+        "READ_OXYGEN_SATURATION" to "SpO₂",
+        "READ_SKIN_TEMPERATURE" to "temperatura cutanea",
+        "READ_HEART_RATE_VARIABILITY" to "HRV",
+        "READ_RESPIRATORY_RATE" to "respirazione",
+        "READ_BLOOD_PRESSURE" to "pressione",
+        "READ_NUTRITION" to "alimentazione",
+        "READ_HYDRATION" to "idratazione",
+        "READ_MINDFULNESS" to "mindfulness",
+    )
+    return known[raw] ?: raw.removePrefix("READ_").removePrefix("WRITE_").lowercase().replace('_', ' ')
 }

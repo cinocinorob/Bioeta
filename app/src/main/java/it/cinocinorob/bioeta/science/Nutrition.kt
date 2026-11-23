@@ -250,5 +250,16 @@ object Nutrition {
         return h.takeIf { it in 0.0..12.0 }
     }
 
+    /** Ore tra l'ultima caffeina del giorno e l'addormentamento della notte successiva (null se mancano i dati). */
+    fun caffeineToSleep(d: NutritionDay, next: SleepNight?, zone: ZoneId): Double? {
+        val lc = d.lastCaffeine ?: return null
+        val n = next ?: return null
+        val h = java.time.Duration.between(d.date.atTime(lc).atZone(zone).toInstant(), n.start).toMinutes() / 60.0
+        return h.takeIf { it in 0.0..20.0 }
+    }
+
+    /** Gardiner 2023 (Sleep Med Rev 69:101764): ~107 mg almeno 8,8 h prima di dormire; ~217 mg almeno 13,2 h. */
+    const val CAFFEINE_GAP_H = 8.8
+
     fun fmtTime(t: LocalTime) = "%02d:%02d".format(t.hour, t.minute)
 }

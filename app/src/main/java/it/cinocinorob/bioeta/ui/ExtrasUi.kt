@@ -89,7 +89,7 @@ fun TonightCard(vm: AppViewModel) {
             Spacer(Modifier.width(10.dp))
             Column {
                 Text("Ultimo caffè entro le ${Bedtime.fmt(g.caffeineCutoff)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = p.text)
-                Text("Una tazza (~100 mg) presa meno di 8,8 h prima di dormire riduce il sonno totale.", fontSize = 12.sp, color = p.text2)
+                Text("Vale per una tazza (~100 mg): presa meno di 8,8 h prima di dormire riduce il sonno totale. Una dose doppia (~200 mg, come molti pre-workout) richiede circa 13 h.", fontSize = 12.sp, color = p.text2)
             }
         }
         Caption(g.rationale)

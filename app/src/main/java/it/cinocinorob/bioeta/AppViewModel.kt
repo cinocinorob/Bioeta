@@ -611,7 +611,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         sections += DoctorReport.Section("Andamenti dall'orologio", tr.ifEmpty { listOf("Dati dell'orologio non disponibili.") })
         sections += DoctorReport.Section("Note", listOf(
-            "Valori misurati a domicilio e da dispositivi indossabili di consumo; le stime (età biologica, VO₂max dell'orologio) hanno un'incertezza di alcune unità.",
+            "Valori misurati a domicilio e da dispositivi indossabili di consumo (non dispositivi medici, salvo l'ECG se indicato dal produttore); le stime (età biologica, VO₂max dell'orologio) hanno un'incertezza di alcune unità.",
+            "App di origine dei dati (Connessione Salute): " + ((syncStatus?.origins.orEmpty() + hrOriginsSeen.keys.map { k -> health.originLabel(k) }).distinct().ifEmpty { listOf("non rilevate") }.joinToString(", ")) + ".",
             "Metodi e fonti: documento METHODS di BioEtà.",
         ))
         val age = profile.ageAt(today)?.let { a -> "${a.toInt()} anni" } ?: "età non indicata"
@@ -1754,7 +1755,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val gap = nd.mapNotNull { d -> Nutrition.mealToSleep(d, nightBy[d.date.plusDays(1)], z)?.let { d.date to it } }
             if (gap.size >= 10) exps += Exposure("auto:latemeal", "Ultimo pasto a meno di 3 h dal sonno", gap.filter { it.second < 3.0 }.map { it.first }.toSet(), gap.map { it.first }.toSet(), auto = true)
             val cafDays = nd.filter { it.caffeineMg != null }
-            if (cafDays.size >= 10) exps += Exposure("auto:cafpm", "Caffeina dopo le 14 (dai pasti)", cafDays.filter { (it.lastCaffeine?.hour ?: 0) >= 14 }.map { it.date }.toSet(), cafDays.map { it.date }.toSet(), auto = true)
+            // Limite personale per notte (Gardiner 2023: ~107 mg almeno 8,8 h prima di dormire), non un orario fisso
+            val cafGap = cafDays.mapNotNull { d -> Nutrition.caffeineToSleep(d, nightBy[d.date.plusDays(1)], z)?.let { d.date to it } }
+            if (cafGap.size >= 10) exps += Exposure("auto:cafpm", "Caffeina a meno di 9 h dal sonno (dai pasti)", cafGap.filter { it.second < Nutrition.CAFFEINE_GAP_H }.map { it.first }.toSet(), cafGap.map { it.first }.toSet(), auto = true)
             val fib = nd.filter { it.fiber != null }
             if (fib.size >= 10) exps += Exposure("auto:fiber", "Fibre ≥ 25 g", fib.filter { it.fiber!! >= 25 }.map { it.date }.toSet(), fib.map { it.date }.toSet(), auto = true)
         }

@@ -123,7 +123,7 @@ private fun todayLine(o: DayOutcome): String {
     val t = o.goal.target
     return when {
         o.goal.rest && !o.met -> "Giorno di pausa: non conta per punti e serie."
-        o.met && (o.steps ?: 0) < (t ?: 0) -> "Raggiunto con ${o.activeMinutes} minuti attivi."
+        o.met && (o.steps ?: 0) < (t ?: 0) -> "Raggiunto con i minuti attivi: ${o.activeMinutes} (ne bastano ${Game.ACTIVE_EQ}), valgono quanto i passi."
         o.met -> "Obiettivo raggiunto."
         o.goal.light -> "Giornata leggera: il recupero è basso, l'obiettivo è ridotto."
         o.goal.calibrating -> "Obiettivo provvisorio: si adatta a te dopo 5 giorni con l'orologio."

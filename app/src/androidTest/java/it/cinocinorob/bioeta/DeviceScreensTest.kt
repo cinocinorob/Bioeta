@@ -417,6 +417,13 @@ class DeviceScreensTest {
             waitText("Cosa cambia i tuoi numeri", 20_000)
             Thread.sleep(4000) // calcolo in background (bootstrap e permutazioni)
             screenshot("scoperte")
+            // Indizi «In osservazione» (chiusi per default): apertura solo se presenti
+            runCatching {
+                compose.onNodeWithTag("discoveries_list").performScrollToNode(hasTestTag("hints_toggle"))
+                compose.onNodeWithTag("hints_toggle").performClick()
+                screenshot("scoperte_osservazione")
+                compose.onNodeWithTag("discoveries_list").performScrollToIndex(0)
+            }
             compose.onNodeWithTag("discoveries_list").performTouchInput { swipeUp(durationMillis = 400) }
             screenshot("scoperte_foresta")
             compose.onNodeWithTag("discoveries_list").performTouchInput { swipeUp(durationMillis = 400) }
@@ -478,6 +485,22 @@ class DeviceScreensTest {
             screenshot("attivita_tema_scuro")
             tab("HEALTH")
             screenshot("salute_tema_scuro")
+
+            // Testo grande (accessibilità): carattere al 150%, poi ripristino
+            try {
+                shell("settings put system font_scale 1.5")
+                Thread.sleep(3000)
+                runCatching { tab("HOME") }
+                screenshot("testo_grande_home")
+                shell("input swipe 540 1700 540 700 400")
+                screenshot("testo_grande_home_2")
+                runCatching { tab("ACTIVITY") }
+                screenshot("testo_grande_attivita")
+                runCatching { tab("BODY") }
+                screenshot("testo_grande_corpo")
+            } finally {
+                shell("settings put system font_scale 1.0")
+            }
         }
         Unit
     }

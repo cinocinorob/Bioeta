@@ -86,7 +86,7 @@ fun DiscoveriesCard(vm: AppViewModel, onOpen: () -> Unit) {
                         (next?.let { " Ora: ${it.exposure.label} ${it.nWith}/5." } ?: ""),
                 )
             }
-            else -> d.results.filter { it.verdict != Verdict.NONE }.take(3).forEach { r -> CompactFinding(r) }
+            else -> d.results.filter { it.verdict != Verdict.NONE }.sortedBy { if (it.verdict == Verdict.CONFIRMED) 0 else 1 }.take(3).forEach { r -> CompactFinding(r) }
         }
         if (d != null && d.results.any { it.verdict != Verdict.NONE }) Text("Tutte le scoperte", style = MaterialTheme.typography.labelLarge, color = p.brand)
     }
@@ -97,6 +97,7 @@ fun DiscoveriesScreen(vm: AppViewModel, onBack: () -> Unit, onOpenJournal: () ->
     LaunchedEffect(Unit) { vm.refreshDiscoveries() }
     val d = vm.discoveries
     SubScaffold("Scoperte", onBack) { m ->
+        var showHints by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
         LazyColumn(m.fillMaxSize().testTag("discoveries_list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 HealthCard("Cosa cambia i tuoi numeri", BioIcons.Sparkle, Tint.good, info = DISCOVERIES_INFO) {
@@ -111,8 +112,10 @@ fun DiscoveriesScreen(vm: AppViewModel, onBack: () -> Unit, onOpenJournal: () ->
                 item(key = "exp_" + r.exp.itemKey + r.exp.start) { ExperimentResultCard(r) }
             }
             if (d == null) return@LazyColumn
-            val good = d.results.filter { it.verdict != Verdict.NONE && it.favorable }
-            val bad = d.results.filter { it.verdict != Verdict.NONE && !it.favorable }
+            // Solo le confermate (FDR) nelle sezioni principali; gli indizi restano consultabili ma chiusi
+            val good = d.results.filter { it.verdict == Verdict.CONFIRMED && it.favorable }
+            val bad = d.results.filter { it.verdict == Verdict.CONFIRMED && !it.favorable }
+            val hints = d.results.filter { it.verdict == Verdict.HINT }
             if (good.isNotEmpty()) {
                 item { SectionHeader("Cosa ti fa bene") }
                 items(good, key = { "g" + it.exposure.key + it.outcome }) { r -> InsightFinding(vm, r, d.cooccurring[r.exposure.key]) }
@@ -121,7 +124,23 @@ fun DiscoveriesScreen(vm: AppViewModel, onBack: () -> Unit, onOpenJournal: () ->
                 item { SectionHeader("Cosa ti pesa") }
                 items(bad, key = { "b" + it.exposure.key + it.outcome }) { r -> InsightFinding(vm, r, d.cooccurring[r.exposure.key]) }
             }
-            if (good.isEmpty() && bad.isEmpty()) item {
+            if (hints.isNotEmpty()) {
+                item(key = "hints_header") {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable { showHints = !showHints }
+                            .padding(vertical = 6.dp).testTag("hints_toggle"),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            SectionHeader("In osservazione (${hints.size})")
+                            Caption("Indizi che non superano ancora la correzione per confronti multipli: possono sparire con più giorni.")
+                        }
+                        Text(if (showHints) "Chiudi" else "Mostra", style = MaterialTheme.typography.labelLarge, color = LocalPalette.current.brand)
+                    }
+                }
+                if (showHints) items(hints, key = { "h" + it.exposure.key + it.outcome }) { r -> InsightFinding(vm, r, d.cooccurring[r.exposure.key]) }
+            }
+            if (good.isEmpty() && bad.isEmpty() && hints.isEmpty()) item {
                 EmptyState(BioIcons.Sparkle, "Nessuna associazione chiara, per ora",
                     if (d.testedPairs > 0) "Ho fatto ${d.testedPairs} confronti tra abitudini ed esiti: nessuno supera le soglie. Può voler dire che quelle abitudini su di te contano poco, o che servono più giorni."
                     else "Servono almeno 5 giorni con e 5 senza ciascuna abitudine. Il diario richiede pochi secondi al giorno.",
